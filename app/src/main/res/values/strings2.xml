@@ -177,4 +177,25 @@
     <string name="MollySocketLink_experienced_a_network_error_please_try_again">Experienced a network error. Please try again.</string>
     <string name="UnifiedPushSettingsFragment__mollysocket_server">MollySocket server</string>
     <string name="UnifiedPushSettingsFragment__mollysocket_server_air_gapped">Air gapped</string>
+
+    <!-- LIGHT PHONE: the conversation thread's Light chrome. -->
+
+    <!-- Content description of the conversation bottom bar's call button, which opens the call menu. -->
+    <string name="LightConversationBottomBar__call">Call</string>
+    <!-- Content description of the conversation bottom bar's compose button, which opens the composer. -->
+    <string name="LightConversationBottomBar__write_message">Write a message</string>
+    <!-- Row in the call menu that starts a voice call. Upper case to match the Light Phone's action labels. -->
+    <string name="LightCallMenu__audio_call">AUDIO CALL</string>
+    <!-- Row in the call menu that starts a video call. Upper case to match the Light Phone's action labels. -->
+    <string name="LightCallMenu__video_call">VIDEO CALL</string>
+    <!-- Content description of the chevron that dismisses a Light action panel. -->
+    <string name="LightActionPanel__close">Close</string>
+    <!-- Content description of the composer's back chevron, which closes the composer without sending. -->
+    <string name="LightComposer__close_composer">Close composer</string>
+    <!-- The composer's send button. Upper case to match the Light Phone's action labels. -->
+    <string name="LightComposer__send">SEND</string>
+    <!-- Title shown in the composer while an already-sent message is being edited. -->
+    <string name="LightComposer__editing_message">Editing Message</string>
+    <!-- Attachment keyboard entry that starts recording a voice message. -->
+    <string name="AttachmentKeyboard_voice_note">Voice note</string>
 </resources>

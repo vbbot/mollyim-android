@@ -153,8 +153,35 @@ object LightQuoteLine {
    */
   @VisibleForTesting
   fun buildLine(context: Context, authorName: String, quote: Quote): CharSequence {
-    val summary = summarise(context, quote)
+    return buildLine(authorName, summarise(context, quote))
+  }
 
+  /**
+   * The *pending* reply -- the one held in the input panel, waiting to be sent -- as the same line the
+   * sent message will carry.
+   *
+   * The Light composer shows this above its text entry, which is the only place a reply is visible
+   * before it is sent: Signal's quote card in the input panel does not draw in this fork (see
+   * `InputPanel.setQuote`). Running it through the same [buildLine] the thread's own reply lines use
+   * is what keeps composing a reply and reading it back looking like one thing.
+   */
+  fun buildPendingLine(context: Context, authorName: String, quote: QuoteModel): CharSequence {
+    val summary: CharSequence = when {
+      quote.isOriginalMissing -> context.getString(R.string.QuoteView_original_missing)
+      quote.type == QuoteModel.Type.GIFT_BADGE -> context.getString(R.string.QuoteView__donation_for_a_friend)
+      quote.type == QuoteModel.Type.POLL -> context.getString(R.string.Poll__poll_question, quote.text)
+      quote.text.isNotBlank() -> quote.text.replace('\n', ' ').trim()
+      // A media-only reply carries no body, so the noun stands in -- via the same Slide the sent
+      // quote will be summarised from, so the two agree.
+      else -> mediaNoun(context, quote.attachment?.let { MediaUtil.getSlideForAttachment(it) })
+    }
+
+    return buildLine(authorName, summary)
+  }
+
+  /** The glyph, the author and what they said, in the one shape every reply line in the app uses. */
+  @VisibleForTesting
+  fun buildLine(authorName: String, summary: CharSequence): CharSequence {
     return SpannableStringBuilder()
       .inSpans(RelativeSizeSpan(GLYPH_SCALE)) { append(GLYPH) }
       .append(" ")

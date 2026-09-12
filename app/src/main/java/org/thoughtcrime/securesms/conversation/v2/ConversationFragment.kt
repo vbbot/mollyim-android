@@ -242,8 +242,13 @@ import org.thoughtcrime.securesms.conversation.v2.groups.ConversationGroupViewMo
 import org.thoughtcrime.securesms.conversation.v2.items.ChatColorsDrawable
 import org.thoughtcrime.securesms.conversation.v2.items.InteractiveConversationElement
 import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle
+import org.thoughtcrime.securesms.conversation.v2.items.light.LightQuoteLine
 import org.thoughtcrime.securesms.conversation.v2.keyboard.AttachmentKeyboardFragment
+import org.thoughtcrime.securesms.conversation.v2.light.LightComposerView
+import org.thoughtcrime.securesms.conversation.v2.light.LightConversationBottomBarView
 import org.thoughtcrime.securesms.conversation.v2.light.LightConversationTopBarLeftAction
+import org.thoughtcrime.securesms.conversation.v2.light.LightInputPanelChrome
+import org.thoughtcrime.securesms.conversation.v2.light.LightThreadBottomSlot
 import org.thoughtcrime.securesms.database.DraftTable
 import org.thoughtcrime.securesms.database.model.IdentityRecord
 import org.thoughtcrime.securesms.database.model.InMemoryMessageRecord
@@ -288,6 +293,8 @@ import org.thoughtcrime.securesms.keyboard.gif.GifKeyboardPageFragment
 import org.thoughtcrime.securesms.keyboard.sticker.StickerKeyboardPageFragment
 import org.thoughtcrime.securesms.keyboard.sticker.StickerSearchDialogFragment
 import org.thoughtcrime.securesms.keyvalue.SignalStore
+import org.thoughtcrime.securesms.light.LightActionPanelView
+import org.thoughtcrime.securesms.light.LightPanelAction
 import org.thoughtcrime.securesms.linkpreview.LinkPreview
 import org.thoughtcrime.securesms.linkpreview.LinkPreviewViewModelV2
 import org.thoughtcrime.securesms.longmessage.LongMessageFragment
@@ -597,6 +604,23 @@ class ConversationFragment :
   private var releaseNotesLayoutApplied: Boolean = false
   private var releaseNotesWallpaperApplied: Boolean = false
 
+  /** LIGHT PHONE: whether the full-screen Light composer is up. See [openLightComposer]. */
+  private var lightComposerOpen: Boolean = false
+
+  /**
+   * LIGHT PHONE: whether a voice note is being recorded, from the moment the recorder starts until it
+   * is sent, cancelled or saved as a draft. The input panel has to be expanded for all of it, because
+   * Signal's recording chrome -- the timer, cancel and send -- is laid out inside it.
+   */
+  private var lightRecordingActive: Boolean = false
+
+  /**
+   * LIGHT PHONE: which call actions this thread offers, straight from the thread's own options menu.
+   * See [ConversationOptionsMenu.Provider.onCreateMenu]; neither means no call button on the bar.
+   */
+  private var lightCanVoiceCall: Boolean = false
+  private var lightCanVideoCall: Boolean = false
+
   private var applyToolbarPaddingRunnable: Runnable? = null
 
   private val jumpAndPulseScrollStrategy = object : ScrollToPositionDelegate.ScrollStrategy {
@@ -628,6 +652,15 @@ class ConversationFragment :
 
   private val searchNav: ConversationSearchBottomBar
     get() = binding.conversationSearchBottomBar.root
+
+  private val lightBottomBar: LightConversationBottomBarView
+    get() = binding.lightBottomBar
+
+  private val lightComposerView: LightComposerView
+    get() = binding.lightComposer
+
+  private val lightActionPanel: LightActionPanelView
+    get() = binding.lightActionPanel
 
   private val actionModeTopBarView: ActionModeTopBarView
     get() = binding.actionModeTopBar
@@ -1083,6 +1116,10 @@ class ConversationFragment :
     when {
       state.isReactionDelegateShowing -> reactionDelegate.hide()
 
+      state.isLightActionPanelShowing -> dismissLightActionPanel()
+
+      state.isLightComposerShowing -> closeLightComposer(cancelEdit = true)
+
       state.isSearchRequested -> searchMenuItem?.collapseActionView()
 
       state.isInActionMode -> finishActionMode()
@@ -1304,6 +1341,8 @@ class ConversationFragment :
     binding.conversationInputPanel.attachButton.setOnClickListener(attachListener)
     binding.conversationInputPanel.inlineAttachmentButton.setOnClickListener(attachListener)
 
+    initializeLightInputChrome()
+
     presentGroupCallJoinButton()
 
     binding.scrollToBottom.setOnClickListener {
@@ -1441,12 +1480,16 @@ class ConversationFragment :
             inputPanel.voiceNoteDraft = it.voiceNoteDraft
           }
           updateToggleButtonState()
+          updateLightInputChrome()
         }
     )
 
     initializeSearch()
     initializeLinkPreviews()
-    initializeStickerSuggestions()
+    // LIGHT PHONE: no `initializeStickerSuggestions()`. The suggestion strip sat above the input panel
+    // and offered stickers for the word being typed; there is no sticker picker in this fork, so
+    // nothing subscribes and the strip never populates. `components/emoji` stays -- it is what renders
+    // received emoji and stickers, and removing it would break message display.
     initializeInlineSearch()
 
     inputPanel.setListener(InputPanelListener())
@@ -1577,6 +1620,7 @@ class ConversationFragment :
     }
 
     inputPanel.setHideForMessageRequestState(inputDisabled)
+    updateLightInputChrome()
 
     if (inputDisabled && !isReleaseNotes) {
       binding.navBar.setBackgroundColor(disabledInputView.color)
@@ -1843,6 +1887,12 @@ class ConversationFragment :
     binding.scrollToMention.setWallpaperEnabled(wallpaperEnabled)
     binding.conversationDisabledInput.setWallpaperEnabled(wallpaperEnabled)
     inputPanel.setWallpaperEnabled(wallpaperEnabled)
+    // LIGHT PHONE: `setWallpaperEnabled` rewrites the panel's background, the compose bubble's
+    // background and the compose text's colours from Signal's Material attributes, which undoes the
+    // Light styling every time the wallpaper state is presented. Put it straight back -- black on a
+    // Material surface would be exactly the invisible-text failure this fork has already shipped
+    // twice. `install` is idempotent.
+    LightInputPanelChrome.install(inputPanel)
 
     val stateChanged = adapter.onHasWallpaperChanged(wallpaperEnabled)
     conversationItemDecorations.hasWallpaper = wallpaperEnabled
@@ -2311,7 +2361,10 @@ class ConversationFragment :
     val keyboardMode: TextSecurePreferences.MediaKeyboardMode = TextSecurePreferences.getMediaKeyboardMode(requireContext())
 
     keyboardPagerViewModel.resetPages()
-    inputPanel.showMediaKeyboardToggle(true)
+    // LIGHT PHONE: no emoji, sticker or GIF picker in the composer, so the toggle that opened them is
+    // gone from the input panel and `MediaKeyboardFragmentCreator` has no way left to be reached. The
+    // pager's own state is still primed below, because edit mode saves and restores it.
+    inputPanel.showMediaKeyboardToggle(false)
 
     val keyboardPage = when (keyboardMode) {
       TextSecurePreferences.MediaKeyboardMode.EMOJI -> KeyboardPage.EMOJI
@@ -2321,12 +2374,6 @@ class ConversationFragment :
 
     inputPanel.setMediaKeyboardToggleMode(keyboardPage)
     keyboardPagerViewModel.switchToPage(keyboardPage)
-  }
-
-  private fun initializeStickerSuggestions() {
-    stickerViewModel.stickers
-      .subscribeBy(onNext = inputPanel::setStickerSuggestions)
-      .addTo(disposables)
   }
 
   private fun updateLinkPreviewState() {
@@ -2380,6 +2427,235 @@ class ConversationFragment :
       }
     }
   }
+
+  //region Light Phone thread chrome
+
+  /**
+   * Wires up the thread's Light chrome: the three-icon bottom bar, the full-screen composer, and the
+   * action panel the call menu opens into.
+   *
+   * None of this replaces `InputPanel`. The panel is still the headless owner of the draft, the
+   * pending reply, edit mode, voice recording, link previews, mentions and styling -- everything
+   * below writes into the same `composeText` and calls the same [sendMessage], which is what makes
+   * all of that keep working for free.
+   */
+  private fun initializeLightInputChrome() {
+    LightInputPanelChrome.install(inputPanel)
+
+    lightBottomBar.onCallClick = { showLightCallMenu() }
+    // `showSoftKeyOnHide = false` explicitly: the default is "put the keyboard back if it was up
+    // before", and there is nothing on the Light thread to put it back *for* -- the entry only exists
+    // while the composer is up. Leaving it to the default is how a keyboard ends up hanging over a
+    // thread with nothing to type into.
+    lightBottomBar.onAddClick = {
+      container.toggleInput(AttachmentKeyboardFragmentCreator, composeText, showSoftKeyOnHide = false)
+    }
+    lightBottomBar.onComposeClick = { openLightComposer() }
+
+    lightComposerView.onBack = { closeLightComposer(cancelEdit = true) }
+    lightComposerView.onSend = { sendFromLightComposer() }
+
+    lightActionPanel.onDismiss = { dismissLightActionPanel() }
+
+    updateLightInputChrome()
+  }
+
+  /**
+   * Decides, in one place, which of the input panel and the Light bottom bar holds the thread's
+   * bottom slot. They are never both showing.
+   *
+   * The panel is expanded only when it has something of its own to draw: the composer's text entry,
+   * a recording in progress, or a recorded voice-note draft. The rest of the time it collapses out
+   * of the layout and the bar stands in for it, while the panel goes on holding the draft and the
+   * pending reply behind the scenes.
+   *
+   * Both step aside together for the states that claim this same slot and hide the panel with one of
+   * the `setHideFor...` flags: disabled input and message requests (`conversation_disabled_input`),
+   * in-conversation search (`conversation_search_bottom_bar`) and multi-select
+   * (`conversation_bottom_action_bar`). `InputPanel.isHidden` is the single predicate over all of
+   * them, so the bar cannot drift out of step with the panel it stands in for.
+   */
+  private fun updateLightInputChrome() {
+    // Nothing above may keep the composer up over a state that has taken the slot -- search
+    // collapsing the panel out from under an open composer would leave the entry nowhere.
+    if (lightComposerOpen && inputPanel.isHidden) {
+      closeLightComposer(cancelEdit = false)
+      return
+    }
+
+    val slot = LightThreadBottomSlot.forState(
+      inputPanelHidden = inputPanel.isHidden,
+      composerOpen = lightComposerOpen,
+      recording = lightRecordingActive,
+      hasVoiceNoteDraft = inputPanel.voiceNoteDraft != null
+    )
+
+    inputPanel.setLightExpanded(slot == LightThreadBottomSlot.INPUT_PANEL)
+    LightInputPanelChrome.setComposerMode(inputPanel, lightComposerOpen)
+
+    lightBottomBar.showCall = lightCanVoiceCall || lightCanVideoCall
+    lightBottomBar.visible = slot == LightThreadBottomSlot.LIGHT_BAR
+  }
+
+  /**
+   * Opens the call menu: the available call actions as rows in a Light action panel.
+   *
+   * A group offers only a video call, so its menu is a single row -- shown all the same rather than
+   * dialled through, so that the gesture means the same thing on every thread. The overflow menu goes
+   * on carrying both actions as well; that duplication is deliberate.
+   */
+  private fun showLightCallMenu() {
+    val actions = buildList {
+      if (lightCanVoiceCall) {
+        add(
+          LightPanelAction(getString(R.string.LightCallMenu__audio_call)) {
+            dismissLightActionPanel()
+            optionsMenuCallback.handleDial()
+          }
+        )
+      }
+
+      if (lightCanVideoCall) {
+        add(
+          LightPanelAction(getString(R.string.LightCallMenu__video_call)) {
+            dismissLightActionPanel()
+            optionsMenuCallback.handleVideo()
+          }
+        )
+      }
+    }
+
+    showLightActionPanel(actions)
+  }
+
+  /** Opens the Light action panel over the bottom of the thread. Milestone 2 feeds it more lists. */
+  private fun showLightActionPanel(actions: List<LightPanelAction>) {
+    if (actions.isEmpty()) {
+      return
+    }
+
+    lightActionPanel.actions.clear()
+    lightActionPanel.actions.addAll(actions)
+    lightActionPanel.visible = true
+    viewModel.setIsLightActionPanelShowing(true)
+  }
+
+  private fun dismissLightActionPanel() {
+    if (lightActionPanel.actions.isEmpty()) {
+      return
+    }
+
+    lightActionPanel.actions.clear()
+    lightActionPanel.visible = false
+    viewModel.setIsLightActionPanelShowing(false)
+  }
+
+  /**
+   * Expands the input into the full-screen Light composer.
+   *
+   * This is an expansion in place, not a screen: the real `ComposeText` never moves, which is what
+   * keeps @-mention autocomplete (the `InlineQuery` popups anchor to that very view), text styling,
+   * spoilers, paste-an-image and draft save/restore working. All that changes is that the panel comes
+   * back into the layout with its Signal chrome stripped, and [LightComposerView] paints the field,
+   * the top bar and the reply line above it.
+   */
+  private fun openLightComposer() {
+    if (lightComposerOpen || inputPanel.isHidden) {
+      return
+    }
+
+    dismissLightActionPanel()
+    if (container.isInputShowing) {
+      container.hideInput()
+    }
+
+    lightComposerOpen = true
+    viewModel.setIsLightComposerShowing(true)
+    lightComposerView.visible = true
+    updateLightInputChrome()
+    presentLightComposer()
+
+    // The panel was collapsed out of the layout until the line above, so the entry cannot take focus
+    // or raise the keyboard until it has been laid out again.
+    composeText.post {
+      if (lightComposerOpen && isAdded && view != null) {
+        ViewUtil.focusAndShowKeyboard(composeText)
+      }
+    }
+  }
+
+  /**
+   * Closes the composer. The draft survives -- the text, the pending reply and any staged attachment
+   * are all still on the panel, and Molly's own draft persistence takes it from there.
+   *
+   * @param cancelEdit whether an in-progress message edit is abandoned. True when the user asked to
+   *   leave (back, or the composer's back chevron); false when the composer is closing because the
+   *   message has just gone, or because something else has claimed the bottom of the screen.
+   */
+  private fun closeLightComposer(cancelEdit: Boolean) {
+    if (!lightComposerOpen) {
+      return
+    }
+
+    if (cancelEdit && inputPanel.inEditMessageMode()) {
+      inputPanel.exitEditMessageMode()
+    }
+
+    lightComposerOpen = false
+    viewModel.setIsLightComposerShowing(false)
+    lightComposerView.visible = false
+
+    // Explicitly, and against `composeText` while it is still laid out: the reaction overlay saves
+    // and restores focus on this view, and a keyboard left up behind a dismissed composer would come
+    // back over the thread with nothing to type into.
+    container.hideKeyboard(composeText)
+
+    updateLightInputChrome()
+  }
+
+  /** Refreshes what the composer says about itself: whose thread it is, and what it is replying to. */
+  private fun presentLightComposer() {
+    if (!lightComposerOpen) {
+      return
+    }
+
+    lightComposerView.title = if (inputPanel.inEditMessageMode()) {
+      getString(R.string.LightComposer__editing_message)
+    } else {
+      binding.lightTopBar.title
+    }
+
+    lightComposerView.quote = inputPanel.quote.orNull()?.let { quote ->
+      val author = Recipient.resolved(quote.author)
+      val name = if (author.isSelf) getString(R.string.QuoteView_you) else author.getDisplayName(requireContext())
+
+      LightQuoteLine.buildPendingLine(requireContext(), name, quote)
+    }
+  }
+
+  /**
+   * Sends what the composer is holding, through exactly the paths the send button used.
+   */
+  private fun sendFromLightComposer() {
+    val hadSomethingToSend = !composeText.text.isNullOrBlank() || attachmentManager.isAttachmentPresent
+
+    if (inputPanel.inEditMessageMode()) {
+      handleSendEditMessage()
+    } else {
+      sendMessage()
+    }
+
+    // [sendMessage] clears the compose input the moment a send is accepted, and leaves it alone when
+    // one is refused -- an empty body, a recent safety-number change, the scheduled-send dialog. So a
+    // cleared input is the signal that the message has gone and the composer's work is done; anything
+    // else and it stays up, rather than stranding the draft behind a screen the user can no longer
+    // reach.
+    if (hadSomethingToSend && composeText.text.isNullOrBlank()) {
+      closeLightComposer(cancelEdit = false)
+    }
+  }
+
+  //endregion Light Phone thread chrome
 
   private fun sendSticker(
     stickerRecord: StickerRecord,
@@ -2744,6 +3020,7 @@ class ConversationFragment :
 
           container.hideInput()
           inputPanel.setHideForSelection(true)
+          updateLightInputChrome()
 
           val bottomPadding = bottomActionBar.measuredHeight + ((bottomActionBar.layoutParams as? ViewGroup.MarginLayoutParams)?.bottomMargin ?: 18.dp)
           ViewUtil.setPaddingBottom(binding.conversationItemRecycler, bottomPadding)
@@ -2757,6 +3034,7 @@ class ConversationFragment :
           override fun onSuccess(result: Boolean?) {
             val scrollOffset = binding.conversationItemRecycler.paddingBottom - additionalScrollOffset
             inputPanel.setHideForSelection(false)
+            updateLightInputChrome()
             val bottomPadding = resources.getDimensionPixelSize(R.dimen.conversation_bottom_padding)
             ViewUtil.setPaddingBottom(binding.conversationItemRecycler, bottomPadding)
             binding.conversationItemRecycler.doOnPreDraw {
@@ -2942,7 +3220,10 @@ class ConversationFragment :
       conversationMessage.messageRecord.getRecordQuoteType()
     )
 
-    inputPanel.clickOnComposeInput()
+    // LIGHT PHONE: both swipe-to-reply and the long-press menu's REPLY route through here, so this one
+    // redirect covers both. Signal focused the inline input; the Light thread has no inline input to
+    // focus, and a pending reply that the user cannot see or answer is worse than no reply at all.
+    openLightComposer()
   }
 
   private fun handleEditMessage(conversationMessage: ConversationMessage) {
@@ -3235,6 +3516,7 @@ class ConversationFragment :
     searchViewModel.onSearchClosed()
     searchNav.visible = false
     inputPanel.setHideForSearch(false)
+    updateLightInputChrome()
     viewModel.setSearchQuery(null)
     binding.conversationDisabledInput.visible = true
     invalidateOptionsMenu()
@@ -4124,6 +4406,7 @@ class ConversationFragment :
           searchNav.visible = true
           searchNav.setData(0, 0)
           inputPanel.setHideForSearch(true)
+          updateLightInputChrome()
           viewModel.onChatSearchOpened()
           binding.conversationDisabledInput.visible = false
           // The SearchView expands into the Toolbar that the Light bar is painted over, so the
@@ -4154,6 +4437,12 @@ class ConversationFragment :
           searchViewModel.onSearchOpened()
         }
       }
+    }
+
+    override fun onCallActionsAvailable(canVoiceCall: Boolean, canVideoCall: Boolean) {
+      lightCanVoiceCall = canVoiceCall
+      lightCanVideoCall = canVideoCall
+      updateLightInputChrome()
     }
 
     override fun handleVideo() {
@@ -4816,26 +5105,49 @@ class ConversationFragment :
     }
 
     override fun onRecorderStarted() {
+      // LIGHT PHONE: the panel has to come back into the layout before `InputPanel` lays the timer,
+      // cancel and send across it -- `recording_layout` lives inside the panel, and the Light bottom
+      // bar has to stand aside for it.
+      lightRecordingActive = true
+      updateLightInputChrome()
       voiceMessageRecordingDelegate.onRecorderStarted()
     }
 
     override fun onRecorderLocked() {
       updateToggleButtonState()
       voiceMessageRecordingDelegate.onRecorderLocked()
+
+      // LIGHT PHONE: a tap-launched voice note presses and locks in the same frame, so `InputPanel`'s
+      // fade-out of the send toggle and its fade-in of the very same view land on top of each other,
+      // with each fade's listener able to leave the view INVISIBLE on cancellation. Hold-to-record has
+      // a human-scale gap between the two and never hit this. Pin the end state rather than trusting
+      // two competing animators to resolve it: the send toggle is the only way to finish a voice note,
+      // and a recording that cannot be sent is a dead end on the device with nothing to see in a build.
+      binding.conversationInputPanel.buttonToggle.apply {
+        animate().cancel()
+        alpha = 1f
+        visibility = View.VISIBLE
+      }
     }
 
     override fun onRecorderFinished() {
+      lightRecordingActive = false
       updateToggleButtonState()
       voiceMessageRecordingDelegate.onRecorderFinished()
+      updateLightInputChrome()
     }
 
     override fun onRecorderCanceled(byUser: Boolean) {
+      lightRecordingActive = false
       voiceMessageRecordingDelegate.onRecorderCanceled(byUser)
+      updateLightInputChrome()
     }
 
     override fun onRecorderSaveDraft() {
+      lightRecordingActive = false
       voiceMessageRecordingDelegate.onRecordSaveDraft()
       inputPanel.voiceNoteDraft = draftViewModel.voiceNoteDraft
+      updateLightInputChrome()
     }
 
     override fun onRecorderPermissionRequired() {
@@ -4860,7 +5172,10 @@ class ConversationFragment :
     }
 
     override fun onEmojiToggle() {
-      container.toggleInput(MediaKeyboardFragmentCreator, composeText, showSoftKeyOnHide = true)
+      // LIGHT PHONE: unreachable. The emoji toggle this fires from is hidden for good by
+      // `LightInputPanelChrome.install`, and the emoji, sticker and GIF pages it opened have no other
+      // entry point. Left as a no-op rather than removed so that `InputPanel.Listener` stays intact.
+      Log.d(TAG, "onEmojiToggle() - media keyboard is not available in this fork")
     }
 
     override fun onLinkPreviewCanceled() {
@@ -4876,10 +5191,12 @@ class ConversationFragment :
 
     override fun onQuoteChanged(id: Long, author: RecipientId) {
       draftViewModel.setQuoteDraft(id, author)
+      presentLightComposer()
     }
 
     override fun onQuoteCleared() {
       draftViewModel.clearQuoteDraft()
+      presentLightComposer()
     }
 
     override fun onQuoteClicked(quoteId: Long, authorId: RecipientId) {
@@ -4887,6 +5204,11 @@ class ConversationFragment :
     }
 
     override fun onEnterEditMode() {
+      // LIGHT PHONE: editing is composing, so it happens in the composer -- which is also the only
+      // thing that can put the entry on screen, and `InputPanel.updateEditModeUi` has just tried to
+      // focus it. Covers both entry points: the long-press EDIT action and a restored edit draft.
+      openLightComposer()
+      presentLightComposer()
       updateToggleButtonState()
       previousPage = keyboardPagerViewModel.page().value
       previousPages = keyboardPagerViewModel.pages().value
@@ -4897,6 +5219,7 @@ class ConversationFragment :
     }
 
     override fun onExitEditMode() {
+      presentLightComposer()
       updateToggleButtonState()
       draftViewModel.deleteMessageEditDraft()
       if (previousPages != null) {
@@ -4986,6 +5309,8 @@ class ConversationFragment :
       if (button != null) {
         when (button) {
           AttachmentKeyboardButton.GALLERY -> conversationActivityResultContracts.launchGallery(recipient.id, composeText.textTrimmed, inputPanel.quote.isPresent)
+
+          AttachmentKeyboardButton.VOICE_NOTE -> binding.conversationInputPanel.recorderView.startLockedRecording()
 
           AttachmentKeyboardButton.CONTACT -> conversationActivityResultContracts.launchSelectContact()
 

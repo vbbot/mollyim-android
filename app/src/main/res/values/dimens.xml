@@ -65,6 +65,15 @@
 
     <dimen name="conversation_bottom_padding">2dp</dimen>
     <dimen name="conversation_compose_height">44dp</dimen>
+
+    <!--
+        LIGHT PHONE: where the composer's text entry actually starts, measured from the edge of the
+        input panel. It is @layout/conversation_input_panel's compose_bubble start margin (12dp) plus
+        @style/ComposeEditText's own padding (2dp). The Light composer's reply line is inset by this
+        so that the quoted line and the reply share a left edge — nothing in the panel is moved to
+        line them up, so this is the one place the two geometries have to agree.
+    -->
+    <dimen name="light_composer_text_inset">14dp</dimen>
     <dimen name="conversation_individual_right_gutter">16dp</dimen>
     <dimen name="conversation_individual_left_gutter">16dp</dimen>
     <dimen name="conversation_individual_received_left_gutter">8dp</dimen>

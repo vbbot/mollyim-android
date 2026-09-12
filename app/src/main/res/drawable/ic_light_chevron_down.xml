@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The LP3's wide, thin dismiss chevron (LightOS `res/drawable/down_lp3`).
+
+    Deliberately not `LightIcons.DOWN`, which is the SDK's *back* chevron rotated a quarter turn: it
+    is as tall as it is wide and reads as a directional control. The panel's dismiss affordance on
+    the LP3 is this much wider, much thinner glyph sitting on the bottom edge, and the reference
+    client carries the same asset for the same reason.
+
+    White-filled, like every `core/lightui` glyph, so it can be tinted with the theme's content
+    colour rather than arriving pre-coloured.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32.0dp"
+    android:height="19.0dp"
+    android:viewportWidth="32.0"
+    android:viewportHeight="19.0">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M0,3.026L11.831,14.857L15.714,18.74L19.597,14.857L31.428,3.026L27.999,-0L15.714,12.404L3.285,-0L0,3.026Z"
+        android:fillType="nonZero" />
+</vector>

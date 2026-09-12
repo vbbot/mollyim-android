@@ -91,6 +91,47 @@ public final class MicrophoneRecorderView extends FrameLayout implements View.On
     return state == State.RUNNING_LOCKED;
   }
 
+  /**
+   * LIGHT PHONE: starts recording hands-free, going straight to {@link State#RUNNING_LOCKED}.
+   *
+   * The hold-to-record gesture below needs a microphone button to be held, and the Light thread has
+   * none: the bottom bar is call, attach and compose, and a voice note is started by tapping an entry
+   * in the attachment keyboard. A tap has no "release", so there is nothing for the held state to
+   * mean -- the recording has to come up already locked, which is exactly the UI
+   * {@link InputPanel#onRecordLocked()} puts on screen (no "slide to cancel", an explicit cancel, and
+   * the send toggle faded in).
+   *
+   * The permission and microphone-in-use guards are the same two the touch handler applies, so a tap
+   * and a hold refuse for the same reasons and report it through the same handler callbacks.
+   */
+  public void startLockedRecording() {
+    if (state != State.NOT_RUNNING) {
+      return;
+    }
+
+    if (!Permissions.hasAll(getContext(), Manifest.permission.RECORD_AUDIO)) {
+      if (handler != null) handler.onRecordPermissionRequired();
+      return;
+    }
+
+    if (isMicrophonePossiblyInUse()) {
+      if (handler != null) handler.onRecorderAlreadyInUse();
+      return;
+    }
+
+    state = State.RUNNING_HELD;
+    if (handler != null) handler.onRecordPressed();
+
+    lockAction();
+  }
+
+  private boolean isMicrophonePossiblyInUse() {
+    if (audioManager == null) {
+      return false;
+    }
+    return audioManager.getMode() == AudioManager.MODE_IN_COMMUNICATION || audioManager.getMode() == AudioManager.MODE_IN_CALL;
+  }
+
   private void lockAction() {
     if (state == State.RUNNING_HELD) {
       state = State.RUNNING_LOCKED;
@@ -116,10 +157,7 @@ public final class MicrophoneRecorderView extends FrameLayout implements View.On
 
   @Override
   public boolean onTouch(View v, final MotionEvent event) {
-    boolean isMicPossiblyInUse = false;
-    if (audioManager != null) {
-      isMicPossiblyInUse = audioManager.getMode() == AudioManager.MODE_IN_COMMUNICATION || audioManager.getMode() == AudioManager.MODE_IN_CALL;
-    }
+    boolean isMicPossiblyInUse = isMicrophonePossiblyInUse();
     switch (event.getAction()) {
       case MotionEvent.ACTION_DOWN:
         if (!Permissions.hasAll(getContext(), Manifest.permission.RECORD_AUDIO)) {

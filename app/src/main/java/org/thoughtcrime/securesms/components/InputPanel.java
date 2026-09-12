@@ -113,7 +113,6 @@ public class InputPanel extends ConstraintLayout
   private MicrophoneRecorderView   microphoneRecorderView;
   private SlideToCancel            slideToCancel;
   private RecordTime               recordTime;
-  private ValueAnimator            quoteAnimator;
   private ValueAnimator            editMessageAnimator;
   private Stub<VoiceNoteDraftView> voiceNoteDraftViewStub;
 
@@ -126,6 +125,22 @@ public class InputPanel extends ConstraintLayout
   private boolean hideForBlockedState;
   private boolean hideForSearch;
   private boolean hideForSelection;
+
+  /**
+   * LIGHT PHONE: whether the panel has anything of its own to show.
+   *
+   * The Light thread draws a three-icon {@code LightConversationBottomBar} where this panel used to
+   * be, and the panel spends almost all of its life collapsed out of the layout behind it -- still
+   * holding the draft, the pending reply, edit mode, link previews, mentions and styling, but drawing
+   * nothing. It is expanded again only for the three things it alone can show: the full-screen Light
+   * composer, an in-progress recording, and a recorded voice-note draft. See
+   * {@code ConversationFragment.updateLightInputChrome}.
+   *
+   * Collapsing it rather than merely covering it is what keeps the geometry honest: the recycler's
+   * bottom, the scroll-to-bottom button and the staged-attachment editor are all positioned off this
+   * panel's top edge, and a panel that is present but hidden would hold that edge 60dp up the screen.
+   */
+  private boolean lightExpanded;
 
   private ConversationStickerSuggestionAdapter stickerSuggestionAdapter;
   private MessageRecord                        messageToEdit;
@@ -219,24 +234,16 @@ public class InputPanel extends ConstraintLayout
       quoteView.setOnClickListener(v -> listener.onQuoteClicked(id, author.getId()));
     }
 
-    int originalHeight = quoteView.getVisibility() == VISIBLE ? quoteView.getMeasuredHeight() : 0;
-
-    quoteView.setVisibility(VISIBLE);
-
-    int maxWidth = composeContainer.getWidth();
-    if (quoteView.getLayoutParams() instanceof MarginLayoutParams) {
-      MarginLayoutParams layoutParams = (MarginLayoutParams) quoteView.getLayoutParams();
-      maxWidth -= layoutParams.leftMargin + layoutParams.rightMargin;
-    }
-    quoteView.measure(MeasureSpec.makeMeasureSpec(maxWidth, MeasureSpec.AT_MOST), 0);
-
-    if (quoteAnimator != null) {
-      quoteAnimator.cancel();
-    }
-
-    quoteAnimator = createHeightAnimator(quoteView, originalHeight, quoteView.getMeasuredHeight(), null);
-
-    quoteAnimator.start();
+    // LIGHT PHONE: the quote card never draws in this fork. The Light composer renders the pending
+    // reply itself as one dimmed line above the entry (LightQuoteLine), so drawing Signal's card as
+    // well would say the same thing twice, and say it in Material vocabulary -- a filled, cornered
+    // container with a coloured rule, inside a screen that has no containers at all.
+    //
+    // The QuoteView stays: it is where the pending reply is *stored* (id, author, body, attachments,
+    // mentions, body ranges), and getQuote() below reads the reply back off it on every send. It is
+    // simply never shown, which is also why getQuote() keys off the stored id rather than off this
+    // view's visibility, and why the reveal animation that used to run here is gone with it.
+    quoteView.setVisibility(GONE);
 
     if (linkPreviewStub.getVisibility() == View.VISIBLE) {
       int cornerRadius = readDimen(R.dimen.message_corner_collapse_radius);
@@ -255,23 +262,16 @@ public class InputPanel extends ConstraintLayout
 
     QuoteView quoteView = quoteViewStub.get();
 
-    if (quoteAnimator != null) {
-      quoteAnimator.cancel();
+    // LIGHT PHONE: dismissed outright rather than animated away. The card is never on screen (see
+    // setQuote), so there is nothing to animate, and dismiss() is what clears the stored reply --
+    // running it behind an animation would leave a window in which the reply had visibly gone from
+    // the composer but would still be attached to the next send.
+    quoteView.dismiss();
+
+    if (linkPreviewStub.getVisibility() == View.VISIBLE) {
+      int cornerRadius = readDimen(R.dimen.message_corner_radius);
+      linkPreviewStub.get().setCorners(cornerRadius, cornerRadius);
     }
-
-    quoteAnimator = createHeightAnimator(quoteView, quoteView.getMeasuredHeight(), 0, new AnimationCompleteListener() {
-      @Override
-      public void onAnimationEnd(Animator animation) {
-        quoteView.dismiss();
-
-        if (linkPreviewStub.getVisibility() == View.VISIBLE) {
-          int cornerRadius = readDimen(R.dimen.message_corner_radius);
-          linkPreviewStub.get().setCorners(cornerRadius, cornerRadius);
-        }
-      }
-    });
-
-    quoteAnimator.start();
 
     if (listener != null) {
       listener.onQuoteCleared();
@@ -319,7 +319,10 @@ public class InputPanel extends ConstraintLayout
     }
 
     QuoteView quoteView = quoteViewStub.get();
-    if (quoteView.getQuoteId() > 0 && quoteView.getVisibility() == View.VISIBLE) {
+    // LIGHT PHONE: the id alone, because the card is never VISIBLE in this fork -- see setQuote. It
+    // is still an exact predicate: dismiss() is the only thing that clears a pending reply, and it
+    // zeroes the id.
+    if (quoteView.getQuoteId() > 0) {
       return Optional.of(new QuoteModel(quoteView.getQuoteId(),
                                         quoteView.getAuthor().getId(),
                                         quoteView.getBody().toString(),
@@ -595,6 +598,12 @@ public class InputPanel extends ConstraintLayout
     updateVisibility();
   }
 
+  /** LIGHT PHONE: see {@link #lightExpanded}. */
+  public void setLightExpanded(boolean lightExpanded) {
+    this.lightExpanded = lightExpanded;
+    updateVisibility();
+  }
+
   @Override
   public void onRecordPermissionRequired() {
     if (listener != null) listener.onRecorderPermissionRequired();
@@ -835,7 +844,7 @@ public class InputPanel extends ConstraintLayout
   }
 
   private void updateVisibility() {
-    if (isHidden()) {
+    if (isHidden() || !lightExpanded) {
       setVisibility(GONE);
     } else {
       setVisibility(VISIBLE);

@@ -709,6 +709,20 @@ class ConversationViewModel(
     }
   }
 
+  /** LIGHT PHONE: the full-screen Light composer is up; back closes it rather than leaving the thread. */
+  fun setIsLightComposerShowing(isLightComposerShowing: Boolean) {
+    internalBackPressedState.update {
+      it.copy(isLightComposerShowing = isLightComposerShowing)
+    }
+  }
+
+  /** LIGHT PHONE: a Light action panel is open; back dismisses it rather than leaving the thread. */
+  fun setIsLightActionPanelShowing(isLightActionPanelShowing: Boolean) {
+    internalBackPressedState.update {
+      it.copy(isLightActionPanelShowing = isLightActionPanelShowing)
+    }
+  }
+
   fun resetBackPressedState() {
     internalBackPressedState.value = BackPressedState()
   }
@@ -814,8 +828,11 @@ class ConversationViewModel(
     val isReactionDelegateShowing: Boolean = false,
     val isSearchRequested: Boolean = false,
     val isInActionMode: Boolean = false,
-    val isMediaKeyboardShowing: Boolean = false
+    val isMediaKeyboardShowing: Boolean = false,
+    val isLightComposerShowing: Boolean = false,
+    val isLightActionPanelShowing: Boolean = false
   ) {
-    fun shouldHandleBackPressed() = isSearchRequested || isReactionDelegateShowing || isInActionMode || isMediaKeyboardShowing
+    fun shouldHandleBackPressed() =
+      isSearchRequested || isReactionDelegateShowing || isInActionMode || isMediaKeyboardShowing || isLightComposerShowing || isLightActionPanelShowing
   }
 }

@@ -251,7 +251,21 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:barrierDirection="top"
-        app:constraint_referenced_ids="conversation_input_panel,attachment_editor_stub,conversation_disabled_input,scheduled_messages_stub,scheduled_messages,conversation_search_bottom_bar" />
+        app:constraint_referenced_ids="conversation_input_panel,light_bottom_bar,attachment_editor_stub,conversation_disabled_input,scheduled_messages_stub,scheduled_messages,conversation_search_bottom_bar" />
+
+    <!--
+        LIGHT PHONE: the bottom slot is held by @id/conversation_input_panel or by
+        @id/light_bottom_bar, never both, so what stacks above it has to hang off whichever is
+        showing. A constraint on the panel alone would put the staged-attachment editor (and the
+        scheduled-messages bar chained above it) underneath the Light bar every time the panel is
+        collapsed, which is almost always.
+    -->
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/conversation_input_slot_barrier"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierDirection="top"
+        app:constraint_referenced_ids="conversation_input_panel,light_bottom_bar" />
 
     <ViewStub
         android:id="@+id/attachment_editor_stub"
@@ -259,7 +273,7 @@
         android:layout_height="wrap_content"
         android:inflatedId="@+id/attachment_editor_stub"
         android:layout="@layout/conversation_activity_attachment_editor_stub"
-        app:layout_constraintBottom_toTopOf="@+id/conversation_input_panel"
+        app:layout_constraintBottom_toTopOf="@+id/conversation_input_slot_barrier"
         app:layout_constraintEnd_toEndOf="@id/parent_end_guideline"
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline" />
 
@@ -275,12 +289,36 @@
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
         app:layout_goneMarginBottom="0dp" />
 
+    <!--
+        LIGHT PHONE: collapsed from the start. The panel is expanded only for the composer, a
+        recording or a voice-note draft (see ConversationFragment.updateLightInputChrome); starting
+        VISIBLE would flash Signal's compose bubble, emoji toggle and send button on every thread
+        open, before the first state pass got to it.
+    -->
     <include
         android:id="@+id/conversation_input_panel"
         layout="@layout/conversation_input_panel"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@+id/conversation_input_space_left"
+        app:layout_constraintEnd_toEndOf="@id/parent_end_guideline"
+        app:layout_constraintStart_toStartOf="@id/parent_start_guideline" />
+
+    <!--
+        LIGHT PHONE: the thread's visible bottom chrome — call, attach, compose. It stands in for
+        @id/conversation_input_panel, which is collapsed out of the layout behind it and expanded
+        again only for the composer, a recording or a voice-note draft; the two are never both
+        showing. It also stands aside entirely for the three states that take this same slot and hide
+        the input panel with it: a pending message request (@id/conversation_disabled_input), an open
+        search (@id/conversation_search_bottom_bar) and multi-select
+        (@id/conversation_bottom_action_bar). See ConversationFragment.updateLightInputChrome.
+    -->
+    <org.thoughtcrime.securesms.conversation.v2.light.LightConversationBottomBarView
+        android:id="@+id/light_bottom_bar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toTopOf="@id/keyboard_guideline"
         app:layout_constraintEnd_toEndOf="@id/parent_end_guideline"
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline" />
 
@@ -360,6 +398,23 @@
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
         app:layout_constraintTop_toTopOf="@id/keyboard_guideline" />
 
+    <!--
+        LIGHT PHONE: the full-screen composer, everything above the text entry. It stops at the top of
+        @id/conversation_input_panel so that the real ComposeText — which never moves, so that
+        @-mention autocomplete, styling, spoilers and paste-an-image keep working — sits immediately
+        below it and grows upward into it as the message wraps.
+    -->
+    <org.thoughtcrime.securesms.conversation.v2.light.LightComposerView
+        android:id="@+id/light_composer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:elevation="12dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/conversation_input_panel"
+        app:layout_constraintEnd_toEndOf="@id/parent_end_guideline"
+        app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
+        app:layout_constraintTop_toTopOf="@id/toolbar" />
+
     <View
         android:id="@+id/nav_bar"
         android:layout_width="match_parent"
@@ -382,6 +437,25 @@
         app:layout_constraintBottom_toBottomOf="@id/keyboard_guideline"
         app:layout_constraintEnd_toEndOf="@id/parent_end_guideline"
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline" />
+
+    <!--
+        LIGHT PHONE: the bottom action panel (today the call menu; milestone 2 feeds it the long-press
+        actions). Full-screen because the panel covers the bottom bar while it is open and a tap in
+        the band above it dismisses. Elevated over the elevated views it would otherwise be drawn
+        under — the scroll date header at 9dp and the ongoing-group-call button at 10dp. The
+        long-press reaction overlay is the one thing it can sit above without consequence: the two
+        are never open at the same time.
+    -->
+    <org.thoughtcrime.securesms.light.LightActionPanelView
+        android:id="@+id/light_action_panel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:elevation="13dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="@id/parent_end_guideline"
+        app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <FrameLayout
         android:id="@+id/reactions_shade"

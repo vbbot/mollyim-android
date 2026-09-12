@@ -64,6 +64,26 @@ internal object ConversationOptionsMenu {
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
       createMenu(menu, menuInflater)
       forceIntoOverflow(menu)
+
+      // LIGHT PHONE: the thread's bottom bar carries a call button that opens a menu of the call
+      // actions, and it must not appear on a thread that has none -- a button that opens an empty
+      // menu is worse than no button. Rather than restating the rules (groups never get voice-only
+      // calls; SMS and non-push contacts get neither; an inactive group, a blocked contact, Note to
+      // Self and release notes get neither; a group with a call already running loses video to the
+      // Join button), the bar is told what this menu just decided. One source of truth, and the two
+      // places calls are offered can never disagree.
+      //
+      // Reported from onCreateMenu rather than from the end of createMenu because createMenu returns
+      // early for a pending message request and for the pre-first-render menu, and the bar needs an
+      // answer in those states too.
+      callback.onCallActionsAvailable(
+        canVoiceCall = menu.isItemVisible(R.id.menu_call_secure),
+        canVideoCall = menu.isItemVisible(R.id.menu_video_secure)
+      )
+    }
+
+    private fun Menu.isItemVisible(@IdRes menuItem: Int): Boolean {
+      return findItem(menuItem)?.isVisible == true
     }
 
     private fun createMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -312,6 +332,12 @@ internal object ConversationOptionsMenu {
     fun isTextHighlighted(): Boolean
 
     fun onOptionsMenuCreated(menu: Menu)
+
+    /**
+     * LIGHT PHONE: which of the two call actions this menu just decided to offer. See
+     * [Provider.onCreateMenu].
+     */
+    fun onCallActionsAvailable(canVoiceCall: Boolean, canVideoCall: Boolean)
 
     fun handleVideo()
     fun handleDial()
