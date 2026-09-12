@@ -171,7 +171,10 @@ import java.util.concurrent.TimeUnit;
  * @author Moxie Marlinspike
  */
 
-public final class ConversationItem extends RelativeLayout implements BindableConversationItem,
+// MOLLY: not final -- LightConversationItem subclasses this to draw media rows in The Light
+// Phone's design language. Every field and helper below stays private; the subclass works
+// entirely through the public bind/onRecipientChanged/setEventListener surface.
+public class ConversationItem extends RelativeLayout implements BindableConversationItem,
                                                                       RecipientForeverObserver,
                                                                       InteractiveConversationElement
 {

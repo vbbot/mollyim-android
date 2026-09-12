@@ -116,8 +116,13 @@ object LightItemStyle {
    *
    * `LightText` expresses tracking in `sp` (an absolute offset) while [TextView.setLetterSpacing] takes
    * `em` (a multiple of the text size), hence the division.
+   *
+   * [applyLineHeight] pins the line box to the token's line height, which is what makes stacked
+   * paragraphs sit on the Light rhythm. Pass `false` for a single line that carries a scaled-up
+   * glyph -- see [LightQuoteLine] -- where a fixed line box would clip the glyph instead.
    */
-  fun apply(textView: TextView, variant: LightTextVariant) {
+  @JvmOverloads
+  fun apply(textView: TextView, variant: LightTextVariant, applyLineHeight: Boolean = true) {
     val context = textView.context
     val style = style(context, variant)
 
@@ -127,7 +132,7 @@ object LightItemStyle {
     textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
 
     val lineHeight = style.lineHeight
-    if (lineHeight.isSpecified) {
+    if (applyLineHeight && lineHeight.isSpecified) {
       val lineHeightSp = lineHeight.value.designVerticalPxToSp(context)
       TextViewCompat.setLineHeight(textView, TypedValue.COMPLEX_UNIT_SP, lineHeightSp)
     }
@@ -158,6 +163,12 @@ object LightItemStyle {
    * paint it directly, rather than being corrected after the fact.
    */
   fun contentColor(context: Context): Int = colors(context).content.toArgb()
+
+  /**
+   * The dimmed foreground, for content that is subordinate to a message rather than part of it --
+   * today just the quoted line of a reply. See [LightQuoteLine].
+   */
+  fun contentSecondaryColor(context: Context): Int = colors(context).contentSecondary.toArgb()
 
   /** The surface colour, for the few elements that have to occlude what is behind them. */
   fun backgroundColor(context: Context): Int = colors(context).background.toArgb()

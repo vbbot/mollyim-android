@@ -179,6 +179,21 @@ public class ConversationMessage {
            getBottomButton() == null;
   }
 
+  /**
+   * Whether this renders as a Light Phone text row: {@link #isTextOnly} plus replies, which carry
+   * nothing beyond a plain body and the message they answer.
+   *
+   * <p>The Light design draws a quote as one dimmed line above an otherwise ordinary message rather
+   * than as a card inside a bubble, so a text reply has the shape of a text row. {@code
+   * hasBeenQuoted()} stays excluded: a message that has *itself* been quoted carries Signal's
+   * quoted-indicator chip, which only the media layout has a slot for.
+   */
+  public boolean isLightTextOnly(@NonNull Context context) {
+    return MessageRecordUtil.isTextOnlyIgnoringQuote(messageRecord, context) &&
+           !hasBeenQuoted() &&
+           getBottomButton() == null;
+  }
+
   public boolean isPoll() {
     return MessageRecordUtil.isPoll(messageRecord);
   }
