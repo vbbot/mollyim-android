@@ -28,6 +28,29 @@ internal object ConversationOptionsMenu {
   private val TAG = Log.tag(ConversationOptionsMenu::class.java)
 
   /**
+   * LIGHT PHONE: nothing in the conversation thread is allowed to render as a toolbar action item.
+   *
+   * The thread's visible top bar is `LightConversationTopBar`, which is a back chevron, a name and
+   * an ellipses. The `Toolbar` underneath it still builds this menu but is painted over, so an item
+   * shown as an action -- voice call and video call both ask for `showAsAction="always"` -- would be
+   * invisible and untappable rather than merely out of place. Demoting every item puts the calls
+   * into the overflow, where they are still reachable, and guarantees an overflow button exists at
+   * all, which is what the Light bar's ellipses anchors its popup on.
+   *
+   * The search item is left alone: it is already overflow-only (`collapseActionView` without
+   * `ifRoom`), and that flag is what lets `expandActionView()` expand the `SearchView` into the
+   * toolbar.
+   */
+  fun forceIntoOverflow(menu: Menu) {
+    for (i in 0 until menu.size()) {
+      val item = menu.getItem(i)
+      if (item.itemId != R.id.menu_search) {
+        item.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+      }
+    }
+  }
+
+  /**
    * MenuProvider implementation for the conversation options menu.
    */
   class Provider(
@@ -39,6 +62,11 @@ internal object ConversationOptionsMenu {
     private var createdPreRenderMenu = false
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+      createMenu(menu, menuInflater)
+      forceIntoOverflow(menu)
+    }
+
+    private fun createMenu(menu: Menu, menuInflater: MenuInflater) {
       if (createdPreRenderMenu && !afterFirstRenderMode) {
         return
       }

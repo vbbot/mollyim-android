@@ -90,85 +90,80 @@ private val typography = Typography().run {
   )
 }
 
+/**
+ * LIGHT PHONE MONOCHROME PALETTE.
+ *
+ * The Compose half of the same palette core/ui/res/values/molly_colors.xml installs for View-land:
+ * true-black surfaces and a neutral grey ramp, with `error` folded onto the same tone pairing as
+ * `primary` because hue carries no information on the LP3's display.
+ *
+ * This is byte-identical to [darkColorScheme] on purpose. The Light Phone III has no day mode, and
+ * `SignalTheme` picks between the two from `LocalConfiguration.uiMode`, which follows the system
+ * setting -- so the two schemes have to agree or the app changes appearance when the system does.
+ */
 private val lightColorScheme = lightColorScheme(
-  inversePrimary = Color(0xFFAA98FF),
-  surfaceDim = Color(0xFFDED6FF),
-  inverseSurface = Color(0xFF33276A),
-  surfaceBright = Color(0xFFF6F6FF),
-  surfaceContainerLowest = Color(0xFFF9F8FF),
-  surfaceContainerLow = Color(0xFFF3F0FF),
-  surfaceContainer = Color(0xFFEEEAFF),
-  surfaceContainerHigh = Color(0xFFEAE5FF),
-  surfaceContainerHighest = Color(0xFFE5DFFF),
-  inverseOnSurface = Color(0xFFF1EDF6),
-  outlineVariant = Color(0xFF9384E2),
-  onError = Color(0xFFFFFFFF),
-  onErrorContainer = Color(0xFF6D0028),
-  tertiary = Color(0xFF5A5379),
-  onTertiary = Color(0xFFFFFFFF),
-  tertiaryContainer = Color(0xFFD1C6FB),
-  onTertiaryContainer = Color(0xFF180D49),
-  primary = Color(0xFF5335DD),
-  primaryContainer = Color(0xFFC1B4FB),
-  secondary = Color(0xFFC5C1DD),
-  secondaryContainer = Color(0xFFE3DBF9),
-  surface = Color(0xFFF6F6FF),
-  surfaceVariant = Color(0xFFE7E6F2),
-  background = Color(0xFFF6F6FF),
-  error = Color(0xFFE00052),
-  errorContainer = Color(0xFFFDC7DB),
-  onPrimary = Color(0xFFFFFFFF),
-  onPrimaryContainer = Color(0xFF180D49),
-  onSecondary = Color(0xFFFFFFFF),
-  onSecondaryContainer = Color(0xFF1E1835),
-  onSurface = Color(0xFF181719),
-  onSurfaceVariant = Color(0xFF585563),
-  onBackground = Color(0xFF171719),
-  outline = Color(0xFF82808A)
+  inversePrimary = Color(0xFF1A1A1A),
+  surfaceDim = Color(0xFF000000),
+  inverseSurface = Color(0xFFE2E2E2),
+  surfaceBright = Color(0xFF141414),
+  surfaceContainerLowest = Color(0xFF020202),
+  surfaceContainerLow = Color(0xFF050505),
+  surfaceContainer = Color(0xFF0A0A0A),
+  surfaceContainerHigh = Color(0xFF0F0F0F),
+  surfaceContainerHighest = Color(0xFF141414),
+  inverseOnSurface = Color(0xFF303030),
+  outlineVariant = Color(0xFF474747),
+  onError = Color(0xFF1A1A1A),
+  onErrorContainer = Color(0xFFE9E9E9),
+  tertiary = Color(0xFFB9B9B9),
+  onTertiary = Color(0xFF303030),
+  tertiaryContainer = Color(0xFF141414),
+  onTertiaryContainer = Color(0xFFE5E5E5),
+  primary = Color(0xFFE9E9E9),
+  primaryContainer = Color(0xFF141414),
+  secondary = Color(0xFFC6C6C6),
+  secondaryContainer = Color(0xFF141414),
+  surface = Color(0xFF000000),
+  surfaceVariant = Color(0xFF0F0F0F),
+  background = Color(0xFF000000),
+  error = Color(0xFFE9E9E9),
+  errorContainer = Color(0xFF141414),
+  onPrimary = Color(0xFF1A1A1A),
+  onPrimaryContainer = Color(0xFFE9E9E9),
+  onSecondary = Color(0xFF262626),
+  onSecondaryContainer = Color(0xFFE2E2E2),
+  onSurface = Color(0xFFE9E9E9),
+  onSurfaceVariant = Color(0xFFC6C6C6),
+  onBackground = Color(0xFFE9E9E9),
+  outline = Color(0xFF5E5E5E)
 )
 
-private val lightExtendedColors = ExtendedColors(
-  neutralSurface = Color(0x99FFFFFF),
-  colorOnCustom = Color(0xFFFFFFFF),
-  colorOnCustomVariant = Color(0xB3FFFFFF),
-  colorSurface1 = Color(0xFFF3F0FF),
-  colorSurface2 = Color(0xFFEEEAFF),
-  colorSurface3 = Color(0xFFEAE5FF),
-  colorSurface4 = Color(0xFFE5DFFF),
-  colorSurface5 = Color(0xFFDED6FF),
-  colorTransparent1 = Color(0x14FFFFFF),
-  colorTransparent2 = Color(0x29FFFFFF),
-  colorTransparent3 = Color(0x8FFFFFFF),
-  colorTransparent4 = Color(0xB8FFFFFF),
-  colorTransparent5 = Color(0xF5FFFFFF),
-  colorNeutral = Color(0xFFFFFFFF),
-  colorNeutralVariant = Color(0xB8FFFFFF),
-  colorTransparentInverse1 = Color(0x0A000000),
-  colorTransparentInverse2 = Color(0x14000000),
-  colorTransparentInverse3 = Color(0x66000000),
-  colorTransparentInverse4 = Color(0xB8000000),
-  colorTransparentInverse5 = Color(0xE0000000),
-  colorNeutralInverse = Color(0xFF121212),
-  colorNeutralVariantInverse = Color(0xFF5C5C5C),
-  colorWarning = Color(0x1FB44828),
-  colorOnWarning = Color(0xFFB44828)
-)
+/**
+ * LIGHT PHONE MONOCHROME PALETTE.
+ *
+ * `SignalTheme.colors` is a second, parallel token set to the Material `ColorScheme` above -- it is
+ * what paints dropdown menus, the surface-elevation ramp and the wallpaper-overlay tints -- so it
+ * has to be converted too or those surfaces keep Signal's lavender. Declared as a getter rather
+ * than a copy so the day and night token sets cannot drift apart, and so it resolves after
+ * [darkExtendedColors] is initialised.
+ */
+private val lightExtendedColors: ExtendedColors get() = darkExtendedColors
 
 private val darkExtendedColors = ExtendedColors(
   neutralSurface = Color(0x14FFFFFF),
   colorOnCustom = Color(0xFFFFFFFF),
   colorOnCustomVariant = Color(0xB3FFFFFF),
-  colorSurface1 = Color(0xFF181137),
-  colorSurface2 = Color(0xFF1E1645),
-  colorSurface3 = Color(0xFF231A4E),
-  colorSurface4 = Color(0xFF281E57),
-  colorSurface5 = Color(0xFF33276A),
+  colorSurface1 = Color(0xFF050505),
+  colorSurface2 = Color(0xFF0A0A0A),
+  colorSurface3 = Color(0xFF0F0F0F),
+  colorSurface4 = Color(0xFF141414),
+  colorSurface5 = Color(0xFF181818),
   colorTransparent1 = Color(0x0AFFFFFF),
   colorTransparent2 = Color(0x1FFFFFFF),
   colorTransparent3 = Color(0x29FFFFFF),
   colorTransparent4 = Color(0x7AFFFFFF),
   colorTransparent5 = Color(0xB8FFFFFF),
-  colorNeutral = Color(0xFF121212),
+  colorNeutral = Color(0xFF000000),
   colorNeutralVariant = Color(0xFF5C5C5C),
   colorTransparentInverse1 = Color(0x0A000000),
   colorTransparentInverse2 = Color(0x14000000),
@@ -177,45 +172,46 @@ private val darkExtendedColors = ExtendedColors(
   colorTransparentInverse5 = Color(0xF5000000),
   colorNeutralInverse = Color(0xE0FFFFFF),
   colorNeutralVariantInverse = Color(0xA3FFFFFF),
-  colorWarning = Color(0x1FEB977D),
-  colorOnWarning = Color(0xFFEB977D)
+  colorWarning = Color(0x1FC6C6C6),
+  colorOnWarning = Color(0xFFC6C6C6)
 )
 
+/** @see lightColorScheme -- the two are deliberately identical. */
 private val darkColorScheme = darkColorScheme(
-  inversePrimary = Color(0xFF5335DD),
-  surfaceBright = Color(0xFF33276A),
-  inverseSurface = Color(0xFFE5DFFF),
-  surfaceDim = Color(0xFF100E1F),
-  surfaceContainerLowest = Color(0xFF0C0919),
-  surfaceContainerLow = Color(0xFF181137),
-  surfaceContainer = Color(0xFF1E1645),
-  surfaceContainerHigh = Color(0xFF231A4E),
-  surfaceContainerHighest = Color(0xFF281E57),
-  inverseOnSurface = Color(0xFF31303D),
-  outlineVariant = Color(0xFF464257),
-  onError = Color(0xFF63012C),
-  onErrorContainer = Color(0xFFFFDAD6),
-  tertiary = Color(0xFFB3ABDA),
-  onTertiary = Color(0xFF36304F),
-  tertiaryContainer = Color(0xFF423290),
-  onTertiaryContainer = Color(0xFFEAE5FF),
-  primary = Color(0xFFAA98FF),
-  primaryContainer = Color(0xFF483B6A),
-  secondary = Color(0xFFCBC4DE),
-  secondaryContainer = Color(0xFF434159),
-  surface = Color(0xFF100E1F),
-  surfaceVariant = Color(0xFF302F33),
-  background = Color(0xFF100E1F),
-  error = Color(0xFFFE006E),
-  errorContainer = Color(0xFFA40449),
-  onPrimary = Color(0xFF1E1B38),
-  onPrimaryContainer = Color(0xFFDDDCFC),
-  onSecondary = Color(0xFF2E2A42),
-  onSecondaryContainer = Color(0xFFE3DCF9),
-  onSurface = Color(0xFFE3E1E6),
-  onSurfaceVariant = Color(0xFFBEBCC4),
-  onBackground = Color(0xFFE3E1E6),
-  outline = Color(0xFF5D5D66)
+  inversePrimary = Color(0xFF1A1A1A),
+  surfaceDim = Color(0xFF000000),
+  inverseSurface = Color(0xFFE2E2E2),
+  surfaceBright = Color(0xFF141414),
+  surfaceContainerLowest = Color(0xFF020202),
+  surfaceContainerLow = Color(0xFF050505),
+  surfaceContainer = Color(0xFF0A0A0A),
+  surfaceContainerHigh = Color(0xFF0F0F0F),
+  surfaceContainerHighest = Color(0xFF141414),
+  inverseOnSurface = Color(0xFF303030),
+  outlineVariant = Color(0xFF474747),
+  onError = Color(0xFF1A1A1A),
+  onErrorContainer = Color(0xFFE9E9E9),
+  tertiary = Color(0xFFB9B9B9),
+  onTertiary = Color(0xFF303030),
+  tertiaryContainer = Color(0xFF141414),
+  onTertiaryContainer = Color(0xFFE5E5E5),
+  primary = Color(0xFFE9E9E9),
+  primaryContainer = Color(0xFF141414),
+  secondary = Color(0xFFC6C6C6),
+  secondaryContainer = Color(0xFF141414),
+  surface = Color(0xFF000000),
+  surfaceVariant = Color(0xFF0F0F0F),
+  background = Color(0xFF000000),
+  error = Color(0xFFE9E9E9),
+  errorContainer = Color(0xFF141414),
+  onPrimary = Color(0xFF1A1A1A),
+  onPrimaryContainer = Color(0xFFE9E9E9),
+  onSecondary = Color(0xFF262626),
+  onSecondaryContainer = Color(0xFFE2E2E2),
+  onSurface = Color(0xFFE9E9E9),
+  onSurfaceVariant = Color(0xFFC6C6C6),
+  onBackground = Color(0xFFE9E9E9),
+  outline = Color(0xFF5E5E5E)
 )
 
 // MOLLY: Replaced by snackbarColors()

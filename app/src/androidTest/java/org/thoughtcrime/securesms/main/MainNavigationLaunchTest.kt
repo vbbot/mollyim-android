@@ -30,6 +30,7 @@ import org.thoughtcrime.securesms.calls.log.CallLogFragment
 import org.thoughtcrime.securesms.conversation.ConversationArgs
 import org.thoughtcrime.securesms.conversation.ConversationIntents
 import org.thoughtcrime.securesms.conversation.v2.ConversationFragment
+import org.thoughtcrime.securesms.conversation.v2.light.LightConversationTopBarView
 import org.thoughtcrime.securesms.conversationlist.ConversationListArchiveFragment
 import org.thoughtcrime.securesms.conversationlist.ConversationListFragment
 import org.thoughtcrime.securesms.dependencies.AppDependencies
@@ -714,15 +715,17 @@ class MainNavigationLaunchTest {
   }
 
   /**
-   * Wait until the latest [ConversationFragment]'s toolbar shows [expected]. Scoped through
-   * R.id.conversation_title_view to avoid colliding with other R.id.title uses.
+   * Wait until the latest [ConversationFragment]'s top bar shows [expected].
+   *
+   * The thread's Material toolbar no longer draws a title: `LightConversationTopBarView` does, and
+   * its name is Compose text with no `View` to find, so this reads the bar's own state instead.
    */
   private fun awaitConversationTitle(launched: LaunchedActivity, expected: String) {
     await(timeoutMs = 15_000, description = "conversation title shows \"$expected\"") {
       val frag = launched.recorder.latestActive() ?: return@await false
       val view = frag.view ?: return@await false
-      val titleHost = view.findViewById<View>(R.id.conversation_title_view) ?: return@await false
-      titleHost.findViewById<TextView>(R.id.title)?.text?.toString() == expected
+      val topBar = view.findViewById<LightConversationTopBarView>(R.id.light_top_bar) ?: return@await false
+      topBar.title == expected
     }
   }
 

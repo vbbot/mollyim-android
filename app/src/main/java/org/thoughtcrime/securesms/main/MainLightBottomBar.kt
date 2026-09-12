@@ -5,7 +5,6 @@
 
 package org.thoughtcrime.securesms.main
 
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,24 +16,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.thelightphone.sdk.ui.LightBarButton
 import com.thelightphone.sdk.ui.LightBottomBar
 import com.thelightphone.sdk.ui.LightBottomBarItem
 import com.thelightphone.sdk.ui.LightIcons
-import com.thelightphone.sdk.ui.LightThemeTokens
 import org.signal.core.ui.compose.DropdownMenus
 import org.signal.core.ui.rememberIsSplitPane
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.light.MollyLightTheme
+import org.thoughtcrime.securesms.light.rememberLightTintedPainter
 import org.thoughtcrime.securesms.light.rememberMollyLightColors
 
 /**
@@ -215,32 +208,6 @@ private fun MainLightOverflowMenu(
       MainNavigationListLocation.CHATS -> ChatDropdownItems(toolbarState, toolbarCallback, dismiss)
       MainNavigationListLocation.CALLS -> CallDropdownItems(toolbarState.callFilter, toolbarCallback, dismiss)
       MainNavigationListLocation.STORIES -> StoryDropDownItems(toolbarCallback, dismiss)
-    }
-  }
-}
-
-/**
- * [LightBarButton.Icon] draws its painter with `Image`, which applies no tint: SDK icons are white
- * glyphs that `LightIcon` recolours, but Molly's `symbol_*` drawables are solid black and would be
- * invisible on the Light theme's black background. This recolours a Molly drawable the same way the
- * SDK recolours its own, so the two can sit side by side in one bar.
- */
-@Composable
-private fun rememberLightTintedPainter(@DrawableRes id: Int): Painter {
-  val painter = painterResource(id)
-  val tint = LightThemeTokens.colors.content
-  return remember(painter, tint) { LightTintedPainter(painter, tint) }
-}
-
-private class LightTintedPainter(private val delegate: Painter, tint: Color) : Painter() {
-  private val tintFilter = ColorFilter.tint(tint)
-
-  override val intrinsicSize: Size
-    get() = delegate.intrinsicSize
-
-  override fun DrawScope.onDraw() {
-    with(delegate) {
-      draw(size = size, colorFilter = tintFilter)
     }
   }
 }

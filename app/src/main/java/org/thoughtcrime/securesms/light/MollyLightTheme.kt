@@ -14,7 +14,6 @@ import com.thelightphone.sdk.ui.LightColors
 import com.thelightphone.sdk.ui.LightTheme
 import com.thelightphone.sdk.ui.LightThemeColors
 import com.thelightphone.sdk.ui.LocalHapticsEnabled
-import org.signal.core.ui.util.ThemeUtil
 
 /**
  * Molly's single entry point into The Light Phone SDK's design system.
@@ -34,19 +33,16 @@ fun MollyLightTheme(content: @Composable () -> Unit) {
 }
 
 /**
- * Follows Molly's own light/dark setting rather than pinning to the Light Phone's black-on-white.
- * The SDK palettes are pure black/white either way, which is what the LP3 display wants.
+ * Always [LightThemeColors.Dark]: white on `Color.Black`.
  *
- * Molly recreates its activities when the theme changes, so caching this per-[LocalContext] is
- * enough to stay in sync.
+ * This used to follow Molly's own light/dark setting, which meant the Light surfaces could come up
+ * white while the rest of the app was black. The Light Phone III has no day mode -- its panel
+ * renders true black as "off" -- so there is nothing for a light palette to match, and the whole app
+ * is pinned black instead (see core/ui/res/values/molly_colors.xml and values/light_themes.xml).
+ * Pinning here keeps the SDK components in step with that no matter how the system setting falls.
  */
 @Composable
-fun rememberMollyLightColors(): LightColors {
-  val context = LocalContext.current
-  return remember(context) {
-    if (ThemeUtil.isDarkTheme(context)) LightThemeColors.Dark else LightThemeColors.Light
-  }
-}
+fun rememberMollyLightColors(): LightColors = LightThemeColors.Dark
 
 /**
  * The SDK's [LocalHapticsEnabled] defaults to `false`, which silently disables haptics in every

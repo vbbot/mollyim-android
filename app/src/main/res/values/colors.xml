@@ -45,7 +45,9 @@
     <color name="touch_highlight">#400099cc</color>
     <color name="touch_highlight_material3">#14E3E1E6</color>
 
-    <color name="ConversationListTabs__unread">#FFCE4A40</color>
+    <!-- LIGHT PHONE MONOCHROME PALETTE: was a red alert colour. Hue carries no information on
+         the LP3 panel, so this is molly_outline_dark: a quiet indicator rather than an alarm. -->
+    <color name="ConversationListTabs__unread">#FF5E5E5E</color>
 
     <color name="transparent">#00FFFFFF</color>
     <color name="transparent_black">#00000000</color>

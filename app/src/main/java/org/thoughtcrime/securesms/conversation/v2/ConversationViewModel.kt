@@ -75,7 +75,6 @@ import org.thoughtcrime.securesms.database.model.MessageRecord
 import org.thoughtcrime.securesms.database.model.MmsMessageRecord
 import org.thoughtcrime.securesms.database.model.ReactionRecord
 import org.thoughtcrime.securesms.database.model.StickerRecord
-import org.thoughtcrime.securesms.database.model.StoryViewState
 import org.thoughtcrime.securesms.database.model.databaseprotos.BodyRangeList
 import org.thoughtcrime.securesms.dependencies.AppDependencies
 import org.thoughtcrime.securesms.jobs.PollVoteJob
@@ -134,18 +133,6 @@ class ConversationViewModel(
     get() = scrollButtonStateStore.state.unreadCount
 
   val recipient: Observable<Recipient> = recipientRepository.conversationRecipient
-  val titleViewParticipants: Observable<List<Recipient>> = recipient.filter { it.isGroup }.switchMap { groupRecipient ->
-    val firstTenIds = groupRecipient.participantIds
-      .take(10)
-      .sortedBy { it == Recipient.self().id }
-
-    Observable.combineLatest(
-      firstTenIds.map { Recipient.observable(it) }
-    ) { objects ->
-      objects.toList() as List<Recipient>
-    }
-  }
-
   private val _conversationThreadState: Subject<ConversationThreadState> = BehaviorSubject.create()
   val conversationThreadState: Single<ConversationThreadState> = _conversationThreadState.firstOrError()
 
@@ -164,10 +151,6 @@ class ConversationViewModel(
 
   @Volatile
   var recipientSnapshot: Recipient? = null
-    private set
-
-  @Volatile
-  var titleViewParticipantsSnapshot: List<Recipient> = emptyList()
     private set
 
   val isPushAvailable: Boolean
@@ -198,12 +181,6 @@ class ConversationViewModel(
   private val _searchQuery = BehaviorSubject.createDefault("")
   val searchQuery: Observable<String> = _searchQuery
 
-  val storyRingState = recipient
-    .switchMap { StoryViewState.getForRecipientId(it.id) }
-    .subscribeOn(Schedulers.io())
-    .distinctUntilChanged()
-    .observeOn(AndroidSchedulers.mainThread())
-
   private val startExpiration = BehaviorSubject.create<MessageTable.ExpirationInfo>()
 
   private val _jumpToDateValidator: JumpToDateValidator by lazy { JumpToDateValidator.create(threadId) }
@@ -225,11 +202,6 @@ class ConversationViewModel(
     disposables += recipient
       .subscribeBy {
         recipientSnapshot = it
-      }
-
-    disposables += titleViewParticipants
-      .subscribeBy {
-        titleViewParticipantsSnapshot = it
       }
 
     val chatColorsDataObservable: Observable<ChatColorsDrawable.ChatColorsData> = Observable.combineLatest(

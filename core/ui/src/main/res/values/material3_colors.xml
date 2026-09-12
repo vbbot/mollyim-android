@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+        LIGHT PHONE MONOCHROME PALETTE.
+
+        NOTE: there is a `values-night/` copy of this exact file defining these exact names. Android
+        replaces rather than merges qualified resource files, so a change made only here is dead on
+        a device in night mode (and vice versa). Both copies are kept in lockstep and both resolve
+        to the same monochrome ramp, so the system day/night setting cannot change how the app looks.
+    -->
+
     <!-- Core colors for Material3 -->
     <!-- MOLLY: Colors moved to themes.xml as theme attributes -->
     <color name="signal_neutralSurface">@color/signal_light_neutralSurface</color>
@@ -26,21 +35,21 @@
     <color name="signal_colorErrorContainerInverse">@color/molly_error_container_dark</color>
 
     <!-- Core color alpha variants -->
-    <color name="signal_colorSecondaryContainer_12">#1FE3DBF9</color>
-    <color name="signal_colorTertiaryContainer_12">#1FD1C6FB</color>
-    <color name="signal_colorSurface_60">#99F6F6FF</color>
-    <color name="signal_colorSurfaceVariant_38">#61E7E6F2</color>
-    <color name="signal_colorSurfaceVariant_64">#A3E7E6F2</color>
-    <color name="signal_colorOnSurface_8">#14181719</color>
-    <color name="signal_colorOnSurface_12">#1F181719</color>
-    <color name="signal_colorOnSurface_50">#80181719</color>
-    <color name="signal_colorOnSurfaceVariant_60">#99585563</color>
-    <color name="signal_colorOnBackground_60">#99171719</color>
-    <color name="signal_colorOutline_38">#6182808A</color>
-    <color name="signal_colorOutlineVariant_38">#619384E2</color>
-    <color name="signal_colorBackground_0">#00F6F6FF</color>
+    <color name="signal_colorSecondaryContainer_12">#1F141414</color>
+    <color name="signal_colorTertiaryContainer_12">#1F141414</color>
+    <color name="signal_colorSurface_60">#99000000</color>
+    <color name="signal_colorSurfaceVariant_38">#610F0F0F</color>
+    <color name="signal_colorSurfaceVariant_64">#A30F0F0F</color>
+    <color name="signal_colorOnSurface_8">#14E9E9E9</color>
+    <color name="signal_colorOnSurface_12">#1FE9E9E9</color>
+    <color name="signal_colorOnSurface_50">#80E9E9E9</color>
+    <color name="signal_colorOnSurfaceVariant_60">#99C6C6C6</color>
+    <color name="signal_colorOnBackground_60">#99E9E9E9</color>
+    <color name="signal_colorOutline_38">#615E5E5E</color>
+    <color name="signal_colorOutlineVariant_38">#61474747</color>
+    <color name="signal_colorBackground_0">#00000000</color>
 
     <!-- Core color alpha variants without alpha channel -->
-    <color name="signal_colorSurfaceVariant_16_no_alpha">#D0CFDB</color>
-    <color name="signal_colorSurfaceVariant_32_no_alpha">#B9B8C4</color>
+    <color name="signal_colorSurfaceVariant_16_no_alpha">#141414</color>
+    <color name="signal_colorSurfaceVariant_32_no_alpha">#1F1F1F</color>
 </resources>

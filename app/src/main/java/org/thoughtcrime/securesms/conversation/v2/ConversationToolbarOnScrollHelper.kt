@@ -39,9 +39,17 @@ class ConversationToolbarOnScrollHelper(
       else -> ColorSet.from(activity, getInactiveToolbarColor(wallpaperProvider() != null))
     }
 
+  /**
+   * LIGHT PHONE: the same colour as the unscrolled state.
+   *
+   * This used to raise the strip behind the status bar to `colorSurfaceContainer` once the thread
+   * was scrolled, to imply elevation. On the black palette that reads as a faint grey rectangle
+   * hanging over an otherwise pure-black screen, and the Light design has no elevation scrim to
+   * imply in the first place. The wallpaper and release-notes cases keep their own treatment.
+   */
   @ColorRes
   private fun getActiveToolbarColor(hasWallpaper: Boolean): Int {
-    return if (hasWallpaper) R.color.conversation_toolbar_color_wallpaper_scrolled else MaterialR.attr.colorSurfaceContainer
+    return if (hasWallpaper) R.color.conversation_toolbar_color_wallpaper_scrolled else MaterialR.attr.colorSurface
   }
 
   @ColorRes
