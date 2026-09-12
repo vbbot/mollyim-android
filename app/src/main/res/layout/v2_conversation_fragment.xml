@@ -439,12 +439,13 @@
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline" />
 
     <!--
-        LIGHT PHONE: the bottom action panel (today the call menu; milestone 2 feeds it the long-press
-        actions). Full-screen because the panel covers the bottom bar while it is open and a tap in
-        the band above it dismisses. Elevated over the elevated views it would otherwise be drawn
-        under — the scroll date header at 9dp and the ongoing-group-call button at 10dp. The
-        long-press reaction overlay is the one thing it can sit above without consequence: the two
-        are never open at the same time.
+        LIGHT PHONE: the bottom action panel — the call menu, and the context window a long press on a
+        message opens. Full-screen because the panel covers the bottom bar while it is open and a tap
+        in the band above it dismisses. Elevated over the elevated views it would otherwise be drawn
+        under — the scroll date header at 9dp and the ongoing-group-call button at 10dp. It can sit
+        above the reaction scrubber below without consequence: nothing in this thread inflates that
+        any more (see ConversationFragment.showLightMessageMenu), and the shade that went with it is
+        never made visible.
     -->
     <org.thoughtcrime.securesms.light.LightActionPanelView
         android:id="@+id/light_action_panel"

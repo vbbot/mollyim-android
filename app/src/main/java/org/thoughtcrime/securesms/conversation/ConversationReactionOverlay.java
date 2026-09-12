@@ -674,66 +674,114 @@ public final class ConversationReactionOverlay extends FrameLayout {
   }
 
   private @NonNull List<ActionItem> getMenuActionItems(@NonNull ConversationMessage conversationMessage) {
+    MessageMenu menu = buildMessageMenu(getContext(), conversationRecipient, conversationMessage, isNonAdminInAnnouncementGroup, canEditGroupInfo, this::handleActionItemClicked);
+
+    backgroundView.setVisibility(menu.shouldShowReactions() ? View.VISIBLE : View.INVISIBLE);
+    foregroundView.setVisibility(menu.shouldShowReactions() ? View.VISIBLE : View.INVISIBLE);
+
+    return menu.getItems();
+  }
+
+  /**
+   * The menu a long press offers for one message, and whether that message can be reacted to at all.
+   *
+   * Static, and free of this view, because it is the one part of the overlay that is about the
+   * *message* rather than about the overlay's presentation: which of the fourteen {@link Action}s
+   * apply here, already gated on everything that decides it -- you cannot edit an incoming message,
+   * cannot resend a delivered one, pin or unpin but never both. The Light Phone build draws this
+   * list as a panel instead of a dropdown and reads it from here, so that the two presentations can
+   * never drift apart and an action added upstream arrives in both at once.
+   *
+   * @param onSelected run when a row is chosen, with the action it stands for.
+   */
+  public static @NonNull MessageMenu buildMessageMenu(@NonNull Context context,
+                                                      @NonNull Recipient conversationRecipient,
+                                                      @NonNull ConversationMessage conversationMessage,
+                                                      boolean isNonAdminInAnnouncementGroup,
+                                                      boolean canEditGroupInfo,
+                                                      @NonNull OnActionSelectedListener onSelected)
+  {
     MenuState menuState = MenuState.getMenuState(conversationRecipient, conversationMessage.getMultiselectCollection().toSet(), false, isNonAdminInAnnouncementGroup, canEditGroupInfo);
 
     List<ActionItem> items = new ArrayList<>();
 
     if (menuState.shouldShowReplyAction()) {
-      items.add(new ActionItem(R.drawable.symbol_reply_24, getResources().getString(R.string.conversation_selection__menu_reply), () -> handleActionItemClicked(Action.REPLY)));
+      items.add(new ActionItem(R.drawable.symbol_reply_24, context.getString(R.string.conversation_selection__menu_reply), () -> onSelected.onActionSelected(Action.REPLY)));
     }
 
     if (menuState.shouldShowEditAction()) {
-      items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_edit_24, getResources().getString(R.string.conversation_selection__menu_edit), () -> handleActionItemClicked(Action.EDIT)));
+      items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_edit_24, context.getString(R.string.conversation_selection__menu_edit), () -> onSelected.onActionSelected(Action.EDIT)));
     }
 
     if (menuState.shouldShowForwardAction()) {
-      items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_forward_24, getResources().getString(R.string.conversation_selection__menu_forward), () -> handleActionItemClicked(Action.FORWARD)));
+      items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_forward_24, context.getString(R.string.conversation_selection__menu_forward), () -> onSelected.onActionSelected(Action.FORWARD)));
     }
 
     if (menuState.shouldShowResendAction()) {
-      items.add(new ActionItem(R.drawable.symbol_refresh_24, getResources().getString(R.string.conversation_selection__menu_resend_message), () -> handleActionItemClicked(Action.RESEND)));
+      items.add(new ActionItem(R.drawable.symbol_refresh_24, context.getString(R.string.conversation_selection__menu_resend_message), () -> onSelected.onActionSelected(Action.RESEND)));
     }
 
     if (menuState.shouldShowSaveAttachmentAction()) {
-      items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_save_android_24, getResources().getString(R.string.conversation_selection__menu_save), () -> handleActionItemClicked(Action.DOWNLOAD)));
+      items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_save_android_24, context.getString(R.string.conversation_selection__menu_save), () -> onSelected.onActionSelected(Action.DOWNLOAD)));
     }
 
     if (menuState.shouldShowCopyAction()) {
-      items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_copy_android_24, getResources().getString(R.string.conversation_selection__menu_copy), () -> handleActionItemClicked(Action.COPY)));
+      items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_copy_android_24, context.getString(R.string.conversation_selection__menu_copy), () -> onSelected.onActionSelected(Action.COPY)));
     }
 
-    items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_check_circle_24, getResources().getString(R.string.conversation_selection__menu_multi_select), () -> handleActionItemClicked(Action.MULTISELECT)));
+    items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_check_circle_24, context.getString(R.string.conversation_selection__menu_multi_select), () -> onSelected.onActionSelected(Action.MULTISELECT)));
 
     if (menuState.shouldShowDetailsAction()) {
-      items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_info_24, getResources().getString(R.string.conversation_selection__menu_message_details), () -> handleActionItemClicked(Action.VIEW_INFO)));
+      items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_info_24, context.getString(R.string.conversation_selection__menu_message_details), () -> onSelected.onActionSelected(Action.VIEW_INFO)));
     }
 
     if (menuState.shouldShowPollTerminateAction()) {
-      items.add(new ActionItem(R.drawable.symbol_stop_24, getResources().getString(R.string.conversation_selection__menu_end_poll), () -> handleActionItemClicked(Action.END_POLL)));
+      items.add(new ActionItem(R.drawable.symbol_stop_24, context.getString(R.string.conversation_selection__menu_end_poll), () -> onSelected.onActionSelected(Action.END_POLL)));
     }
 
     if (menuState.shouldShowPinMessage()) {
-      items.add(new ActionItem(R.drawable.symbol_pin_24, getResources().getString(R.string.conversation_selection__menu_pin_message), () -> handleActionItemClicked(Action.PIN_MESSAGE)));
+      items.add(new ActionItem(R.drawable.symbol_pin_24, context.getString(R.string.conversation_selection__menu_pin_message), () -> onSelected.onActionSelected(Action.PIN_MESSAGE)));
     }
 
     if (menuState.showShowUnpinMessage()) {
-      items.add(new ActionItem(R.drawable.symbol_pin_slash_24, getResources().getString(R.string.conversation_selection__menu_unpin_message), () -> handleActionItemClicked(Action.UNPIN_MESSAGE)));
+      items.add(new ActionItem(R.drawable.symbol_pin_slash_24, context.getString(R.string.conversation_selection__menu_unpin_message), () -> onSelected.onActionSelected(Action.UNPIN_MESSAGE)));
     }
 
     if (menuState.shouldShowStarMessage()) {
-      items.add(new ActionItem(R.drawable.symbol_star_outline_24, getResources().getString(R.string.conversation_selection__menu_star), () -> handleActionItemClicked(Action.STAR_MESSAGE)));
+      items.add(new ActionItem(R.drawable.symbol_star_outline_24, context.getString(R.string.conversation_selection__menu_star), () -> onSelected.onActionSelected(Action.STAR_MESSAGE)));
     }
 
     if (menuState.shouldShowUnstarMessage()) {
-      items.add(new ActionItem(R.drawable.symbol_star_outline_24, getResources().getString(R.string.conversation_selection__menu_unstar), () -> handleActionItemClicked(Action.UNSTAR_MESSAGE)));
+      items.add(new ActionItem(R.drawable.symbol_star_outline_24, context.getString(R.string.conversation_selection__menu_unstar), () -> onSelected.onActionSelected(Action.UNSTAR_MESSAGE)));
     }
 
-    backgroundView.setVisibility(menuState.shouldShowReactions() ? View.VISIBLE : View.INVISIBLE);
-    foregroundView.setVisibility(menuState.shouldShowReactions() ? View.VISIBLE : View.INVISIBLE);
+    items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_trash_24, context.getString(R.string.conversation_selection__menu_delete), () -> onSelected.onActionSelected(Action.DELETE)));
 
-    items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_trash_24, getResources().getString(R.string.conversation_selection__menu_delete), () -> handleActionItemClicked(Action.DELETE)));
+    return new MessageMenu(items, menuState.shouldShowReactions());
+  }
 
-    return items;
+  /** What {@link #buildMessageMenu} decided for one message. */
+  public static final class MessageMenu {
+
+    private final List<ActionItem> items;
+    private final boolean          showReactions;
+
+    private MessageMenu(@NonNull List<ActionItem> items, boolean showReactions) {
+      this.items         = items;
+      this.showReactions = showReactions;
+    }
+
+    public @NonNull List<ActionItem> getItems() {
+      return items;
+    }
+
+    /**
+     * Whether this message can be reacted to. False for release notes and for a group you are no
+     * longer in, where the menu still stands but there is nothing to react with.
+     */
+    public boolean shouldShowReactions() {
+      return showReactions;
+    }
   }
 
   private void handleActionItemClicked(@NonNull Action action) {

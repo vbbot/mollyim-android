@@ -17,7 +17,6 @@ import android.content.DialogInterface
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
-import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
@@ -35,7 +34,6 @@ import android.text.TextWatcher
 import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -189,14 +187,11 @@ import org.thoughtcrime.securesms.conversation.ConversationData
 import org.thoughtcrime.securesms.conversation.ConversationIntents
 import org.thoughtcrime.securesms.conversation.ConversationIntents.ConversationScreenType
 import org.thoughtcrime.securesms.conversation.ConversationItem
-import org.thoughtcrime.securesms.conversation.ConversationItemSelection
 import org.thoughtcrime.securesms.conversation.ConversationItemSwipeCallback
 import org.thoughtcrime.securesms.conversation.ConversationMessage
 import org.thoughtcrime.securesms.conversation.ConversationOptionsMenu
-import org.thoughtcrime.securesms.conversation.ConversationReactionDelegate
 import org.thoughtcrime.securesms.conversation.ConversationReactionOverlay
 import org.thoughtcrime.securesms.conversation.ConversationReactionOverlay.OnActionSelectedListener
-import org.thoughtcrime.securesms.conversation.ConversationReactionOverlay.OnHideListener
 import org.thoughtcrime.securesms.conversation.ConversationSearchViewModel
 import org.thoughtcrime.securesms.conversation.ConversationUpdateTick
 import org.thoughtcrime.securesms.conversation.MarkReadHelper
@@ -211,7 +206,6 @@ import org.thoughtcrime.securesms.conversation.ScheduleMessageTimePickerBottomSh
 import org.thoughtcrime.securesms.conversation.ScheduleMessageTimePickerBottomSheet.Companion.showSchedule
 import org.thoughtcrime.securesms.conversation.ScheduledMessagesBottomSheet
 import org.thoughtcrime.securesms.conversation.ScheduledMessagesRepository
-import org.thoughtcrime.securesms.conversation.SelectedConversationModel
 import org.thoughtcrime.securesms.conversation.ShowAdminsBottomSheetDialog
 import org.thoughtcrime.securesms.conversation.clicklisteners.PollVotesFragment
 import org.thoughtcrime.securesms.conversation.colors.ChatColors
@@ -240,7 +234,6 @@ import org.thoughtcrime.securesms.conversation.v2.data.ConversationMessageElemen
 import org.thoughtcrime.securesms.conversation.v2.groups.ConversationGroupCallViewModel
 import org.thoughtcrime.securesms.conversation.v2.groups.ConversationGroupViewModel
 import org.thoughtcrime.securesms.conversation.v2.items.ChatColorsDrawable
-import org.thoughtcrime.securesms.conversation.v2.items.InteractiveConversationElement
 import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle
 import org.thoughtcrime.securesms.conversation.v2.items.light.LightQuoteLine
 import org.thoughtcrime.securesms.conversation.v2.keyboard.AttachmentKeyboardFragment
@@ -248,6 +241,7 @@ import org.thoughtcrime.securesms.conversation.v2.light.LightComposerView
 import org.thoughtcrime.securesms.conversation.v2.light.LightConversationBottomBarView
 import org.thoughtcrime.securesms.conversation.v2.light.LightConversationTopBarLeftAction
 import org.thoughtcrime.securesms.conversation.v2.light.LightInputPanelChrome
+import org.thoughtcrime.securesms.conversation.v2.light.LightMessageMenu
 import org.thoughtcrime.securesms.conversation.v2.light.LightThreadBottomSlot
 import org.thoughtcrime.securesms.database.DraftTable
 import org.thoughtcrime.securesms.database.model.IdentityRecord
@@ -630,8 +624,6 @@ class ConversationFragment :
     }
   }
 
-  private val motionEventRelay: MotionEventRelay by viewModels(ownerProducer = { requireActivity() })
-
   private val container: InputAwareConstraintLayout
     get() = requireView() as InputAwareConstraintLayout
 
@@ -666,14 +658,6 @@ class ConversationFragment :
     get() = binding.actionModeTopBar
 
   private val scheduledMessagesStub: Stub<View> by lazy { Stub(binding.scheduledMessagesStub) }
-
-  private val reactionDelegate: ConversationReactionDelegate by lazy(LazyThreadSafetyMode.NONE) {
-    val conversationReactionStub = Stub<ConversationReactionOverlay>(binding.conversationReactionScrubberStub)
-    val delegate = ConversationReactionDelegate(conversationReactionStub)
-    delegate.setOnReactionSelectedListener(OnReactionsSelectedListener())
-
-    delegate
-  }
 
   private lateinit var voiceMessageRecordingDelegate: VoiceMessageRecordingDelegate
 
@@ -965,13 +949,13 @@ class ConversationFragment :
     handleSaveAttachment(conversationMessage.messageRecord as MmsMessageRecord)
   }
 
-  override fun onReactWithAnyEmojiDialogDismissed() {
-    reactionDelegate.hide()
-  }
+  // The Light build's long press offers a fixed set of reaction keys and no picker, so nothing in
+  // this thread opens the "react with any emoji" sheet any more. The callbacks stay because the
+  // sheet resolves its callback by casting whatever hosts it, and a child of this fragment opening
+  // one would otherwise crash on the cast.
+  override fun onReactWithAnyEmojiDialogDismissed() = Unit
 
-  override fun onReactWithAnyEmojiSelected(emoji: String) {
-    reactionDelegate.hide()
-  }
+  override fun onReactWithAnyEmojiSelected(emoji: String) = Unit
 
   override fun onReactionsDialogDismissed() {
     clearFocusedItem()
@@ -1114,8 +1098,6 @@ class ConversationFragment :
     val state = viewModel.backPressedState.value
 
     when {
-      state.isReactionDelegateShowing -> reactionDelegate.hide()
-
       state.isLightActionPanelShowing -> dismissLightActionPanel()
 
       state.isLightComposerShowing -> closeLightComposer(cancelEdit = true)
@@ -1364,7 +1346,6 @@ class ConversationFragment :
     }
 
     childFragmentManager.setFragmentResultListener(AttachmentKeyboardFragment.RESULT_KEY, viewLifecycleOwner, AttachmentKeyboardFragmentListener())
-    motionEventRelay.setDrain(MotionEventRelayDrain(this))
 
     voiceMessageRecordingDelegate = VoiceMessageRecordingDelegate(
       this,
@@ -2528,25 +2509,84 @@ class ConversationFragment :
     showLightActionPanel(actions)
   }
 
-  /** Opens the Light action panel over the bottom of the thread. Milestone 2 feeds it more lists. */
-  private fun showLightActionPanel(actions: List<LightPanelAction>) {
+  /**
+   * Opens the Light context window over the long-pressed message.
+   *
+   * The rows are Molly's own menu for that message -- `buildMessageMenu` decides which of the
+   * fourteen actions apply and gates them, exactly as it does for the dropdown this replaces, so
+   * every one of them (and any the next upstream merge adds) arrives here already correct. This side
+   * only adds the reaction rows, which Signal keeps in a scrubber above the menu rather than in it.
+   *
+   * Reactions go through `updateReaction`, the same call the scrubber made: sending the emoji you
+   * already have on the message takes it off, which is both Signal's own toggle and what REMOVE
+   * REACTION is built out of. One reaction at a time, so a second one replaces the first.
+   */
+  private fun showLightMessageMenu(conversationMessage: ConversationMessage) {
+    val recipient = viewModel.recipientSnapshot ?: return
+    val messageRecord = conversationMessage.messageRecord
+
+    val menu = ConversationReactionOverlay.buildMessageMenu(
+      requireContext(),
+      recipient,
+      conversationMessage,
+      conversationGroupViewModel.isNonAdminInAnnouncementGroup(),
+      conversationGroupViewModel.canEditGroupInfo(),
+      ReactionsToolbarListener(conversationMessage)
+    )
+
+    val ownReaction = messageRecord.reactions.firstOrNull { it.author == Recipient.self().id }
+    val react: (String) -> Unit = { emoji ->
+      disposables += viewModel.updateReaction(messageRecord, emoji).subscribe()
+    }
+
+    showLightActionPanel(
+      actions = LightMessageMenu.rows(
+        context = requireContext(),
+        actions = menu.items,
+        canReact = menu.shouldShowReactions(),
+        hasOwnReaction = ownReaction != null,
+        onOpenReactionKeys = { lightActionPanel.showReactionKeys() },
+        onRemoveReaction = { ownReaction?.let { react(it.emoji) } },
+        onDismiss = { dismissLightActionPanel() }
+      ),
+      onReactionKeySelected = if (menu.shouldShowReactions()) {
+        { emoji ->
+          dismissLightActionPanel()
+          react(emoji)
+        }
+      } else {
+        null
+      }
+    )
+  }
+
+  /**
+   * Opens the Light action panel over the bottom of the thread.
+   *
+   * [onReactionKeySelected] is what lets a row descend to the reaction keys; the call menu has no
+   * second level and passes nothing.
+   */
+  private fun showLightActionPanel(actions: List<LightPanelAction>, onReactionKeySelected: ((String) -> Unit)? = null) {
     if (actions.isEmpty()) {
       return
     }
 
-    lightActionPanel.actions.clear()
-    lightActionPanel.actions.addAll(actions)
-    lightActionPanel.visible = true
+    // The panel and the keyboard both want the bottom of the screen, and the keyboard is a window of
+    // its own drawn over this one -- raised over an open composer, it would hide the panel entirely.
+    // The attachment keyboard goes the same way. The composer itself stays as it is, draft and all,
+    // and is still there when the panel closes.
+    container.hideAll(composeText)
+
+    lightActionPanel.show(actions, onReactionKeySelected)
     viewModel.setIsLightActionPanelShowing(true)
   }
 
   private fun dismissLightActionPanel() {
-    if (lightActionPanel.actions.isEmpty()) {
+    if (!lightActionPanel.isOpen) {
       return
     }
 
-    lightActionPanel.actions.clear()
-    lightActionPanel.visible = false
+    lightActionPanel.close()
     viewModel.setIsLightActionPanelShowing(false)
   }
 
@@ -2560,7 +2600,17 @@ class ConversationFragment :
    * the top bar and the reply line above it.
    */
   private fun openLightComposer() {
-    if (lightComposerOpen || inputPanel.isHidden) {
+    if (lightComposerOpen) {
+      // Already up, and something has just changed underneath it -- a reply quote set from the
+      // context window or a swipe, an edit entered. Redraw rather than returning, or the composer
+      // goes on showing the state it opened with and the reply the user asked for never appears.
+      dismissLightActionPanel()
+      presentLightComposer()
+      ViewUtil.focusAndShowKeyboard(composeText)
+      return
+    }
+
+    if (inputPanel.isHidden) {
       return
     }
 
@@ -3050,19 +3100,6 @@ class ConversationFragment :
   private fun clearFocusedItem() {
     multiselectItemDecoration.setFocusedItem(null)
     binding.conversationItemRecycler.invalidateItemDecorations()
-  }
-
-  private fun handleReaction(
-    conversationMessage: ConversationMessage,
-    onActionSelectedListener: OnActionSelectedListener,
-    selectedConversationModel: SelectedConversationModel,
-    onHideListener: OnHideListener
-  ) {
-    reactionDelegate.setOnActionSelectedListener(onActionSelectedListener)
-    reactionDelegate.setOnHideListener(onHideListener)
-    reactionDelegate.show(requireActivity(), viewModel.recipientSnapshot!!, conversationMessage, conversationGroupViewModel.isNonAdminInAnnouncementGroup(), selectedConversationModel, conversationGroupViewModel.canEditGroupInfo())
-    viewModel.setIsReactionDelegateShowing(true)
-    composeText.clearFocus()
   }
 
   //region Message Request Helpers
@@ -4180,121 +4217,13 @@ class ConversationFragment :
         (!recipient.isGroup || recipient.isActiveGroup) &&
         adapter.selectedItems.isEmpty()
       ) {
-        multiselectItemDecoration.setFocusedItem(MultiselectPart.Message(item.conversationMessage))
-        binding.conversationItemRecycler.invalidateItemDecorations()
-        binding.reactionsShade.visibility = View.VISIBLE
-        binding.conversationItemRecycler.suppressLayout(true)
-
-        val target: InteractiveConversationElement? = if (itemView is InteractiveConversationElement) {
-          itemView
-        } else {
-          val viewHolder = binding.conversationItemRecycler.getChildViewHolder(itemView)
-          if (viewHolder is InteractiveConversationElement) {
-            viewHolder
-          } else {
-            null
-          }
-        }
-
-        if (target != null) {
-          val audioUri = messageRecord.getAudioUriForLongClick()
-          if (audioUri != null) {
-            getVoiceNoteMediaController().pausePlayback(audioUri)
-          }
-
-          val childAdapterPosition = target.getAdapterPosition(binding.conversationItemRecycler)
-          var mp4Holder: GiphyMp4ProjectionPlayerHolder? = null
-          var videoBitmap: Bitmap? = null
-          if (childAdapterPosition != RecyclerView.NO_POSITION) {
-            mp4Holder = giphyMp4ProjectionRecycler.getCurrentHolder(childAdapterPosition)
-            if (mp4Holder?.isVisible == true) {
-              mp4Holder.pause()
-              videoBitmap = mp4Holder.bitmap
-              mp4Holder.hide()
-            }
-          }
-
-          val snapshot = ConversationItemSelection.snapshotView(target, binding.conversationItemRecycler, messageRecord, videoBitmap)
-
-          val focusedView = if (container.isInputShowing || !container.isKeyboardShowing) null else itemView.rootView.findFocus()
-          val bodyBubble = target.bubbleView
-          val selectedConversationModel = SelectedConversationModel(
-            bitmap = snapshot,
-            itemX = itemView.x,
-            itemY = itemView.y + binding.conversationItemRecycler.translationY,
-            bubbleY = bodyBubble.y,
-            bubbleWidth = bodyBubble.width,
-            audioUri = audioUri,
-            isOutgoing = messageRecord.isOutgoing,
-            focusedView = focusedView,
-            snapshotMetrics = target.getSnapshotStrategy()?.snapshotMetrics ?: InteractiveConversationElement.SnapshotMetrics(
-              snapshotOffset = bodyBubble.x,
-              contextMenuPadding = bodyBubble.x
-            )
-          )
-
-          bodyBubble.visibility = View.INVISIBLE
-          target.reactionsView.visibility = View.INVISIBLE
-
-          val quotedIndicatorVisible = target.quotedIndicatorView?.visibility == View.VISIBLE
-          if (quotedIndicatorVisible) {
-            ViewUtil.fadeOut(target.quotedIndicatorView!!, 150, View.INVISIBLE)
-          }
-
-          container.hideKeyboard(composeText, keepHeightOverride = true)
-
-          viewModel.setHideScrollButtonsForReactionOverlay(true)
-
-          val targetViews: InteractiveConversationElement = target
-          handleReaction(
-            item.conversationMessage,
-            ReactionsToolbarListener(item.conversationMessage),
-            selectedConversationModel,
-            object : OnHideListener {
-              override fun startHide(focusedView: View?) {
-                if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) || activity == null || activity?.isFinishing == true) {
-                  return
-                }
-
-                multiselectItemDecoration.hideShade(binding.conversationItemRecycler)
-                ViewUtil.fadeOut(binding.reactionsShade, resources.getInteger(R.integer.reaction_scrubber_hide_duration), View.GONE)
-
-                if (focusedView == composeText || searchMenuItem?.isActionViewExpanded == true) {
-                  container.showSoftkey(composeText)
-                }
-              }
-
-              override fun onHide() {
-                viewModel.setIsReactionDelegateShowing(false)
-
-                if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) || activity == null || activity?.isFinishing == true) {
-                  return
-                }
-
-                binding.conversationItemRecycler.suppressLayout(false)
-                if (selectedConversationModel.audioUri != null) {
-                  getVoiceNoteMediaController().resumePlayback(selectedConversationModel.audioUri, messageRecord.id)
-                }
-
-                clearFocusedItem()
-
-                if (mp4Holder != null) {
-                  mp4Holder.show()
-                  mp4Holder.resume()
-                }
-
-                bodyBubble.visibility = View.VISIBLE
-                targetViews.reactionsView.visibility = View.VISIBLE
-
-                if (quotedIndicatorVisible && targetViews.quotedIndicatorView != null) {
-                  ViewUtil.fadeIn(targetViews.quotedIndicatorView!!, 150)
-                }
-
-                viewModel.setHideScrollButtonsForReactionOverlay(false)
-              }
-            }
-          )
-        }
+        // The Light context window is a panel over the bottom of the thread, and nothing more. What
+        // used to stand here -- snapshotting the row into a floating bitmap, animating it, dimming
+        // everything behind a shade, sliding in the emoji scrubber -- is all presentation the panel
+        // does not need, and all of it had to be unwound again afterwards. Chief among the things it
+        // unwound: the bubble and the reactions strip were set INVISIBLE while the snapshot stood in
+        // for them. Not taking a snapshot is what makes it safe not to restore them.
+        showLightMessageMenu(item.conversationMessage)
       } else if (item.conversationMessage.isActiveCollapsedHead) {
         viewModel.onExpandEvents(item.conversationMessage.messageRecord.id)
       } else {
@@ -4605,41 +4534,6 @@ class ConversationFragment :
         }
         .setNegativeButton(android.R.string.cancel, null)
         .show()
-    }
-  }
-
-  private inner class OnReactionsSelectedListener : ConversationReactionOverlay.OnReactionSelectedListener {
-    override fun onReactionSelected(messageRecord: MessageRecord, emoji: String?) {
-      reactionDelegate.hide()
-
-      if (emoji != null) {
-        disposables += viewModel.updateReaction(messageRecord, emoji).subscribe()
-      }
-    }
-
-    override fun onCustomReactionSelected(messageRecord: MessageRecord, hasAddedCustomEmoji: Boolean) {
-      reactionDelegate.hide()
-      disposables += viewModel.updateCustomReaction(messageRecord, hasAddedCustomEmoji)
-        .observeOn(AndroidSchedulers.mainThread())
-        .subscribeBy(
-          onSuccess = {
-            ReactWithAnyEmojiBottomSheetDialogFragment
-              .createForMessageRecord(messageRecord, -1)
-              .show(childFragmentManager, BottomSheetUtil.STANDARD_BOTTOM_SHEET_FRAGMENT_TAG)
-          }
-        )
-    }
-  }
-
-  private inner class MotionEventRelayDrain(lifecycleOwner: LifecycleOwner) : MotionEventRelay.Drain {
-    private val lifecycle = lifecycleOwner.lifecycle
-
-    override fun accept(motionEvent: MotionEvent): Boolean {
-      return if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-        reactionDelegate.applyTouchEvent(motionEvent)
-      } else {
-        false
-      }
     }
   }
 

@@ -196,6 +196,12 @@
     <string name="LightComposer__send">SEND</string>
     <!-- Title shown in the composer while an already-sent message is being edited. -->
     <string name="LightComposer__editing_message">Editing Message</string>
+    <!-- Row in the long-pressed message's menu that opens the reaction keys. Upper case to match the Light Phone's action labels. -->
+    <string name="LightMessageMenu__react">REACT</string>
+    <!-- Row in the long-pressed message's menu that opens the reaction keys, when you have already reacted to it. Upper case to match the Light Phone's action labels. -->
+    <string name="LightMessageMenu__edit_reaction">EDIT REACTION</string>
+    <!-- Row in the long-pressed message's menu that takes your reaction off it. Upper case to match the Light Phone's action labels. -->
+    <string name="LightMessageMenu__remove_reaction">REMOVE REACTION</string>
     <!-- Attachment keyboard entry that starts recording a voice message. -->
     <string name="AttachmentKeyboard_voice_note">Voice note</string>
 </resources>
