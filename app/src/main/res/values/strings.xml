@@ -9973,5 +9973,8 @@
     <!-- Button declining to paste the recovery key -->
     <string name="RecoveryKeyWarningDialog__dont_share">Don\'t share</string>
 
+    <!-- Very short label for "yesterday" shown in the timestamp column of a Light conversation list row. The column is only a few characters wide, so this must stay extremely short (4-5 characters) -->
+    <string name="LightConversationList__yesterday_short">Yest</string>
+
     <!-- EOF -->
 </resources>

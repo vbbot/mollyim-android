@@ -75,17 +75,42 @@
 
         </com.google.android.material.appbar.AppBarLayout>
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/list"
+        <!--
+            The conversation list itself is Compose (@id/light_conversation_list). @id/list only
+            renders SEARCH results now, which still use the legacy ConversationListItem views, so
+            the two swap visibility. The anchor is an invisible stand-in that gets resized and moved
+            over a Compose row on long press, so SignalContextMenu has a View to drop down from.
+        -->
+        <FrameLayout
+            android:id="@+id/list_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="?attr/colorSurface"
-            android:clipToPadding="false"
-            android:paddingBottom="160dp"
-            android:scrollbars="vertical"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior"
-            tools:listitem="@layout/conversation_list_item_view"
-            tools:visibility="visible" />
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+            <org.thoughtcrime.securesms.conversationlist.light.LightConversationListView
+                android:id="@+id/light_conversation_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="?attr/colorSurface"
+                android:clipToPadding="false"
+                android:paddingBottom="160dp"
+                android:scrollbars="vertical"
+                android:visibility="gone"
+                tools:listitem="@layout/conversation_list_item_view"
+                tools:visibility="visible" />
+
+            <View
+                android:id="@+id/conversation_list_context_menu_anchor"
+                android:layout_width="1dp"
+                android:layout_height="1dp"
+                android:visibility="invisible" />
+        </FrameLayout>
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
     <com.google.android.material.progressindicator.CircularProgressIndicator
