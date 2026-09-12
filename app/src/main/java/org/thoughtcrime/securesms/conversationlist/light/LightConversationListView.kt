@@ -7,11 +7,9 @@ package org.thoughtcrime.securesms.conversationlist.light
 
 import android.content.Context
 import android.graphics.Rect
-import android.provider.Settings
 import android.util.AttributeSet
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,14 +20,10 @@ import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.lifecycleScope
-import com.thelightphone.sdk.ui.LightColors
-import com.thelightphone.sdk.ui.LightTheme
-import com.thelightphone.sdk.ui.LightThemeColors
-import com.thelightphone.sdk.ui.LocalHapticsEnabled
 import kotlinx.coroutines.launch
-import org.signal.core.ui.util.ThemeUtil
 import org.thoughtcrime.securesms.conversationlist.model.Conversation
 import org.thoughtcrime.securesms.conversationlist.model.ConversationSet
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import kotlin.math.roundToInt
 
 /**
@@ -40,9 +34,9 @@ import kotlin.math.roundToInt
  * can keep owning the surrounding screen -- banners, chat folders, search, the filter pull view, the
  * multi-select bottom action bar -- and drive this the same way it used to drive an adapter.
  *
- * The Light theme is scoped to this view only. Molly's `SignalTheme` and the SDK's [LightTheme] both
- * install a Material 3 `ColorScheme`, so they must not be nested; everything outside this view stays
- * on Molly's theme.
+ * The Light theme is scoped to this view only, via [MollyLightTheme]: Molly's `SignalTheme` and the
+ * SDK's `LightTheme` both install a Material 3 `ColorScheme`, so they must not be nested; everything
+ * outside this view stays on Molly's theme.
  */
 class LightConversationListView @JvmOverloads constructor(
   context: Context,
@@ -130,57 +124,38 @@ class LightConversationListView @JvmOverloads constructor(
 
   @Composable
   override fun Content() {
-    CompositionLocalProvider(LocalHapticsEnabled provides systemHapticsEnabled) {
-      LightTheme(colors = lightColorsForCurrentTheme()) {
-        LightConversationListScreen(
-          state = state,
-          selectionMode = selection.isNotEmpty(),
-          listState = listState,
-          onClick = { item ->
-            when (item.kind) {
-              LightConversationListItem.Kind.ARCHIVE -> callback?.onShowArchiveClick()
-              LightConversationListItem.Kind.THREAD -> item.conversation?.let { callback?.onConversationClick(it) }
-              LightConversationListItem.Kind.PLACEHOLDER -> Unit
-            }
-          },
-          onLongClick = { item, bounds ->
-            if (item.kind == LightConversationListItem.Kind.THREAD) {
-              item.conversation?.let {
-                callback?.onConversationLongClick(
-                  it,
-                  Rect(
-                    left + bounds.left.roundToInt(),
-                    top + bounds.top.roundToInt(),
-                    left + bounds.right.roundToInt(),
-                    top + bounds.bottom.roundToInt()
-                  )
+    MollyLightTheme {
+      LightConversationListScreen(
+        state = state,
+        selectionMode = selection.isNotEmpty(),
+        listState = listState,
+        onClick = { item ->
+          when (item.kind) {
+            LightConversationListItem.Kind.ARCHIVE -> callback?.onShowArchiveClick()
+            LightConversationListItem.Kind.THREAD -> item.conversation?.let { callback?.onConversationClick(it) }
+            LightConversationListItem.Kind.PLACEHOLDER -> Unit
+          }
+        },
+        onLongClick = { item, bounds ->
+          if (item.kind == LightConversationListItem.Kind.THREAD) {
+            item.conversation?.let {
+              callback?.onConversationLongClick(
+                it,
+                Rect(
+                  left + bounds.left.roundToInt(),
+                  top + bounds.top.roundToInt(),
+                  left + bounds.right.roundToInt(),
+                  top + bounds.bottom.roundToInt()
                 )
-              }
+              )
             }
-          },
-          onDataNeededAtSourceIndex = { index -> callback?.onDataNeededAroundIndex(index) },
-          // Keeps the CoordinatorLayout above us (the collapsing toolbar + the pull-to-filter
-          // AppBarLayout) driven by this list's scrolling, the way the RecyclerView used to.
-          modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection())
-        )
-      }
+          }
+        },
+        onDataNeededAtSourceIndex = { index -> callback?.onDataNeededAroundIndex(index) },
+        // Keeps the CoordinatorLayout above us (the collapsing toolbar + the pull-to-filter
+        // AppBarLayout) driven by this list's scrolling, the way the RecyclerView used to.
+        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection())
+      )
     }
-  }
-
-  /**
-   * Follows Molly's own light/dark setting rather than pinning to the Light Phone's black-on-white.
-   * The SDK palettes are pure black/white either way, which is what the LP3 display wants.
-   */
-  private fun lightColorsForCurrentTheme(): LightColors {
-    return if (ThemeUtil.isDarkTheme(context)) LightThemeColors.Dark else LightThemeColors.Light
-  }
-
-  /**
-   * The SDK's `LocalHapticsEnabled` defaults to `false`, which silently disables haptics in every
-   * `Modifier.lightClickable` in the tree. On the Light Phone it is fed from a server preference;
-   * here the closest equivalent is the platform's own haptic feedback setting.
-   */
-  private val systemHapticsEnabled: Boolean by lazy {
-    Settings.System.getInt(context.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 1) != 0
   }
 }

@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.add
@@ -90,7 +89,6 @@ import im.molly.unifiedpush.UnifiedPushDistributor
 import org.signal.core.ui.BottomSheetUtil
 import org.signal.core.ui.compose.Snackbars
 import org.signal.core.ui.compose.theme.SignalTheme
-import org.signal.core.ui.compose.theme.colorAttribute
 import org.signal.core.ui.navigation.TransitionSpecs
 import org.signal.core.ui.permissions.Permissions
 import org.signal.core.ui.rememberIsSplitPane
@@ -140,8 +138,8 @@ import org.thoughtcrime.securesms.main.MainBottomChrome
 import org.thoughtcrime.securesms.main.MainBottomChromeCallback
 import org.thoughtcrime.securesms.main.MainBottomChromeState
 import org.thoughtcrime.securesms.main.MainContentLayoutData
+import org.thoughtcrime.securesms.main.MainLightBottomBar
 import org.thoughtcrime.securesms.main.MainMegaphoneState
-import org.thoughtcrime.securesms.main.MainNavigationBar
 import org.thoughtcrime.securesms.main.MainNavigationDetailLocation
 import org.thoughtcrime.securesms.main.MainNavigationListLocation
 import org.thoughtcrime.securesms.main.MainNavigationRail
@@ -395,9 +393,8 @@ class MainActivity :
         }
       }
 
-      val mainBottomChromeState = remember(mainToolbarState.destination, mainToolbarState.mode, megaphone) {
+      val mainBottomChromeState = remember(mainToolbarState.mode, megaphone) {
         MainBottomChromeState(
-          destination = mainToolbarState.destination,
           mainToolbarMode = mainToolbarState.mode,
           megaphoneState = MainMegaphoneState(
             megaphone = megaphone,
@@ -542,20 +539,13 @@ class MainActivity :
           },
           bottomNavContent = {
             if (isNavigationBarVisible) {
-              Column(
-                modifier = Modifier
-                  .clip(contentLayoutData.navigationBarShape)
-                  .background(color = colorAttribute(R.attr.navbar_container_color))
-              ) {
-                MainNavigationBar(
-                  state = mainNavigationState,
-                  onDestinationSelected = mainNavigationCallback
-                )
-
-                if (!LocalResources.current.rememberIsSplitPane()) {
-                  Spacer(Modifier.navigationBarsPadding())
-                }
-              }
+              MainLightBottomBar(
+                toolbarState = mainToolbarState,
+                toolbarCallback = toolbarCallback,
+                floatingActionButtonsCallback = mainBottomChromeCallback,
+                onDestinationSelected = mainNavigationCallback,
+                modifier = Modifier.clip(contentLayoutData.navigationBarShape)
+              )
             }
           },
           navRailContent = {

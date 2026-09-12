@@ -64,9 +64,11 @@ import org.signal.core.ui.getWindowBreakpoint
 import org.signal.core.ui.rememberIsSplitPane
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.main.MainFloatingActionButtonsCallback
-import org.thoughtcrime.securesms.main.MainNavigationBar
+import org.thoughtcrime.securesms.main.MainLightBottomBar
 import org.thoughtcrime.securesms.main.MainNavigationRail
 import org.thoughtcrime.securesms.main.MainNavigationState
+import org.thoughtcrime.securesms.main.MainToolbarCallback
+import org.thoughtcrime.securesms.main.MainToolbarState
 import kotlin.math.max
 
 enum class NavigationType {
@@ -446,8 +448,10 @@ private fun AppScaffoldPreview() {
         )
       },
       bottomNavContent = {
-        MainNavigationBar(
-          state = MainNavigationState(),
+        MainLightBottomBar(
+          toolbarState = MainToolbarState(),
+          toolbarCallback = MainToolbarCallback.Empty,
+          floatingActionButtonsCallback = MainFloatingActionButtonsCallback.Empty,
           onDestinationSelected = {}
         )
       },
