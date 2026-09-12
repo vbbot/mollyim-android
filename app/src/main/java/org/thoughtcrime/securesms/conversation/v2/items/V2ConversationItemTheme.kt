@@ -18,13 +18,13 @@ import org.thoughtcrime.securesms.util.hasNoBubble
 /**
  * Color information for conversation items.
  */
-class V2ConversationItemTheme(
+open class V2ConversationItemTheme(
   private val context: Context,
   private val conversationContext: V2ConversationContext
 ) {
 
   @ColorInt
-  fun getReplyIconBackgroundColor(): Int {
+  open fun getReplyIconBackgroundColor(): Int {
     return if (conversationContext.hasWallpaper()) {
       ThemeUtil.getThemedColor(context, com.google.android.material.R.attr.colorSurfaceContainerLow)
     } else {
@@ -33,7 +33,7 @@ class V2ConversationItemTheme(
   }
 
   @ColorInt
-  fun getFooterForegroundColor(
+  open fun getFooterForegroundColor(
     conversationMessage: ConversationMessage
   ): Int {
     if (conversationMessage.messageRecord.isThumbnailAtBottomOfBubble(context)) {
@@ -56,7 +56,7 @@ class V2ConversationItemTheme(
   }
 
   @ColorInt
-  fun getBodyTextColor(
+  open fun getBodyTextColor(
     conversationMessage: ConversationMessage
   ): Int {
     if (!conversationMessage.messageRecord.isOutgoing && conversationMessage.threadRecipient.isReleaseNotes) {
@@ -70,7 +70,7 @@ class V2ConversationItemTheme(
   }
 
   @ColorInt
-  fun getBodyBubbleColor(
+  open fun getBodyBubbleColor(
     conversationMessage: ConversationMessage
   ): Int {
     if (conversationMessage.messageRecord.hasNoBubble(context)) {
@@ -81,7 +81,7 @@ class V2ConversationItemTheme(
   }
 
   @ColorInt
-  fun getFooterBubbleColor(
+  open fun getFooterBubbleColor(
     conversationMessage: ConversationMessage
   ): Int {
     return if (conversationMessage.messageRecord.isOutgoing) {

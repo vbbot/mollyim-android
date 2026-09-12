@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright 2026 Signal Messenger, LLC
+  ~ SPDX-License-Identifier: AGPL-3.0-only
+  -->
+<!--
+  Incoming text message, in The Light Phone's design language.
+
+  Bubble-less: no fill, no border, no corners. Incoming and outgoing are told apart purely by which
+  edge they hang off, exactly as the reference client does it. The guidelines below encode the
+  reference's arithmetic: a 1.5 grid-unit gutter on the start edge, a 1.5 unit gutter on the end edge,
+  and the message column capped at 0.875 of what is left.
+
+      1.5 / 27                                = 0.055556
+      0.055556 + 0.875 * (1 - 2 * 0.055556)   = 0.833333
+
+  Grid units are a fraction of the screen width, so both numbers are constants — see LightGrid.
+  Typography is applied at runtime by LightItemStyle; it cannot live here because the LP3 supplies
+  Akkurat as a system font file, which XML cannot name.
+-->
+<org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:focusable="true">
+
+    <!--
+      The message column's edges. Set at runtime from LightMessageColumn, which owns the arithmetic
+      and is pinned against the reference client by LightMessageRowGeometryTest; the zero here is
+      only a placeholder.
+    -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/light_column_start"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/light_column_end"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0" />
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/conversation_item_reply"
+        android:layout_width="@dimen/conversation_item_reply_size"
+        android:layout_height="@dimen/conversation_item_reply_size"
+        android:alpha="0"
+        android:tint="?attr/signal_icon_tint_secondary"
+        app:contentPadding="9dp"
+        app:layout_constraintBottom_toBottomOf="@id/conversation_item_body_wrapper"
+        app:layout_constraintStart_toStartOf="@id/conversation_item_body_wrapper"
+        app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.Circle"
+        app:srcCompat="@drawable/symbol_reply_24" />
+
+    <!-- Sender name, groups only, on the first message of each cluster. -->
+    <org.thoughtcrime.securesms.conversation.v2.items.SenderNameWithLabelView
+        android:id="@+id/group_sender_name_with_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toStartOf="@id/light_column_start"
+        app:layout_constraintEnd_toEndOf="@id/light_column_end"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!--
+      Footer. Signal tucks this into the end of the body's last line; the Light layout gives it its
+      own line above the body, and anchors it to the first message of a cluster rather than the last
+      (LightTextOnlyViewHolder.shouldShowFooter).
+    -->
+    <LinearLayout
+        android:id="@+id/light_footer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toStartOf="@id/light_column_start"
+        app:layout_constraintEnd_toEndOf="@id/light_column_end"
+        app:layout_constraintTop_toBottomOf="@id/group_sender_name_with_label">
+
+        <TextView
+            android:id="@+id/conversation_item_footer_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            tools:text="8:14 AM" />
+
+        <org.thoughtcrime.securesms.components.ExpirationTimerView
+            android:id="@+id/conversation_item_expiration_timer"
+            android:layout_width="10dp"
+            android:layout_height="12dp"
+            android:layout_marginStart="4dp"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <ImageView
+            android:id="@+id/conversation_item_footer_pinned"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_marginStart="4dp"
+            android:visibility="gone"
+            app:srcCompat="@drawable/symbol_pin_filled_12"
+            tools:visibility="visible" />
+
+        <ImageView
+            android:id="@+id/conversation_item_footer_starred"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_marginStart="4dp"
+            android:visibility="gone"
+            app:srcCompat="@drawable/symbol_star_filled_12"
+            tools:visibility="visible" />
+
+    </LinearLayout>
+
+    <!--
+      Kept only so the inherited footer/chat-colour plumbing has something to point at. The Light
+      design has no footer pill, so it is sized to nothing and never drawn.
+    -->
+    <View
+        android:id="@+id/conversation_item_footer_background"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="@id/light_column_start"
+        app:layout_constraintTop_toTopOf="@id/light_footer" />
+
+    <FrameLayout
+        android:id="@+id/conversation_item_body_wrapper"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toStartOf="@id/light_column_start"
+        app:layout_constraintEnd_toEndOf="@id/light_column_end"
+        app:layout_constraintTop_toBottomOf="@id/light_footer">
+
+        <org.thoughtcrime.securesms.components.emoji.EmojiTextView
+            android:id="@+id/conversation_item_body"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAlignment="viewStart"
+            tools:text="Sure, see you then." />
+
+    </FrameLayout>
+
+    <org.thoughtcrime.securesms.reactions.ReactionsConversationView
+        android:id="@+id/conversation_item_reactions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toStartOf="@id/light_column_start"
+        app:layout_constraintEnd_toEndOf="@id/light_column_end"
+        app:layout_constraintTop_toBottomOf="@id/conversation_item_body_wrapper"
+        app:rcv_outgoing="false" />
+
+</org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemLayout>

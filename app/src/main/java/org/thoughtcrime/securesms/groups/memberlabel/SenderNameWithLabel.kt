@@ -38,13 +38,15 @@ fun SenderNameWithLabel(
   senderName: String,
   senderColor: Color,
   memberLabel: MemberLabel?,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  textStyle: TextStyle? = null
 ) {
   SenderNameWithLabel(
     senderName = senderName,
     senderColor = senderColor,
     memberLabel = memberLabel,
     modifier = modifier,
+    textStyle = textStyle,
     labelSlot = { label ->
       MemberLabelPill(
         emoji = label.emoji,
@@ -95,6 +97,7 @@ private fun SenderNameWithLabel(
   senderColor: Color,
   memberLabel: MemberLabel?,
   modifier: Modifier = Modifier,
+  textStyle: TextStyle? = null,
   labelSlot: @Composable (MemberLabel) -> Unit
 ) {
   if (memberLabel != null) {
@@ -104,11 +107,11 @@ private fun SenderNameWithLabel(
       verticalArrangement = Arrangement.spacedBy(2.dp),
       itemVerticalAlignment = Alignment.CenterVertically
     ) {
-      SenderNameText(senderName, senderColor)
+      SenderNameText(senderName, senderColor, textStyle = textStyle)
       labelSlot(memberLabel)
     }
   } else {
-    SenderNameText(senderName, senderColor, modifier)
+    SenderNameText(senderName, senderColor, modifier, textStyle)
   }
 }
 
@@ -116,9 +119,11 @@ private fun SenderNameWithLabel(
 private fun SenderNameText(
   senderName: String,
   senderColor: Color,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  /** Overrides Signal's label type; the Light thread supplies the SDK's `Detail` token. */
+  textStyle: TextStyle? = null
 ) {
-  ProvideTextStyle(MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)) {
+  ProvideTextStyle(textStyle ?: MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)) {
     Emojifier(text = senderName) { annotatedText, inlineContent ->
       Text(
         modifier = modifier,

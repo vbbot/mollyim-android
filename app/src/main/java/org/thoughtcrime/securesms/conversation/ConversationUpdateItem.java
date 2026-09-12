@@ -29,6 +29,7 @@ import androidx.lifecycle.Transformations;
 import com.bumptech.glide.RequestManager;
 import com.google.android.material.button.MaterialButton;
 import com.google.common.collect.Sets;
+import com.thelightphone.sdk.ui.LightTextVariant;
 
 import org.signal.core.util.DimensionUnit;
 import org.signal.core.util.concurrent.ListenableFuture;
@@ -39,6 +40,7 @@ import org.thoughtcrime.securesms.conversation.colors.Colorizer;
 import org.thoughtcrime.securesms.conversation.mutiselect.MultiselectCollection;
 import org.thoughtcrime.securesms.conversation.mutiselect.MultiselectPart;
 import org.thoughtcrime.securesms.conversation.ui.error.EnableCallNotificationSettingsDialog;
+import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle;
 import org.thoughtcrime.securesms.database.CollapsibleEvents;
 import org.thoughtcrime.securesms.database.CollapsedState;
 import org.thoughtcrime.securesms.database.model.GroupCallUpdateDetailsUtil;
@@ -122,6 +124,21 @@ public final class ConversationUpdateItem extends FrameLayout
   private boolean         hasWallpaper;
 
   private final PassthroughClickListener passthroughClickListener = new PassthroughClickListener();
+
+  private boolean lightTypography;
+
+  /**
+   * Renders this notice in The Light Phone's design language: a quiet centred line, solid rather than
+   * dimmed -- hierarchy comes from size, not from greying the text out.
+   *
+   * Opt-in, because this same layout also backs the pinned / scheduled / starred / quote / edit-history
+   * bottom sheets through the legacy adapter, and those are still Signal-styled throughout. Only the
+   * conversation thread asks for it.
+   */
+  public void useLightTypography() {
+    lightTypography = true;
+    LightItemStyle.INSTANCE.apply(body, LightTextVariant.Superfine);
+  }
 
   private Disposable activeCallDisposable = Disposable.disposed();
 
@@ -212,8 +229,13 @@ public final class ConversationUpdateItem extends FrameLayout
       groupObserver.observe(lifecycleOwner, null);
     }
 
+    // Used for the TextView and for the recipient-name spans LiveUpdateMessage bakes below, so the
+    // whole notice reads as one line rather than a tinted name inside grey text.
     int textColor;
-    if (hasWallpaper) {
+    if (lightTypography) {
+      textColor = LightItemStyle.INSTANCE.contentColor(getContext());
+      body.setTextColor(textColor);
+    } else if (hasWallpaper) {
       textColor = ThemeUtil.getThemedColor(getContext(), com.google.android.material.R.attr.colorOnSurfaceVariant);
     } else {
       textColor = ThemeUtil.getThemedColor(getContext(), R.attr.conversation_item_update_text_color);

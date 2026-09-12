@@ -81,6 +81,17 @@ All behavioural changes are marked in-source with a `MOLLY-VENDOR:` comment.
 5. **`AndroidManifest.xml`** was rewritten to declare only `android.permission.VIBRATE`. Upstream
    also declares `android.permission.CAMERA` and the `android.hardware.camera` feature for
    `LightQrCodeScanner` / `LightNfcTapReader`, which are not vendored.
+6. **`LightScrollView.kt` — scrollbar gutter.** `LightLazyScrollView` reserved its 2-unit scrollbar
+   gutter twice, and only while the list was long enough to scroll. It is now reserved once and
+   unconditionally, so a list's columns do not move when it grows past a screenful.
+7. **`LightTheme.kt` / `LightGrid.kt` — additive, non-composable accessors.** `lightTypography(context)`
+   and `Context`-taking variants of `gridUnitsAsDp` / `verticalGridUnitsAsDp` / `designVerticalPxToSp`
+   were added. Upstream exposes the type scale and the grid only through `@Composable` functions
+   reading `LocalConfiguration`, but Molly has to style plain Android views with the same tokens: the
+   conversation thread draws its date headers into a `RecyclerView` canvas from an `ItemDecoration`,
+   and message bodies must stay `EmojiTextView`s for their spans to survive. These delegate to the
+   same `buildDefaultTypography` and the same constants as the composable versions, so the View and
+   Compose sides cannot drift. Nothing upstream was changed, only added to.
 
 ### Build-script notes
 

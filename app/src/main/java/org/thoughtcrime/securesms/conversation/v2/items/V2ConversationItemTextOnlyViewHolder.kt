@@ -70,8 +70,9 @@ import java.util.Locale
 open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
   private val binding: V2ConversationItemTextOnlyBindingBridge,
   private val conversationContext: V2ConversationContext,
-  footerDelegate: V2FooterPositionDelegate = V2FooterPositionDelegate(binding)
-) : V2ConversationItemViewHolder<Model>(binding.root, conversationContext), Multiselectable, InteractiveConversationElement, Observer<Recipient> {
+  footerDelegate: V2ConversationItemLayout.OnMeasureListener = V2FooterPositionDelegate(binding),
+  themeDelegate: V2ConversationItemTheme = V2ConversationItemTheme(binding.root.context, conversationContext)
+) : V2ConversationItemViewHolder<Model>(binding.root, conversationContext, themeDelegate), Multiselectable, InteractiveConversationElement, Observer<Recipient> {
 
   companion object {
     private val STYLE_FACTORY = SearchUtil.StyleFactory { arrayOf<CharacterStyle>(BackgroundColorSpan(Color.YELLOW), ForegroundColorSpan(Color.BLACK)) }
@@ -284,7 +285,16 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
       topMargin = shape.topPadding.toInt()
       bottomMargin = shape.bottomPadding.toInt()
     }
+
+    onBound()
   }
+
+  /**
+   * Runs at the end of a *full* bind, once [shape] is known. Partial re-binds driven by a payload
+   * return before this, which is what subclasses want: they are re-presenting one field, not
+   * re-laying the item out.
+   */
+  protected open fun onBound() = Unit
 
   override fun getAdapterPosition(recyclerView: RecyclerView): Int = bindingAdapterPosition
 
@@ -573,7 +583,7 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
   }
 
   private fun presentFooterEndPadding() {
-    binding.footerSpace?.visibility = if (isForcedFooter() || shape.isEndingShape) {
+    binding.footerSpace?.visibility = if (shouldShowFooter()) {
       View.INVISIBLE
     } else {
       View.GONE
@@ -713,7 +723,7 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
       return
     }
 
-    if (!(isForcedFooter() || shape.isEndingShape)) {
+    if (!shouldShowFooter()) {
       binding.footerBackground.visible = false
       return
     }
@@ -729,7 +739,7 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
   }
 
   private fun presentDate() {
-    if (!shape.isEndingShape && !isForcedFooter()) {
+    if (!shouldShowFooter()) {
       binding.footerDate.visible = false
       return
     }
@@ -792,7 +802,7 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
   private fun presentDeliveryStatus() {
     val deliveryStatus = binding.deliveryStatus ?: return
 
-    if (!shape.isEndingShape && !isForcedFooter()) {
+    if (!shouldShowFooter()) {
       deliveryStatus.setNone()
       return
     }
@@ -871,7 +881,18 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
     return false
   }
 
-  private fun isForcedFooter(): Boolean {
+  /**
+   * Which message of a cluster carries the timestamp / delivery status / expiry footer.
+   *
+   * Signal anchors it to the *last* message, where the footer tucks into the end of the final line.
+   * The Light Phone layout puts the footer on its own line *above* the body, so it anchors to the
+   * first message of the cluster instead -- see `LightTextOnlyViewHolder`.
+   */
+  protected open fun shouldShowFooter(): Boolean {
+    return isForcedFooter() || shape.isEndingShape
+  }
+
+  protected fun isForcedFooter(): Boolean {
     return conversationMessage.messageRecord.isEditMessage || conversationMessage.messageRecord.expiresIn > 0L || conversationMessage.messageRecord.pinnedUntil > 0 || conversationMessage.messageRecord.isStarred
   }
 

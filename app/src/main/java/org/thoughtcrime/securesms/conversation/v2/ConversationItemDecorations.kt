@@ -11,11 +11,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
 import androidx.annotation.VisibleForTesting
-import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
-import org.signal.core.ui.util.ThemeUtil
+import com.thelightphone.sdk.ui.LightTextVariant
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.conversation.v2.data.ConversationMessageElement
+import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle
 import org.thoughtcrime.securesms.database.MessageTypes
 import org.thoughtcrime.securesms.database.model.MmsMessageRecord
 import org.thoughtcrime.securesms.recipients.RecipientId
@@ -26,7 +26,6 @@ import org.thoughtcrime.securesms.util.layoutIn
 import org.thoughtcrime.securesms.util.toLocalDate
 import java.util.Locale
 import kotlin.math.max
-import org.signal.core.ui.R as CoreUiR
 
 private typealias ConversationElement = MappingModel<*>
 
@@ -281,6 +280,10 @@ class ConversationItemDecorations(hasWallpaper: Boolean = false, private val sch
   private inner class DateHeaderViewHolder(val itemView: View) {
     private val date = itemView.findViewById<TextView>(R.id.text)
 
+    init {
+      LightItemStyle.apply(date, LightTextVariant.Superfine)
+    }
+
     val height: Int
       get() = itemView.height
 
@@ -290,17 +293,14 @@ class ConversationItemDecorations(hasWallpaper: Boolean = false, private val sch
       updateForWallpaper()
     }
 
+    /**
+     * The Light design has no pills and no dimmed text -- hierarchy comes from size, not weight or
+     * colour -- so the header is a bare centred line in the theme's content colour. The release-notes
+     * and wallpaper treatments are dropped with it; neither has a place on the LP3.
+     */
     fun updateForWallpaper() {
-      if (isReleaseNotes) {
-        date.setBackgroundResource(R.drawable.release_notes_date_header_background)
-        date.setTextColor(ThemeUtil.getThemedColor(itemView.context, com.google.android.material.R.attr.colorOnSurfaceVariant))
-      } else if (hasWallpaper) {
-        date.setBackgroundResource(R.drawable.wallpaper_bubble_background_18)
-        date.setTextColor(ContextCompat.getColor(itemView.context, CoreUiR.color.signal_colorNeutralInverse))
-      } else {
-        date.background = null
-        date.setTextColor(ThemeUtil.getThemedColor(itemView.context, com.google.android.material.R.attr.colorOnSurfaceVariant))
-      }
+      date.background = null
+      date.setTextColor(LightItemStyle.contentColor(itemView.context))
     }
   }
 
@@ -317,6 +317,7 @@ class ConversationItemDecorations(hasWallpaper: Boolean = false, private val sch
       itemView = LayoutInflater.from(parent.context).inflate(R.layout.conversation_item_last_seen, parent, false)
       unreadText = itemView.findViewById(R.id.text)
       unreadDivider = itemView.findViewById(R.id.last_seen_divider)
+      LightItemStyle.apply(unreadText, LightTextVariant.Superfine)
 
       bind()
       itemView.layoutIn(parent)
@@ -328,14 +329,11 @@ class ConversationItemDecorations(hasWallpaper: Boolean = false, private val sch
       updateForWallpaper()
     }
 
+    /** @see DateHeaderViewHolder.updateForWallpaper */
     fun updateForWallpaper() {
-      if (hasWallpaper) {
-        unreadText.setBackgroundResource(R.drawable.wallpaper_bubble_background_18)
-        unreadDivider.setBackgroundColor(ContextCompat.getColor(itemView.context, R.color.transparent_black_80))
-      } else {
-        unreadText.background = null
-        unreadDivider.setBackgroundColor(ContextCompat.getColor(itemView.context, R.color.core_grey_45))
-      }
+      unreadText.background = null
+      unreadText.setTextColor(LightItemStyle.contentColor(itemView.context))
+      unreadDivider.setBackgroundColor(LightItemStyle.contentColor(itemView.context))
     }
   }
 
