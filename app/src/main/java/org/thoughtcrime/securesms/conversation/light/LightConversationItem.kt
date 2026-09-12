@@ -351,12 +351,23 @@ class LightConversationItem @JvmOverloads constructor(
       return
     }
 
-    val thumbnail = findViewById<ConversationItemThumbnail>(R.id.image_view) ?: return
+    // R.id.image_view is a ConversationItemThumbnail on photo, video and album rows, but a
+    // BorderlessImageView on sticker and jumbomoji rows, which share this layout. A reified
+    // findViewById<ConversationItemThumbnail> compiles to an unchecked cast and threw
+    // ClassCastException the moment a thread containing a sticker was opened. Borderless content is
+    // already container-less upstream, so it has no corners to square -- only the lift to drop.
+    when (val thumbnail = findViewById<View>(R.id.image_view)) {
+      null -> Unit
 
-    thumbnail.setCorners(0, 0, 0, 0)
-    // The stub declares eight dips of elevation, which lifted media off the bubble it sat on. With
-    // no bubble it is a drop shadow on bare paper, and Light's surfaces do not cast one.
-    thumbnail.elevation = 0f
+      is ConversationItemThumbnail -> {
+        thumbnail.setCorners(0, 0, 0, 0)
+        // The stub declares eight dips of elevation, which lifted media off the bubble it sat on.
+        // With no bubble it is a drop shadow on bare paper, and Light's surfaces do not cast one.
+        thumbnail.elevation = 0f
+      }
+
+      else -> thumbnail.elevation = 0f
+    }
   }
 
   /**
