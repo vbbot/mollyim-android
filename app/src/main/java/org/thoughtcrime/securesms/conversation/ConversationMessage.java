@@ -180,17 +180,23 @@ public class ConversationMessage {
   }
 
   /**
-   * Whether this renders as a Light Phone text row: {@link #isTextOnly} plus replies, which carry
-   * nothing beyond a plain body and the message they answer.
+   * Whether this renders as a Light Phone text row: {@link #isTextOnly}, plus the two cases Signal
+   * pushes onto the media path purely because a bubble is the only place it has to put them.
    *
-   * <p>The Light design draws a quote as one dimmed line above an otherwise ordinary message rather
-   * than as a card inside a bubble, so a text reply has the shape of a text row. {@code
-   * hasBeenQuoted()} stays excluded: a message that has *itself* been quoted carries Signal's
-   * quoted-indicator chip, which only the media layout has a slot for.
+   * <p>A reply carries nothing beyond a plain body and the message it answers, and the Light design
+   * draws that answered message as one dimmed line above the body rather than as a card inside a
+   * bubble (see {@link org.thoughtcrime.securesms.conversation.v2.items.light.LightQuoteLine}), so a
+   * text reply has the shape of a text row.
+   *
+   * <p>A message that has itself *been* quoted is the same story from the other side: Signal hangs a
+   * filled circular chip off the bubble's edge to say "there are replies to this", and only the media
+   * layout has a slot for it. The Light text rows now carry that affordance themselves, as a line
+   * under the body in the same glyph-and-dimming vocabulary as the quote line, so being replied to no
+   * longer costs a message its text row -- which on the device meant a stray chat-colour bubble
+   * around an ordinary sent message.
    */
   public boolean isLightTextOnly(@NonNull Context context) {
     return MessageRecordUtil.isTextOnlyIgnoringQuote(messageRecord, context) &&
-           !hasBeenQuoted() &&
            getBottomButton() == null;
   }
 

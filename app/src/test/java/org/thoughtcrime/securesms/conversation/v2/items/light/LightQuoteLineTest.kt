@@ -7,6 +7,7 @@ package org.thoughtcrime.securesms.conversation.v2.items.light
 
 import android.app.Application
 import android.text.TextUtils
+import android.view.View
 import android.widget.TextView
 import assertk.assertThat
 import assertk.assertions.isEqualTo
@@ -109,5 +110,38 @@ class LightQuoteLineTest {
 
     assertThat(quoteLine).isLessThan(body)
     assertThat(quoteLine).isGreaterThan(timestamp)
+  }
+
+  /**
+   * The other end of a reply. Upstream keeps a message that has been quoted off the text row
+   * altogether because its only affordance for "there are replies to this" is a filled circle hung
+   * off a bubble edge -- which on the device meant an ordinary sent message growing a chat-colour
+   * bubble the moment someone answered it. The row says it in words instead.
+   */
+  @Test
+  fun `a message that has been replied to says so in the same vocabulary as the quote line`() {
+    val line = LightQuoteLine.buildRepliesLine(context).toString()
+
+    assertThat(line).isEqualTo("↶ " + context.getString(R.string.MessageQuotesBottomSheet_replies))
+
+    // The same glyph at both ends: ↶ means "reply" wherever it appears in the thread. The reference
+    // client's ↷ is not borrowed, because there it means forwarded.
+    assertThat(line.startsWith(LightQuoteLine.GLYPH)).isTrue()
+  }
+
+  @Test
+  fun `the replies line is shown only when there are replies`() {
+    val view = TextView(context)
+
+    assertThat(LightQuoteLine.presentRepliesIndicator(view, hasBeenQuoted = false)).isFalse()
+    assertThat(view.visibility).isEqualTo(View.GONE)
+
+    assertThat(LightQuoteLine.presentRepliesIndicator(view, hasBeenQuoted = true)).isTrue()
+    assertThat(view.visibility).isEqualTo(View.VISIBLE)
+    assertThat(view.text.toString()).isEqualTo(LightQuoteLine.buildRepliesLine(context).toString())
+
+    // A recycled row must not keep the previous message's affordance.
+    assertThat(LightQuoteLine.presentRepliesIndicator(view, hasBeenQuoted = false)).isFalse()
+    assertThat(view.visibility).isEqualTo(View.GONE)
   }
 }

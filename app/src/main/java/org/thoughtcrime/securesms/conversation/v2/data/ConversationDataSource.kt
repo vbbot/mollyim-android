@@ -222,10 +222,11 @@ class ConversationDataSource(
   }
 
   private fun ConversationMessage.toMappingModel(): MappingModel<*> {
-    // isLightTextOnly rather than isTextOnly: a reply carries nothing but a body and the message it
-    // answers, which the Light design renders as one dimmed line above an otherwise ordinary text
-    // row (LightQuoteLine). Signal has nowhere to put a quote outside a bubble, so upstream lumps
-    // every reply in with media; here they belong on the text row.
+    // isLightTextOnly rather than isTextOnly: upstream sends two kinds of plain text message to the
+    // media path for want of anywhere outside a bubble to put them -- a reply, and a message that has
+    // been replied to. The Light rows have somewhere for both: the quoted message is one dimmed line
+    // above the body and the "has replies" affordance is one dimmed line below it, both in
+    // LightQuoteLine's vocabulary. So they belong on the text row.
     return if (messageRecord.isUpdate) {
       ConversationUpdate(this)
     } else if (messageRecord.isOutgoing) {

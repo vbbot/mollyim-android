@@ -159,6 +159,32 @@
 
     </FrameLayout>
 
+    <!--
+      "This message has replies": one dimmed line under the body, in the same glyph-and-type-step
+      vocabulary as light_quote_line above it, and tappable in the same way. Signal's own affordance
+      (@id/quoted_indicator in the multimedia layouts) is a filled 32dp circle hung off the bubble's
+      edge; there is no edge here and no fill anywhere in a Light thread, so it is said in words.
+      Keeps Signal's id so that the swipe-to-reply animation and the reaction overlay, both of which
+      reach for it through InteractiveConversationElement.quotedIndicatorView, still find it.
+
+      The vertical padding is the tap target: a Detail-sized line is only ~14dp tall on its own.
+    -->
+    <TextView
+        android:id="@+id/quoted_indicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:textAlignment="viewStart"
+        android:visibility="gone"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintHorizontal_bias="1"
+        app:layout_constraintStart_toStartOf="@id/light_column_start"
+        app:layout_constraintEnd_toEndOf="@id/light_column_end"
+        app:layout_constraintTop_toBottomOf="@id/conversation_item_body_wrapper"
+        tools:text="\u21b6 Replies"
+        tools:visibility="visible" />
+
     <org.thoughtcrime.securesms.reactions.ReactionsConversationView
         android:id="@+id/conversation_item_reactions"
         android:layout_width="wrap_content"
@@ -167,7 +193,7 @@
         app:layout_constraintHorizontal_bias="1"
         app:layout_constraintStart_toStartOf="@id/light_column_start"
         app:layout_constraintEnd_toEndOf="@id/light_column_end"
-        app:layout_constraintTop_toBottomOf="@id/conversation_item_body_wrapper"
+        app:layout_constraintTop_toBottomOf="@id/quoted_indicator"
         app:rcv_outgoing="true" />
 
 </org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemLayout>
