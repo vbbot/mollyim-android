@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,11 +29,13 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightIcon
 import com.thelightphone.sdk.ui.LightIcons
 import com.thelightphone.sdk.ui.LightThemeTokens
 import com.thelightphone.sdk.ui.LightTopBar
 import com.thelightphone.sdk.ui.LightTopBarCenter
 import com.thelightphone.sdk.ui.gridUnitsAsDp
+import com.thelightphone.sdk.ui.lightClickable
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.conversation.v2.items.light.LightQuoteLine
 import org.thoughtcrime.securesms.light.MollyLightTheme
@@ -62,6 +65,7 @@ fun LightComposer(
   quote: CharSequence?,
   onBack: () -> Unit,
   onSend: () -> Unit,
+  onClearQuote: () -> Unit,
   modifier: Modifier = Modifier
 ) {
   Box(
@@ -98,13 +102,7 @@ fun LightComposer(
     )
 
     if (quote != null) {
-      // Rendered as a View rather than `LightText` because `LightQuoteLine` builds a `CharSequence`
-      // carrying a `RelativeSizeSpan` on the reply glyph -- the glyph comes from a fallback font and
-      // sits small in the line box without it -- and `LightText` takes a `String`. Using the same
-      // `LightQuoteLine.style` the thread's own reply lines use is what keeps the two identical.
-      AndroidView(
-        factory = { context -> TextView(context).also { LightQuoteLine.style(it) } },
-        update = { it.text = quote },
+      Row(
         modifier = Modifier
           .align(Alignment.BottomStart)
           .fillMaxWidth()
@@ -115,8 +113,36 @@ fun LightComposer(
             start = dimensionResource(R.dimen.light_composer_text_inset),
             end = dimensionResource(R.dimen.light_composer_text_inset),
             bottom = 0.5f.gridUnitsAsDp()
+          ),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        // Rendered as a View rather than `LightText` because `LightQuoteLine` builds a `CharSequence`
+        // carrying a `RelativeSizeSpan` on the reply glyph -- the glyph comes from a fallback font and
+        // sits small in the line box without it -- and `LightText` takes a `String`. Using the same
+        // `LightQuoteLine.style` the thread's own reply lines use is what keeps the two identical.
+        AndroidView(
+          factory = { context -> TextView(context).also { LightQuoteLine.style(it) } },
+          update = { it.text = quote },
+          modifier = Modifier.weight(1f)
+        )
+
+        // The reply's only escape hatch. Signal put a dismiss X on the quote card in the inline
+        // input bar; that card is hidden in the Light chrome, so without this the quote could be
+        // set but never cleared -- and because the quote is saved as a draft it outlived the
+        // composer, the thread and the app. Sized under the top bar's buttons so it reads as part
+        // of the reply line rather than as a third bar action.
+        Box(
+          modifier = Modifier
+            .lightClickable(onClick = onClearQuote)
+            .padding(start = 0.5f.gridUnitsAsDp())
+        ) {
+          LightIcon(
+            icon = LightIcons.CLOSE,
+            size = 1.5f,
+            contentDescription = stringResource(R.string.LightComposer__clear_reply)
           )
-      )
+        }
+      }
     }
   }
 }
@@ -139,6 +165,9 @@ class LightComposerView @JvmOverloads constructor(
   var onBack: (() -> Unit)? by mutableStateOf<(() -> Unit)?>(null)
   var onSend: (() -> Unit)? by mutableStateOf<(() -> Unit)?>(null)
 
+  /** Clears the pending reply, leaving the composer open and whatever has been typed intact. */
+  var onClearQuote: (() -> Unit)? by mutableStateOf<(() -> Unit)?>(null)
+
   init {
     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
   }
@@ -151,6 +180,7 @@ class LightComposerView @JvmOverloads constructor(
         quote = quote,
         onBack = { onBack?.invoke() },
         onSend = { onSend?.invoke() },
+        onClearQuote = { onClearQuote?.invoke() },
         modifier = Modifier.fillMaxSize()
       )
     }

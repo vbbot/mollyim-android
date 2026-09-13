@@ -192,6 +192,8 @@
     <string name="LightActionPanel__close">Close</string>
     <!-- Content description of the composer's back chevron, which closes the composer without sending. -->
     <string name="LightComposer__close_composer">Close composer</string>
+    <!-- Content description for the button that removes the pending reply in the Light composer -->
+    <string name="LightComposer__clear_reply">Clear reply</string>
     <!-- The composer's send button. Upper case to match the Light Phone's action labels. -->
     <string name="LightComposer__send">SEND</string>
     <!-- Title shown in the composer while an already-sent message is being edited. -->
