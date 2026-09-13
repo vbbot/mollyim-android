@@ -204,4 +204,26 @@
     <string name="LightMessageMenu__remove_reaction">REMOVE REACTION</string>
     <!-- Attachment keyboard entry that starts recording a voice message. -->
     <string name="AttachmentKeyboard_voice_note">Voice note</string>
+
+    <!--
+        LIGHT PHONE: the call log's second column. One short token per row, in the clipped upper-case
+        register the bottom bar and the action panel use, standing in for the Material row's arrow
+        and camera glyphs. Short enough not to crowd the name out: keep translations to one or two
+        words. A missed voice call has no token at all — the row's leading glyph says it.
+    -->
+
+    <!-- Call log row token for an answered incoming voice call. -->
+    <string name="LightCallLog__in">IN</string>
+    <!-- Call log row token for an outgoing voice call. -->
+    <string name="LightCallLog__out">OUT</string>
+    <!-- Call log row token for a missed video call, where the row's glyph already says it was missed. -->
+    <string name="LightCallLog__video">VIDEO</string>
+    <!-- Call log row token for an answered incoming video call. -->
+    <string name="LightCallLog__video_in">VIDEO IN</string>
+    <!-- Call log row token for an outgoing video call. -->
+    <string name="LightCallLog__video_out">VIDEO OUT</string>
+    <!-- Call log row token for a group call. -->
+    <string name="LightCallLog__group">GROUP</string>
+    <!-- Call log row token for a call link. -->
+    <string name="LightCallLog__link">LINK</string>
 </resources>

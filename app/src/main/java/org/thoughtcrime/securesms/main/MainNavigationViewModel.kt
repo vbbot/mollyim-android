@@ -114,6 +114,23 @@ class MainNavigationViewModel(
   private val internalIsFullScreenPane = MutableStateFlow(false)
   val isFullScreenPane: StateFlow<Boolean> = internalIsFullScreenPane
 
+  private val internalIsBottomBarSuppressed = MutableStateFlow(false)
+
+  /**
+   * LIGHT PHONE: set while a list screen has a `LightActionPanel` open.
+   *
+   * The panel is the Light Phone's overlay-panel presentation, and covering the bar it is drawn over
+   * is part of that grammar -- the reference client's own context window does it, as does the LP3's
+   * Phone tool. A list fragment lives inside the scaffold's content slot, which stops above the
+   * bottom bar, so it cannot reach over the bar by itself; it says so here and the bar steps aside,
+   * exactly as it already does for search and multi-select.
+   */
+  val isBottomBarSuppressed: StateFlow<Boolean> = internalIsBottomBarSuppressed
+
+  fun setBottomBarSuppressed(suppressed: Boolean) {
+    internalIsBottomBarSuppressed.value = suppressed
+  }
+
   val observableActiveRecipientId: Observable<Optional<out RecipientId>> =
     snapshotFlow { chatsBackStack.activeRecipientId }
       .combine(isFullScreenPane) { id, expanded -> if (expanded) Optional.ofNullable(null) else Optional.ofNullable(id) }
