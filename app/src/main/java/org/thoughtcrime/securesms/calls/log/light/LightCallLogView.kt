@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.AbstractComposeView
+import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.lifecycle.findViewTreeLifecycleOwner
@@ -114,7 +115,11 @@ class LightCallLogView @JvmOverloads constructor(
 
   fun scrollToTop(smooth: Boolean) {
     val scope = findViewTreeLifecycleOwner()?.lifecycleScope ?: return
-    scope.launch {
+    // `AndroidUiDispatcher.Main` rather than the lifecycle scope's own dispatcher, because it
+    // carries a `MonotonicFrameClock` and `animateScrollToItem` throws without one. The lifecycle
+    // scope has no clock, so re-tapping the tab while already at the top -- which is exactly when
+    // the caller asks for the smooth variant -- crashed the app.
+    scope.launch(AndroidUiDispatcher.Main) {
       if (smooth) {
         listState.animateScrollToItem(0)
       } else {
