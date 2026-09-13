@@ -5205,6 +5205,7 @@ class ConversationFragment :
 
   private object AttachmentKeyboardFragmentCreator : InputAwareConstraintLayout.FragmentCreator {
     override val id: Int = ATTACHMENT_KEYBOARD_FRAGMENT_CREATOR_ID
+    override val presentation: InputAwareConstraintLayout.Presentation = InputAwareConstraintLayout.Presentation.FULL_SCREEN
     override fun create(): Fragment = AttachmentKeyboardFragment()
   }
 
@@ -5260,11 +5261,7 @@ class ConversationFragment :
     override fun onInputShown(fragmentCreatorId: Int) {
       when (fragmentCreatorId) {
         ATTACHMENT_KEYBOARD_FRAGMENT_CREATOR_ID -> {
-          if (viewModel.recipientSnapshot?.wallpaper != null) {
-            binding.navBar.setBackgroundColor(ThemeUtil.getThemedColor(requireContext(), R.color.wallpaper_compose_background))
-          } else {
-            binding.navBar.setBackgroundColor(ThemeUtil.getThemedColor(requireContext(), R.attr.signal_background_primary))
-          }
+          binding.navBar.setBackgroundColor(Color.BLACK)
         }
 
         MEDIA_KEYBOARD_FRAGMENT_CREATOR_ID -> {

@@ -7,7 +7,10 @@ package org.thoughtcrime.securesms.components
 
 import android.content.Context
 import android.util.AttributeSet
+import android.view.View
 import android.widget.EditText
+import androidx.annotation.IdRes
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import org.thoughtcrime.securesms.R
@@ -25,6 +28,8 @@ class InputAwareConstraintLayout @JvmOverloads constructor(
 
   private var inputId: Int? = null
   private var input: Fragment? = null
+  private var inputPresentation: Presentation? = null
+  private var activeContainerId: Int? = null
   private var wasKeyboardVisibleBeforeToggle: Boolean = false
   private val listeners: MutableSet<Listener> = mutableSetOf()
 
@@ -108,16 +113,25 @@ class InputAwareConstraintLayout @JvmOverloads constructor(
   }
 
   private fun showInput(fragmentCreator: FragmentCreator, imeTarget: EditText) {
+    val createdInput = fragmentCreator.create()
+    val presentation = fragmentCreator.presentation
+    val containerId = presentation.containerId
+
     inputId = fragmentCreator.id
-    input = fragmentCreator.create()
+    input = createdInput
+    inputPresentation = presentation
+    activeContainerId = containerId
+    findViewById<View>(containerId).isVisible = true
 
     fragmentManager
       .beginTransaction()
-      .replace(R.id.input_container, input!!)
-      .runOnCommit { (input as? InputFragment)?.show() }
+      .replace(containerId, createdInput)
+      .runOnCommit { (createdInput as? InputFragment)?.show() }
       .commit()
 
-    overrideKeyboardGuidelineWithPreviousHeight()
+    if (presentation == Presentation.KEYBOARD_HEIGHT) {
+      overrideKeyboardGuidelineWithPreviousHeight()
+    }
     ViewUtil.hideKeyboard(context, imeTarget)
 
     listeners.forEach { it.onInputShown(fragmentCreator.id) }
@@ -125,6 +139,9 @@ class InputAwareConstraintLayout @JvmOverloads constructor(
 
   private fun hideInput(resetKeyboardGuideline: Boolean) {
     val inputHidden = input != null
+    val hiddenPresentation = inputPresentation
+    val hiddenContainerId = activeContainerId
+
     input?.let {
       (input as? InputFragment)?.hide()
       fragmentManager
@@ -132,13 +149,20 @@ class InputAwareConstraintLayout @JvmOverloads constructor(
         .remove(it)
         .commit()
     }
+    hiddenContainerId?.let { findViewById<View>(it).isVisible = false }
     input = null
     inputId = null
+    inputPresentation = null
+    activeContainerId = null
 
-    if (resetKeyboardGuideline) {
-      resetKeyboardGuideline()
-    } else {
-      clearKeyboardGuidelineOverride()
+    // A full-screen input never owns the keyboard guideline. With no active input, retain the old
+    // reset behavior so hideAll/showSoftkey can still clean up ordinary IME geometry.
+    if (hiddenPresentation != Presentation.FULL_SCREEN) {
+      if (resetKeyboardGuideline) {
+        resetKeyboardGuideline()
+      } else {
+        clearKeyboardGuidelineOverride()
+      }
     }
 
     if (inputHidden) {
@@ -146,8 +170,16 @@ class InputAwareConstraintLayout @JvmOverloads constructor(
     }
   }
 
+  enum class Presentation(@IdRes val containerId: Int) {
+    KEYBOARD_HEIGHT(R.id.input_container),
+    FULL_SCREEN(R.id.full_screen_input_container)
+  }
+
   interface FragmentCreator {
     val id: Int
+    val presentation: Presentation
+      get() = Presentation.KEYBOARD_HEIGHT
+
     fun create(): Fragment
   }
 
