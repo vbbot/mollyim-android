@@ -8,6 +8,7 @@ package org.thoughtcrime.securesms.contacts.paged.light
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,13 +21,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
@@ -50,7 +55,29 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * single uniform item height, so every row kind is held to exactly this on LP3 -- see
  * [LightContactRow].
  */
-private const val ROW_HEIGHT_UNITS = 4.5f
+internal const val ROW_HEIGHT_UNITS = 4.5f
+
+/**
+ * The uniform estimate used instead when the list contains message hits, which are two lines tall
+ * (see [LightContactItem.Kind.MESSAGE_HIT]).
+ *
+ * [LightLazyScrollView] derives its scrollbar purely from one height for every row, so a list that
+ * mixes one- and two-line rows can only be approximated. Taking the taller number whenever any hit
+ * is present is the Light reference client's own answer to this (`chats/.../ContactsScreen.kt`
+ * switches to 3.8 grid units for exactly the same reason) and it is the better approximation here
+ * too: the MESSAGES section is the only unbounded one, so as soon as it has rows at all it is
+ * usually most of the list.
+ *
+ * **Derived, not measured, and deliberately so.** On LP3 a `Heading` line box is
+ * `38 * 1.35 * 413 / 600` = 35.3dp and a `Superfine` one is `16 * 1.20 * 413 / 600` = 13.2dp, which
+ * with [ROW_VERTICAL_PADDING] top and bottom is 72.5dp, or 5.44 grid units. It cannot be measured
+ * in a Robolectric test the way the column insets can: Robolectric stubs the font metrics and
+ * reports every line box at the same height whatever its type size, which makes a two-line row
+ * measure 4.5 units there and hides the whole problem. `LightSearchResultGeometryTest` therefore
+ * pins this against the SDK's own typography tokens and scaling arithmetic instead of against
+ * rendered text.
+ */
+internal const val ROW_HEIGHT_WITH_SNIPPET_UNITS = 5.45f
 
 /** Leading slot that holds the selection checkbox. Always present, on every row kind. */
 private const val MARKER_SLOT_UNITS = 1f
@@ -62,7 +89,7 @@ private const val COLUMN_GAP_UNITS = 0.25f
 private const val ROW_HORIZONTAL_PADDING_UNITS = 0.5f
 
 /** Row vertical padding, straight from the reference client. */
-private val ROW_VERTICAL_PADDING = 12.dp
+internal val ROW_VERTICAL_PADDING = 12.dp
 
 /**
  * The Light Phone contact picker.
@@ -109,7 +136,7 @@ fun LightContactListScreen(
   statusText: String = "",
   listState: LazyListState = rememberLazyListState(),
   onClick: (LightContactItem) -> Unit = {},
-  onLongClick: (LightContactItem) -> Unit = {},
+  onLongClick: (LightContactItem, Rect) -> Unit = { _, _ -> },
   onDataNeededAtSourceIndex: (Int) -> Unit = {},
   modifier: Modifier = Modifier
 ) {
@@ -149,7 +176,7 @@ fun LightContactListScreen(
     LightLazyScrollView(
       modifier = Modifier.fillMaxSize(),
       listState = listState,
-      uniformItemHeightGridUnits = ROW_HEIGHT_UNITS
+      uniformItemHeightGridUnits = if (state.hasSnippets) ROW_HEIGHT_WITH_SNIPPET_UNITS else ROW_HEIGHT_UNITS
     ) {
       items(state.rows, key = { it.key }) { item ->
         LightContactRow(
@@ -182,7 +209,7 @@ private fun LightContactRow(
   item: LightContactItem,
   selectionMode: Boolean,
   onClick: (LightContactItem) -> Unit,
-  onLongClick: (LightContactItem) -> Unit
+  onLongClick: (LightContactItem, Rect) -> Unit
 ) {
   if (item.kind == LightContactItem.Kind.PLACEHOLDER) {
     // A page the paging controller has not filled in yet. Occupies exactly one row so indices and
@@ -219,10 +246,22 @@ private fun LightContactRow(
   val currentItem by rememberUpdatedState(item)
   val clickable = item.clickable
 
+  // The row's position, kept in a plain array so that recording it costs no recomposition. A
+  // caller in View-land needs it to park an anchor over the row (Compose rows have no View of their
+  // own to drop a menu from); this is the same mechanism `LightConversationListScreen` uses.
+  val bounds = remember { FloatArray(4) }
+
   Row(
     modifier = Modifier
       .fillMaxWidth()
       .heightIn(min = ROW_HEIGHT_UNITS.gridUnitsAsDp())
+      .onGloballyPositioned { coordinates ->
+        val rect = coordinates.boundsInRoot()
+        bounds[0] = rect.left
+        bounds[1] = rect.top
+        bounds[2] = rect.right
+        bounds[3] = rect.bottom
+      }
       .then(
         if (clickable) {
           // Tap and long-press only, like the reference: a scroll drag never reaches onTap, so
@@ -234,7 +273,7 @@ private fun LightContactRow(
                 onTap = { currentOnClick(currentItem) },
                 onLongPress = {
                   haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                  currentOnLongClick(currentItem)
+                  currentOnLongClick(currentItem, Rect(bounds[0], bounds[1], bounds[2], bounds[3]))
                 }
               )
             }
@@ -276,35 +315,58 @@ private fun LightContactRow(
 
     Box(modifier = Modifier.width(COLUMN_GAP_UNITS.gridUnitsAsDp()))
 
-    Box(modifier = Modifier.weight(1f)) {
-      LightText(
-        text = item.name,
-        variant = when (item.kind) {
-          LightContactItem.Kind.HEADER -> LightTextVariant.Fine
-          LightContactItem.Kind.ACTION -> LightTextVariant.Button
-          else -> LightTextVariant.Heading
-        },
-        // Dimmed for the two kinds of row that are on the screen to be read rather than tapped: a
-        // section label, and a fixed contact -- an existing group member, say -- which Signal shows
-        // permanently checked and inert. Dimming is all the Light design has to say "not this one",
-        // and it is what the disabled checkbox used to say.
-        lighten = item.kind == LightContactItem.Kind.HEADER ||
-          (item.kind == LightContactItem.Kind.CONTACT && !item.enabled),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
-      )
-    }
+    // The name and the detail share a line, and the snippet goes underneath *both*. On a one-line
+    // row this measures exactly as it did when the detail was a sibling of this column -- the column
+    // still takes all the width the detail does not -- but on a two-line row it is what keeps the
+    // date beside the name it belongs to instead of floating it down between the two lines, which is
+    // where centring it against a two-line column would put it.
+    Column(modifier = Modifier.weight(1f)) {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        LightText(
+          text = item.name,
+          variant = when (item.kind) {
+            LightContactItem.Kind.HEADER -> LightTextVariant.Fine
+            LightContactItem.Kind.ACTION -> LightTextVariant.Button
+            else -> LightTextVariant.Heading
+          },
+          // Dimmed for the two kinds of row that are on the screen to be read rather than tapped: a
+          // section label, and a fixed contact -- an existing group member, say -- which Signal shows
+          // permanently checked and inert. Dimming is all the Light design has to say "not this one",
+          // and it is what the disabled checkbox used to say.
+          lighten = item.kind == LightContactItem.Kind.HEADER ||
+            (item.kind == LightContactItem.Kind.CONTACT && !item.enabled),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          // fill = true (the default): the name takes the whole line so the detail is pushed to
+          // the right edge, rather than sitting next to a short name in the middle of the row.
+          modifier = Modifier.weight(1f)
+        )
 
-    if (item.detail.isNotEmpty()) {
-      // Not in the reference client, which never has names long enough to reach the second column.
-      // Molly's group names routinely do, and an ellipsis butted straight up against the detail
-      // reads as one run-on string.
-      Box(modifier = Modifier.width(COLUMN_GAP_UNITS.gridUnitsAsDp()))
-      LightText(
-        text = item.detail,
-        variant = LightTextVariant.Fine,
-        maxLines = 1
-      )
+        if (item.detail.isNotEmpty()) {
+          // Not in the reference client, which never has names long enough to reach the second
+          // column. Molly's group names routinely do, and an ellipsis butted straight up against
+          // the detail reads as one run-on string.
+          Box(modifier = Modifier.width(COLUMN_GAP_UNITS.gridUnitsAsDp()))
+          LightText(
+            text = item.detail,
+            variant = LightTextVariant.Fine,
+            maxLines = 1
+          )
+        }
+      }
+
+      // The second line, and the only one in the port. Dimmed and a whole step smaller than the
+      // name, so the pair reads as "this conversation, this message" rather than as two rows that
+      // have run together -- the Light reference client's own two-line contact row, exactly.
+      if (item.snippet.isNotEmpty()) {
+        LightText(
+          text = item.snippet,
+          variant = LightTextVariant.Superfine,
+          lighten = true,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+      }
     }
   }
 }

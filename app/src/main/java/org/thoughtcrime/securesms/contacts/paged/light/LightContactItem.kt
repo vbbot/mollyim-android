@@ -13,6 +13,8 @@ import org.thoughtcrime.securesms.contacts.paged.ChatType
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchConfiguration
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchData
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchKey
+import org.thoughtcrime.securesms.conversationlist.ConversationListSearchModels
+import org.thoughtcrime.securesms.conversationlist.light.LightRelativeTimestamp
 import org.thoughtcrime.securesms.recipients.Recipient
 import java.util.Locale
 
@@ -51,6 +53,11 @@ class LightContactItem(
   val name: String,
   /** Right-aligned secondary text. See [detailFor] for what goes here and why. May be empty. */
   val detail: String,
+  /**
+   * A second line, drawn under [name] in `Superfine`. Empty on every row kind but a message hit --
+   * see [Kind.MESSAGE_HIT] for why that one row is allowed to be two lines tall.
+   */
+  val snippet: String = "",
   val selected: Boolean,
   /**
    * Whether this row can be turned on and off. False for the fixed contacts a screen was opened
@@ -65,6 +72,25 @@ class LightContactItem(
   enum class Kind {
     /** A recipient, a chat type, or a typed-in phone number: the ordinary, selectable row. */
     CONTACT,
+
+    /**
+     * A single matching *message*, from the search results' MESSAGES section. Two lines: the
+     * conversation's name and the hit's date on the first, a snippet of the message on the second.
+     *
+     * It is the one row in the Light port that is allowed a second line, and it earns it. Every
+     * other list here answers "which of these do you want?", where a name is the whole answer. A
+     * message search answers "where did we talk about this?", and a name alone cannot: search
+     * "pizza" and three hits in the same chat produce three rows that differ only by a date. The
+     * snippet is the only thing on the row that says which message was found.
+     *
+     * The shape is not invented -- it is the Light reference client's own two-line row
+     * (`chats/.../ContactsScreen.kt:ContactRow`, `Heading` over `Superfine`, both clipped to one
+     * line), which that client uses for exactly the same reason: a row whose primary text does not
+     * identify it on its own. It is *not* Signal's row: no avatar, no sender name, no delivery
+     * state, and the highlight span on the matched term is dropped, because `LightText` takes a
+     * `String` and the SDK has no styled-text component to carry one.
+     */
+    MESSAGE_HIT,
 
     /** A section label. Not clickable. */
     HEADER,
@@ -94,12 +120,18 @@ class LightContactItem(
     FIND_BY_PHONE_NUMBER,
 
     /** "View more" at the foot of a truncated section. Needs [data] for the section key. */
-    EXPAND
+    EXPAND,
+
+    /**
+     * "Clear filter", from the chat-filter row the conversation-list search shows when you search
+     * while the unread filter is on. Only the search host produces it; the picker never does.
+     */
+    CLEAR_CHAT_FILTER
   }
 
   /** Whether tapping this row does anything at all. */
   val clickable: Boolean
-    get() = (kind == Kind.CONTACT && enabled) || kind == Kind.ACTION
+    get() = (kind == Kind.CONTACT && enabled) || kind == Kind.ACTION || kind == Kind.MESSAGE_HIT
 
   override fun equals(other: Any?): Boolean {
     if (this === other) return true
@@ -109,6 +141,7 @@ class LightContactItem(
       kind == other.kind &&
       name == other.name &&
       detail == other.detail &&
+      snippet == other.snippet &&
       selected == other.selected &&
       enabled == other.enabled &&
       action == other.action
@@ -120,6 +153,7 @@ class LightContactItem(
     result = 31 * result + kind.hashCode()
     result = 31 * result + name.hashCode()
     result = 31 * result + detail.hashCode()
+    result = 31 * result + snippet.hashCode()
     result = 31 * result + selected.hashCode()
     result = 31 * result + enabled.hashCode()
     result = 31 * result + (action?.hashCode() ?: 0)
@@ -184,12 +218,17 @@ class LightContactItem(
             displayCheckBox = displayCheckBox
           )
 
+          // A conversation, from the search results' CHATS section. Deliberately shaped like the
+          // Light chat list's own row -- name plus relative timestamp -- rather than like the
+          // picker's, so that a chat you found by searching looks like the same chat you scrolled
+          // past. That costs a group its member count here, but the chat list does not show one
+          // either, so the two stay consistent.
           is ContactSearchData.Thread -> rows += recipientRow(
             index = index,
             data = row,
             recipient = row.threadWithRecipient.recipient,
             name = row.threadWithRecipient.recipient.getDisplayName(context),
-            detail = detailFor(context, row.threadWithRecipient.recipient),
+            detail = LightRelativeTimestamp.format(context, row.threadWithRecipient.date),
             selection = selection,
             fixedContacts = fixedContacts,
             displayCheckBox = displayCheckBox
@@ -266,9 +305,7 @@ class LightContactItem(
             data = row
           )
 
-          // A message hit has no place in a contact picker and no section here produces one, but it
-          // is mapped rather than left to blow up a `when` that the compiler checks for exhaustiveness.
-          is ContactSearchData.Message -> rows += placeholder(index)
+          is ContactSearchData.Message -> rows += messageRow(context, index, row)
 
           is ContactSearchData.TestRow -> rows += placeholder(index)
         }
@@ -276,7 +313,8 @@ class LightContactItem(
 
       return LightContactState(
         rows = rows,
-        selectionMode = displayCheckBox
+        selectionMode = displayCheckBox,
+        hasSnippets = rows.any { it.snippet.isNotEmpty() }
       )
     }
 
@@ -319,6 +357,35 @@ class LightContactItem(
       return context.resources
         .getQuantityString(R.plurals.ContactSearchItems__group_d_members, count, count)
         .uppercase(Locale.getDefault())
+    }
+
+    /**
+     * A single matching message: the conversation it is in, when it was sent, and a snippet of it.
+     *
+     * `conversationRecipient` rather than `messageRecipient` is the name: the question a message
+     * search asks is *where* a thing was said, and tapping the row opens the conversation, not the
+     * sender. In a group that means the row reads as the group's name with the matched text under
+     * it, which is what the thread it opens will show.
+     *
+     * `bodySnippet` is already the trimmed, centred-on-the-match extract `SearchRepository` built --
+     * we take its plain text and drop the highlight span, because `LightText` has no styled-text
+     * overload to carry one.
+     */
+    private fun messageRow(context: Context, index: Int, row: ContactSearchData.Message): LightContactItem {
+      val result = row.messageResult
+
+      return LightContactItem(
+        key = "message:${result.messageId}",
+        sourceIndex = index,
+        kind = Kind.MESSAGE_HIT,
+        name = result.conversationRecipient.getDisplayName(context),
+        detail = LightRelativeTimestamp.format(context, result.receivedTimestampMs),
+        snippet = result.bodySnippet.toString(),
+        selected = false,
+        enabled = true,
+        action = null,
+        data = row
+      )
     }
 
     private fun placeholder(index: Int) = LightContactItem(
@@ -415,6 +482,22 @@ class LightContactItem(
         data = row
       )
 
+      // The conversation-list search puts its own codes through this same Arbitrary channel, and
+      // `ArbitraryRow.fromCode` is an `entries.first { }` -- it throws NoSuchElementException on
+      // anything it does not know, which would take the whole list down the moment you searched with
+      // the unread filter on. Matched before the picker's own rows for that reason, and anything
+      // still unrecognised becomes blank space rather than a crash.
+      val chatFilter = ConversationListSearchModels.ChatFilterOptions.entries.firstOrNull { it.code == row.type }
+      if (chatFilter != null) {
+        return listOf(
+          action("", R.string.ConversationListFragment__clear_filter, Action.CLEAR_CHAT_FILTER)
+        )
+      }
+
+      if (ContactSelectionListModels.ArbitraryRow.entries.none { it.code == row.type }) {
+        return listOf(placeholder(index))
+      }
+
       return when (ContactSelectionListModels.ArbitraryRow.fromCode(row.type)) {
         ContactSelectionListModels.ArbitraryRow.NEW_GROUP ->
           listOf(action("", R.string.contact_selection_activity__new_group, Action.NEW_GROUP))
@@ -509,7 +592,12 @@ class LightContactItem(
 @Immutable
 data class LightContactState(
   val rows: List<LightContactItem> = emptyList(),
-  val selectionMode: Boolean = false
+  val selectionMode: Boolean = false,
+  /**
+   * Whether any row is two lines tall, which is the only thing the list's scrollbar needs to know
+   * about message hits. Computed once here rather than scanned in the composition.
+   */
+  val hasSnippets: Boolean = false
 ) {
 
   /**

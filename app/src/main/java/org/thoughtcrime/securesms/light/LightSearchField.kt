@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-package org.thoughtcrime.securesms.recipients.ui.light
+package org.thoughtcrime.securesms.light
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -37,56 +37,61 @@ import com.thelightphone.sdk.ui.gridUnitsAsDp
 import com.thelightphone.sdk.ui.lightClickable
 import org.thoughtcrime.securesms.R
 
-/** The search field sits on the list's row rhythm, so it is the same height as a contact row. */
+/** The field sits on the list's row rhythm, so it is the same height as a list row. */
 private const val FIELD_HEIGHT_UNITS = 4.5f
 
-/** The leading glyph's slot, the same width as the row's selection marker slot. */
+/** The leading glyph's slot, the same width as a row's marker slot. */
 private const val ICON_SLOT_UNITS = 1f
 
-/** Gap between the glyph and the text, matching the row's marker-to-name gap. */
+/** Gap between the glyph and the text, matching a row's marker-to-name gap. */
 private const val COLUMN_GAP_UNITS = 0.25f
 
-/** Field side margin, matching the row's. */
+/** Field side margin, matching a row's. */
 private const val HORIZONTAL_PADDING_UNITS = 0.5f
 
 /** Underline thickness, in the SDK's design-space vertical pixels. Straight from `LightTextField`. */
 private const val UNDERLINE_THICKNESS_PX = 3f
 
 /**
- * The contact picker's search field, in the Light idiom.
+ * **The** Light search field. One control, every caller in the app that searches.
  *
- * This replaces `RecipientSearchBar`, which is a Material 3 `SearchBar` wrapping a filled `TextField`
- * -- a rounded grey capsule with a floating placeholder, which is about as far from the Light design
- * language as a control gets. Unlike every other input this port has had to deal with, this one is
- * the point of its screen: a Light Phone's contacts list has no alphabet index and no fast scroller,
- * so search *is* how you find someone. It therefore gets a real Light control rather than being
- * covered over.
+ * Introduced for the contact picker (as `LightRecipientSearchBar`) and generalised here when the
+ * chat/call search needed the same thing; it now serves both, which is the point -- a second search
+ * field that merely looked similar would drift from this one the first time either was touched.
+ * The two callers are `recipients/ui/RecipientPicker.kt` and `main/MainToolbar.kt`.
  *
  * **The shape** is the SDK's own text-entry shape, taken from `LightTextField` (which is a display
  * field that opens an editor, so it could not be reused directly, only followed): the value in
- * `Copy`, with a rule beneath it. The columns are the list's -- a one-grid-unit leading slot holding
- * [LightIcons.SEARCH] where a row's selection marker goes, then the text where a row's name starts,
- * 1.75 grid units in. Typing therefore happens in the same column the results appear in.
+ * `Copy`, with a rule beneath it. The columns are the list's -- a one-grid-unit leading slot where a
+ * row's marker goes, then the text where a row's name starts, 1.75 grid units in. Typing therefore
+ * happens in the same column the results appear in.
  *
  * **No keyboard is embedded, and none is needed.** The Light Phone III's keyboard
  * (`app.lightphonekeyboard/.LightImeService`) is the device's default IME, so an ordinary Compose
  * text field raises the Light keyboard exactly as an `EditText` does. The SDK's own
  * `LightTextInputEditor` -- which drives a keyboard directly and takes over the whole screen -- is
- * not vendored here, and would be the wrong shape anyway: it is a modal editor, and this field has
- * to filter the list underneath it as you type.
+ * not vendored here, and would be the wrong shape anyway: it is a modal editor, and both callers
+ * have to filter a list underneath the field as you type.
  *
- * **Signal's text/dialpad toggle is dropped.** It swapped the IME's input type between
- * `TYPE_CLASS_TEXT` and `TYPE_CLASS_PHONE`. The Light keyboard has its own numeric layer, "find by
- * phone number" is its own row in the list below, and a mode toggle is a second control in a design
- * that wants one; the reference client's contacts panel has nothing of the kind.
+ * **The query is read here and nowhere higher.** It changes on every keystroke, so a caller that
+ * pulls it into its own body re-invokes everything else in that body per character. Callers pass it
+ * straight down into this composable, which is the only place it is actually needed.
+ *
+ * @param onBack when non-null, the leading slot becomes a tappable [LightIcons.BACK] that invokes
+ *   this -- for the toolbar, where the field *is* the search mode and leaving it is the way out.
+ *   When null the slot holds a decorative [LightIcons.SEARCH], for callers whose field is a filter
+ *   over a list that is on screen either way.
+ * @param trailing an optional extra glyph, drawn between the entry and the clear affordance.
  */
 @Composable
-fun LightRecipientSearchBar(
+fun LightSearchField(
   query: String,
   onQueryChange: (String) -> Unit,
   modifier: Modifier = Modifier,
   hint: String = stringResource(R.string.RecipientSearchBar__search_name_or_number),
-  focusRequester: FocusRequester? = null
+  focusRequester: FocusRequester? = null,
+  onBack: (() -> Unit)? = null,
+  trailing: (@Composable () -> Unit)? = null
 ) {
   val colors = LightThemeTokens.colors
   val keyboardController = LocalSoftwareKeyboardController.current
@@ -106,13 +111,19 @@ fun LightRecipientSearchBar(
       verticalAlignment = Alignment.CenterVertically
     ) {
       Box(
-        modifier = Modifier.width(ICON_SLOT_UNITS.gridUnitsAsDp()),
+        modifier = Modifier
+          .width(ICON_SLOT_UNITS.gridUnitsAsDp())
+          .then(if (onBack != null) Modifier.lightClickable(onClick = onBack) else Modifier),
         contentAlignment = Alignment.CenterStart
       ) {
         LightIcon(
-          icon = LightIcons.SEARCH,
+          icon = if (onBack != null) LightIcons.BACK else LightIcons.SEARCH,
           size = ICON_SLOT_UNITS,
-          contentDescription = null
+          contentDescription = if (onBack != null) {
+            stringResource(R.string.MainToolbar__close_search_content_description)
+          } else {
+            null
+          }
         )
       }
 
@@ -151,6 +162,11 @@ fun LightRecipientSearchBar(
           }
         }
       )
+
+      if (trailing != null) {
+        Box(modifier = Modifier.width(COLUMN_GAP_UNITS.gridUnitsAsDp()))
+        trailing()
+      }
 
       if (query.isNotEmpty()) {
         Box(modifier = Modifier.width(COLUMN_GAP_UNITS.gridUnitsAsDp()))

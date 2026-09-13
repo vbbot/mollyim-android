@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalView
@@ -243,10 +244,16 @@ class LightContactSearchView @JvmOverloads constructor(
         val expand = data as? ContactSearchData.Expand ?: return
         clickCallbacks?.onExpandClicked(expand)
       }
+
+      // The conversation-list search's row, which no picker configuration produces. Spelled out
+      // rather than swept into an `else` so that the next action added to the enum still fails this
+      // `when` at compile time instead of silently doing nothing here.
+      LightContactItem.Action.CLEAR_CHAT_FILTER -> Unit
     }
   }
 
-  private fun onRowLongClicked(item: LightContactItem) {
+  /** The picker's menu drops down from this view, so the row's bounds are of no use to it. */
+  private fun onRowLongClicked(item: LightContactItem, bounds: Rect) {
     val data = item.data as? ContactSearchData.KnownRecipient ?: return
     longClickCallbacks?.onKnownRecipientLongClick(this, data)
   }
