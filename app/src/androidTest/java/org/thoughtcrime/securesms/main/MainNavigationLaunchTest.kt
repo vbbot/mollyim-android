@@ -35,6 +35,7 @@ import org.thoughtcrime.securesms.conversationlist.ConversationListArchiveFragme
 import org.thoughtcrime.securesms.conversationlist.ConversationListFragment
 import org.thoughtcrime.securesms.dependencies.AppDependencies
 import org.thoughtcrime.securesms.mediasend.v2.MediaSelectionActivity
+import org.thoughtcrime.securesms.mediasend.v2.review.LightMediaReviewTopView
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.stories.landing.StoriesLandingFragment
@@ -123,8 +124,8 @@ class MainNavigationLaunchTest {
    * Image-share cold-launch: the dispatch path through `ShareOrDraftData.StartSendMedia`
    * that hops the user from the conversation into the media-send screen
    * ([MediaSelectionActivity]). Asserts that the secondary activity actually launches and
-   * that its [MediaReviewFragment] surfaces the recipient's display name in the top
-   * corner — i.e. it knows who the share is targeted at.
+   * that its [MediaReviewFragment] submits the recipient's display name to the centered
+   * Light top bar — i.e. it knows who the share is targeted at.
    */
   @Test
   fun coldLaunch_shareImageIntent_opensMediaSendForRecipient() {
@@ -135,10 +136,10 @@ class MainNavigationLaunchTest {
       val mediaSend = launched.awaitActivity(MediaSelectionActivity::class.java, timeoutMs = 20_000)
       val expectedName = runOnMainSync { Recipient.resolved(recipient).getDisplayName(context) }
 
-      await(timeoutMs = 15_000, description = "recipient label populated in MediaReviewFragment") {
+      await(timeoutMs = 15_000, description = "destination label submitted to MediaReviewFragment") {
         // await() already runs the predicate on the main thread; nesting another
         // runOnMainSync here would throw "can not be called from the main application thread".
-        mediaSend.findViewById<TextView>(R.id.recipient)?.text?.toString() == expectedName
+        mediaSend.findViewById<LightMediaReviewTopView>(R.id.light_review_top)?.submittedDestinationLabel == expectedName
       }
 
       // Exactly one ConversationFragment should have been created — the share dispatch

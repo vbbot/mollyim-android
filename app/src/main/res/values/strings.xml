@@ -6387,6 +6387,10 @@
     <string name="MediaReviewFragment__view_once_toggle_accessibility_label">Toggle View Once</string>
     <!-- Accessibility label describing the send media button on the Media review screen -->
     <string name="MediaReviewFragment__send_media_accessibility_label">Send Media</string>
+    <!-- Label for the read-only message field on the Light media review screen. -->
+    <string name="LightMediaReview__message">Message</string>
+    <!-- Accessibility label for the overflow action on the Light media review screen. -->
+    <string name="LightMediaReview__more_actions">More actions</string>
     <!-- Accessibility label describing the finish adding a message button on the Media review screen dialog -->
     <string name="MediaReviewFragment__finish_adding_a_message_accessibility_label">Finish adding a Message</string>
     <!-- Small notification presented to the user when they set multiple media items to be sent in high visual quality. -->
