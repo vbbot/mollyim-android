@@ -179,7 +179,6 @@ private fun AddToGroupsRecipientPicker(
   RecipientPicker(
     searchBarHint = stringResource(R.string.AddToGroupActivity_search),
     searchQuery = uiState.searchQuery,
-    enabledKeyboardTypes = listOf(RecipientPicker.KeyboardType.Text),
     displayModes = setOf(RecipientPicker.DisplayMode.ACTIVE_GROUPS, RecipientPicker.DisplayMode.GROUPS_AFTER_CONTACTS, RecipientPicker.DisplayMode.HIDE_NEW),
     selectionLimits = uiState.selectionLimits,
     preselectedRecipients = uiState.existingGroupMemberships,
