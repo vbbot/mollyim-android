@@ -81,6 +81,7 @@ class LightCallLogItem(
       name == other.name &&
       detail == other.detail &&
       timestamp == other.timestamp &&
+      timestampDescription == other.timestampDescription &&
       missed == other.missed &&
       selected == other.selected
   }
@@ -92,6 +93,7 @@ class LightCallLogItem(
     result = 31 * result + name.hashCode()
     result = 31 * result + detail.hashCode()
     result = 31 * result + timestamp.hashCode()
+    result = 31 * result + timestampDescription.hashCode()
     result = 31 * result + missed.hashCode()
     result = 31 * result + selected.hashCode()
     return result

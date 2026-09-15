@@ -60,6 +60,7 @@ class LightConversationListItem(
       kind == other.kind &&
       name == other.name &&
       timestamp == other.timestamp &&
+      timestampDescription == other.timestampDescription &&
       unread == other.unread &&
       selected == other.selected
   }
@@ -70,6 +71,7 @@ class LightConversationListItem(
     result = 31 * result + kind.hashCode()
     result = 31 * result + name.hashCode()
     result = 31 * result + timestamp.hashCode()
+    result = 31 * result + timestampDescription.hashCode()
     result = 31 * result + unread.hashCode()
     result = 31 * result + selected.hashCode()
     return result

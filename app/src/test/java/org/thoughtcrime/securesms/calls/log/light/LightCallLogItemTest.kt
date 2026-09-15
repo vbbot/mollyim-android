@@ -12,6 +12,7 @@ import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isNotNull
+import assertk.assertions.isNotEqualTo
 import assertk.assertions.isNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -128,6 +129,27 @@ class LightCallLogItemTest {
     assertThat(row.missed).isFalse()
     assertThat(row.hasActions).isFalse()
   }
+
+  @Test
+  fun `accessible timestamp description participates in row equality`() {
+    val first = callItem(timestampDescription = "5 minutes ago")
+    val second = callItem(timestampDescription = "6 minutes ago")
+
+    assertThat(first).isNotEqualTo(second)
+  }
+
+  private fun callItem(timestampDescription: String) = LightCallLogItem(
+    key = "call:1",
+    sourceIndex = 0,
+    kind = LightCallLogItem.Kind.CALL,
+    name = "Ada",
+    detail = "IN",
+    timestamp = "09:05",
+    timestampDescription = timestampDescription,
+    missed = false,
+    selected = false,
+    row = null
+  )
 
   private fun detail(type: CallTable.Type, direction: CallTable.Direction, missed: Boolean): String {
     return LightCallLogItem.detailFor(context, type, direction, missed)
