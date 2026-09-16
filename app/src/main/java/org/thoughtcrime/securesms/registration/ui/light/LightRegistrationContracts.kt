@@ -58,7 +58,7 @@ object LightRegistrationContracts {
     REMOVE_SPACES
   }
 
-  fun sanitizeCountryCode(value: CharSequence): String = value.filter(Char::isDigit)
+  fun sanitizeCountryCode(value: CharSequence): String = value.filter(Char::isDigit).toString()
 
   fun isCompleteVerificationCode(value: String, length: Int): Boolean =
     value.length == length && value.all(Char::isDigit)
