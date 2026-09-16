@@ -51,6 +51,22 @@ object LightRegistrationViewStyle {
     toolbar.setSubtitleTextColor(secondary(toolbar))
     toolbar.navigationIcon = toolbar.navigationIcon?.tinted(content(toolbar))
     toolbar.overflowIcon = toolbar.overflowIcon?.tinted(content(toolbar))
+
+    // AppCompat adds the title/subtitle as plain TextView children of the Toolbar.
+    // Re-style them with the same LightTextVariant.Fine that LightTopBarCenter.Text uses,
+    // so XML-based screens match the Compose top bar on all other registration screens.
+    toolbar.children.filterIsInstance<TextView>().forEach { tv ->
+      when {
+        !toolbar.title.isNullOrEmpty() && tv.text == toolbar.title -> {
+          LightItemStyle.apply(tv, LightTextVariant.Fine)
+          tv.setTextColor(content(toolbar))
+        }
+        !toolbar.subtitle.isNullOrEmpty() && tv.text == toolbar.subtitle -> {
+          LightItemStyle.apply(tv, LightTextVariant.Fine)
+          tv.setTextColor(secondary(toolbar))
+        }
+      }
+    }
   }
 
   fun title(view: TextView) {
