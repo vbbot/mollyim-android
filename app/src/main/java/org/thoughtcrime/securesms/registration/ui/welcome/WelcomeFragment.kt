@@ -58,12 +58,14 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
 
     LightRegistrationViewStyle.surface(binding.root)
     LightRegistrationViewStyle.toolbar(binding.toolbar)
-    LightRegistrationViewStyle.title(binding.title)
     LightRegistrationViewStyle.action(binding.welcomeContinueButton)
-    LightRegistrationViewStyle.action(binding.welcomeTermsButton)
     LightRegistrationViewStyle.action(binding.welcomeTransferOrRestore)
     LightRegistrationViewStyle.action(binding.link)
+    LightRegistrationViewStyle.body(binding.welcomeTermsButton)
+    binding.welcomeTermsButton.backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
+    binding.welcomeTermsButton.strokeWidth = 0
     binding.image.visibility = View.GONE
+    binding.title.visibility = View.GONE
 
     binding.welcomeContinueButton.setOnClickListener { onContinueClicked() }
     binding.welcomeTermsButton.setOnClickListener { onTermsClicked() }
