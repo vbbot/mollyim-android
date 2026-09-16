@@ -114,6 +114,10 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
     spinnerView = binding.countryCode.editText as TextInputEditText
     countryPickerView = binding.countryPicker
 
+    // Set back icon before styling so toolbar() picks it up and tints it.
+    binding.toolbar.setNavigationIcon(org.signal.core.ui.R.drawable.symbol_arrow_start_24)
+    binding.toolbar.setNavigationOnClickListener { popBackStack() }
+
     LightRegistrationViewStyle.surface(binding.root)
     LightRegistrationViewStyle.toolbar(binding.toolbar)
     LightRegistrationViewStyle.title(binding.verifyHeader)
@@ -125,6 +129,7 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
     LightRegistrationViewStyle.action(binding.registerButton)
     LightRegistrationViewStyle.icon(binding.dropdown)
     binding.countryPicker.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+    // Re-apply after setSupportActionBar so tints survive the toolbar reset.
     binding.toolbar.post { LightRegistrationViewStyle.toolbar(binding.toolbar) }
 
     countryPickerView.setOnClickListener {

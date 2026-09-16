@@ -7,6 +7,12 @@
     android:orientation="vertical"
     tools:context=".registration.ui.entercode.EnterCodeFragment">
 
+    <!-- Fixed top bar with back chevron. Styled by LightRegistrationViewStyle.toolbar(). -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
     <ScrollView
         android:id="@+id/scroll_view"
         android:layout_width="match_parent"
