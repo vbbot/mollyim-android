@@ -40,6 +40,7 @@ import org.thoughtcrime.securesms.registration.fragments.SignalStrengthPhoneStat
 import org.thoughtcrime.securesms.registration.sms.ReceivedSmsEvent
 import org.thoughtcrime.securesms.registration.ui.RegistrationCheckpoint
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
 import org.thoughtcrime.securesms.util.concurrent.AssertedSuccessListener
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 import org.thoughtcrime.securesms.util.visible
@@ -68,6 +69,16 @@ class EnterCodeFragment : LoggingFragment(R.layout.fragment_registration_enter_c
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
     setDebugLogSubmitMultiTapView(binding.verifyHeader)
+
+    LightRegistrationViewStyle.surface(binding.root)
+    LightRegistrationViewStyle.title(binding.verifyHeader)
+    LightRegistrationViewStyle.body(binding.verificationSubheader)
+    LightRegistrationViewStyle.action(binding.wrongNumber)
+    LightRegistrationViewStyle.action(binding.havingTroubleButton)
+    LightRegistrationViewStyle.action(binding.callMeCountDown)
+    LightRegistrationViewStyle.action(binding.resendSmsCountDown)
+    LightRegistrationViewStyle.verificationCode(binding.code)
+    LightRegistrationViewStyle.verificationKeyboard(binding.keyboard)
 
     phoneStateListener = SignalStrengthPhoneStateListener(this, PhoneStateCallback())
 

@@ -28,6 +28,8 @@ import org.thoughtcrime.securesms.registration.fragments.RegistrationViewDelegat
 import org.thoughtcrime.securesms.registration.fragments.WelcomePermissions
 import org.thoughtcrime.securesms.registration.ui.RegistrationCheckpoint
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationContracts
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
 import org.thoughtcrime.securesms.registration.ui.permissions.GrantPermissionsFragment
 import org.thoughtcrime.securesms.registration.ui.phonenumber.EnterPhoneNumberMode
 import org.thoughtcrime.securesms.util.BackupUtil
@@ -54,6 +56,15 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
     setDebugLogSubmitMultiTapView(binding.image)
     setDebugLogSubmitMultiTapView(binding.title)
 
+    LightRegistrationViewStyle.surface(binding.root)
+    LightRegistrationViewStyle.toolbar(binding.toolbar)
+    LightRegistrationViewStyle.title(binding.title)
+    LightRegistrationViewStyle.action(binding.welcomeContinueButton)
+    LightRegistrationViewStyle.action(binding.welcomeTermsButton)
+    LightRegistrationViewStyle.action(binding.welcomeTransferOrRestore)
+    LightRegistrationViewStyle.action(binding.link)
+    binding.image.visibility = View.GONE
+
     binding.welcomeContinueButton.setOnClickListener { onContinueClicked() }
     binding.welcomeTermsButton.setOnClickListener { onTermsClicked() }
     binding.welcomeTransferOrRestore.setOnClickListener { onRestoreOrTransferClicked() }
@@ -65,7 +76,7 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
       if (requestKey == RestoreWelcomeBottomSheet.REQUEST_KEY) {
         when (val userSelection = bundle.getSerializableCompat(RestoreWelcomeBottomSheet.REQUEST_KEY, WelcomeUserSelection::class.java)) {
           WelcomeUserSelection.RESTORE_WITH_OLD_PHONE,
-          WelcomeUserSelection.RESTORE_WITH_NO_PHONE -> afterRestoreOrTransferClicked(userSelection)
+          WelcomeUserSelection.RESTORE_WITH_NO_PHONE -> route(userSelection.toLightAction())
           else -> Unit
         }
       }
@@ -75,9 +86,9 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
       if (requestKey == GrantPermissionsFragment.REQUEST_KEY) {
         when (val userSelection = bundle.getSerializableCompat(GrantPermissionsFragment.REQUEST_KEY, WelcomeUserSelection::class.java)) {
           WelcomeUserSelection.RESTORE_WITH_OLD_PHONE,
-          WelcomeUserSelection.RESTORE_WITH_NO_PHONE -> navigateToNextScreenViaRestore(userSelection)
-          WelcomeUserSelection.CONTINUE -> navigateToNextScreenViaContinue()
-          WelcomeUserSelection.LINK -> navigateToLinkDevice()
+          WelcomeUserSelection.RESTORE_WITH_NO_PHONE,
+          WelcomeUserSelection.CONTINUE,
+          WelcomeUserSelection.LINK -> route(userSelection.toLightAction(), hasPermissions = true)
           null -> Unit
         }
       }
@@ -93,11 +104,7 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
   }
 
   private fun onLinkDeviceClicked() {
-    if (!hasAllPermissions()) {
-      findNavController().safeNavigate(WelcomeFragmentDirections.actionWelcomeFragmentToGrantPermissionsFragment(WelcomeUserSelection.LINK))
-    } else {
-      navigateToLinkDevice()
-    }
+    route(LightRegistrationContracts.WelcomeAction.LINK_DEVICE)
   }
 
   private fun navigateToLinkDevice() {
@@ -116,11 +123,7 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
   }
 
   private fun onContinueClicked() {
-    if (!hasAllPermissions()) {
-      findNavController().safeNavigate(WelcomeFragmentDirections.actionWelcomeFragmentToGrantPermissionsFragment(WelcomeUserSelection.CONTINUE))
-    } else {
-      navigateToNextScreenViaContinue()
-    }
+    route(LightRegistrationContracts.WelcomeAction.CONTINUE)
   }
 
   private fun navigateToNextScreenViaContinue() {
@@ -136,12 +139,25 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
     RestoreWelcomeBottomSheet().show(childFragmentManager, null)
   }
 
-  private fun afterRestoreOrTransferClicked(userSelection: WelcomeUserSelection) {
-    if (!hasAllPermissions()) {
-      findNavController().safeNavigate(WelcomeFragmentDirections.actionWelcomeFragmentToGrantPermissionsFragment(userSelection))
-    } else {
-      navigateToNextScreenViaRestore(userSelection)
-    }
+  private fun route(
+    action: LightRegistrationContracts.WelcomeAction,
+    hasPermissions: Boolean = hasAllPermissions()
+  ) {
+    val route = LightRegistrationContracts.welcomeRoute(action, hasPermissions)
+    LightRegistrationContracts.dispatch(
+      route,
+      LightRegistrationContracts.WelcomeRouteCallbacks(
+        requestPermissions = { requestedAction ->
+          findNavController().safeNavigate(
+            WelcomeFragmentDirections.actionWelcomeFragmentToGrantPermissionsFragment(requestedAction.toUserSelection())
+          )
+        },
+        showPhoneNumber = ::navigateToNextScreenViaContinue,
+        showLinkDeviceQr = ::navigateToLinkDevice,
+        showRestoreViaQr = { navigateToNextScreenViaRestore(WelcomeUserSelection.RESTORE_WITH_OLD_PHONE) },
+        showRestoreMethods = { navigateToNextScreenViaRestore(WelcomeUserSelection.RESTORE_WITH_NO_PHONE) }
+      )
+    )
   }
 
   private fun navigateToNextScreenViaRestore(userSelection: WelcomeUserSelection) {
@@ -166,6 +182,20 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
   private fun hasAllPermissions(): Boolean {
     val isUserSelectionRequired = BackupUtil.isUserSelectionRequired(requireContext())
     return WelcomePermissions.getWelcomePermissions(isUserSelectionRequired).all { ContextCompat.checkSelfPermission(requireContext(), it) == PackageManager.PERMISSION_GRANTED }
+  }
+
+  private fun WelcomeUserSelection.toLightAction(): LightRegistrationContracts.WelcomeAction = when (this) {
+    WelcomeUserSelection.CONTINUE -> LightRegistrationContracts.WelcomeAction.CONTINUE
+    WelcomeUserSelection.LINK -> LightRegistrationContracts.WelcomeAction.LINK_DEVICE
+    WelcomeUserSelection.RESTORE_WITH_OLD_PHONE -> LightRegistrationContracts.WelcomeAction.RESTORE_WITH_OLD_PHONE
+    WelcomeUserSelection.RESTORE_WITH_NO_PHONE -> LightRegistrationContracts.WelcomeAction.RESTORE_WITHOUT_OLD_PHONE
+  }
+
+  private fun LightRegistrationContracts.WelcomeAction.toUserSelection(): WelcomeUserSelection = when (this) {
+    LightRegistrationContracts.WelcomeAction.CONTINUE -> WelcomeUserSelection.CONTINUE
+    LightRegistrationContracts.WelcomeAction.LINK_DEVICE -> WelcomeUserSelection.LINK
+    LightRegistrationContracts.WelcomeAction.RESTORE_WITH_OLD_PHONE -> WelcomeUserSelection.RESTORE_WITH_OLD_PHONE
+    LightRegistrationContracts.WelcomeAction.RESTORE_WITHOUT_OLD_PHONE -> WelcomeUserSelection.RESTORE_WITH_NO_PHONE
   }
 
   private inner class UseProxyMenuProvider : MenuProvider {

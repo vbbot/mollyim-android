@@ -60,6 +60,8 @@ import org.thoughtcrime.securesms.registration.ui.RegistrationState
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
 import org.thoughtcrime.securesms.registration.ui.countrycode.Country
 import org.thoughtcrime.securesms.registration.ui.countrycode.CountryCodeFragment
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationContracts
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
 import org.thoughtcrime.securesms.registration.ui.toE164
 import org.thoughtcrime.securesms.registration.util.CountryPrefix
 import org.thoughtcrime.securesms.util.CommunicationActions
@@ -111,6 +113,19 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
     phoneNumberInputLayout = binding.number.editText as TextInputEditText
     spinnerView = binding.countryCode.editText as TextInputEditText
     countryPickerView = binding.countryPicker
+
+    LightRegistrationViewStyle.surface(binding.root)
+    LightRegistrationViewStyle.toolbar(binding.toolbar)
+    LightRegistrationViewStyle.title(binding.verifyHeader)
+    LightRegistrationViewStyle.body(binding.verifySubheader)
+    LightRegistrationViewStyle.body(binding.country)
+    LightRegistrationViewStyle.input(binding.countryCode)
+    LightRegistrationViewStyle.input(binding.number)
+    LightRegistrationViewStyle.action(binding.cancelButton)
+    LightRegistrationViewStyle.action(binding.registerButton)
+    LightRegistrationViewStyle.icon(binding.dropdown)
+    binding.countryPicker.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+    binding.toolbar.post { LightRegistrationViewStyle.toolbar(binding.toolbar) }
 
     countryPickerView.setOnClickListener {
       moveToCountryPickerScreen()
@@ -279,7 +294,7 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
 
   private fun initializeInputFields() {
     binding.countryCode.editText?.addTextChangedListener { s ->
-      val sanitized = s.toString().filter { c -> c.isDigit() }
+      val sanitized = LightRegistrationContracts.sanitizeCountryCode(s.orEmpty())
       if (sanitized.isNotNullOrBlank()) {
         val countryCode: Int = sanitized.toInt()
         fragmentViewModel.setCountry(countryCode)
