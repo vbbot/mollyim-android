@@ -199,47 +199,40 @@ private fun AppSettingsContent(
 ) {
   val isRegisteredAndUpToDate by rememberUpdatedState(state.isRegisteredAndUpToDate())
 
-  Scaffolds.Settings(
-    title = stringResource(R.string.text_secure_normal__menu_settings),
-    navigationContentDescription = stringResource(R.string.CallScreenTopBar__go_back),
-    navigationIcon = SignalIcons.ArrowStart.imageVector,
-    onNavigationClick = callbacks::onNavigationClick
-  ) { contentPadding ->
+  org.thoughtcrime.securesms.light.MollyLightTheme {
     Column(
-      modifier = Modifier.padding(contentPadding)
+      modifier = Modifier
+        .background(com.thelightphone.sdk.ui.LightColors.Black)
+        .padding(
+          top = androidx.compose.foundation.layout.WindowInsets.Companion.statusBars.asPaddingValues().calculateTopPadding(),
+          bottom = androidx.compose.foundation.layout.WindowInsets.Companion.navigationBars.asPaddingValues().calculateBottomPadding()
+        )
     ) {
+      com.thelightphone.sdk.ui.components.LightTopBar(
+        title = stringResource(R.string.text_secure_normal__menu_settings),
+        onNavigationClick = callbacks::onNavigationClick
+      )
       bannerManager.Banner()
 
-      LazyColumn(
-        modifier = rememberStatusBarColorNestedScrollModifier()
+      com.thelightphone.sdk.ui.components.LightScrollView(
+        modifier = Modifier.weight(1f)
       ) {
-        item {
+        Column {
           BioRow(
             self = self,
             callbacks = callbacks
           )
-        }
 
         when (state.backupFailureState) {
           BackupFailureState.SUBSCRIPTION_STATE_MISMATCH -> {
-            item {
-              Dividers.Default()
-
               BackupsWarningRow(
                 text = stringResource(R.string.AppSettingsFragment__renew_your_signal_backups_subscription),
                 onClick = {
                   callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote())
                 }
               )
-
-              Dividers.Default()
-            }
           }
-
           BackupFailureState.BACKUP_FAILED, BackupFailureState.COULD_NOT_COMPLETE_BACKUP -> {
-            item {
-              Dividers.Default()
-
               BackupsWarningRow(
                 text = stringResource(R.string.AppSettingsFragment__couldnt_complete_backup),
                 onClick = {
@@ -247,15 +240,8 @@ private fun AppSettingsContent(
                   callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote())
                 }
               )
-
-              Dividers.Default()
-            }
           }
-
           BackupFailureState.ALREADY_REDEEMED -> {
-            item {
-              Dividers.Default()
-
               BackupsWarningRow(
                 text = stringResource(R.string.AppSettingsFragment__couldnt_redeem_your_backups_subscription),
                 onClick = {
@@ -263,70 +249,42 @@ private fun AppSettingsContent(
                   callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote())
                 }
               )
-
-              Dividers.Default()
-            }
           }
-
           BackupFailureState.OUT_OF_STORAGE_SPACE -> {
-            item {
-              Dividers.Default()
-
-              Rows.TextRow(
-                text = stringResource(R.string.AppSettingsFragment__backup_storage_limit_reached),
-                icon = SignalIcons.ErrorCircle.imageVector,
-                iconTint = MaterialTheme.colorScheme.error,
-                onClick = {
+              LightSettingsRow(
+            text = stringResource(R.string.AppSettingsFragment__backup_storage_limit_reached),
+            onClick = {
                   callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote())
                 }
-              )
-
-              Dividers.Default()
-            }
+          )
           }
-
           BackupFailureState.NONE -> Unit
         }
 
-        item {
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.AccountSettingsFragment__account),
-            icon = painterResource(CoreUiR.drawable.symbol_person_circle_24),
             onClick = {
               callbacks.navigate(AppSettingsRoute.AccountRoute.Account)
             }
           )
-        }
 
-        item {
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.preferences__linked_devices),
-            icon = painterResource(CoreUiR.drawable.symbol_devices_24),
             onClick = {
               callbacks.navigate(AppSettingsRoute.LinkDeviceRoute.LinkDevice)
             },
             enabled = isRegisteredAndUpToDate
           )
-        }
 
-        item {
           val context = LocalContext.current
           val donateUrl = stringResource(R.string.donate_url)
-
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.preferences__donate_to_signal),
-            icon = painterResource(R.drawable.symbol_heart_24),
             onClick = {
               CommunicationActions.openBrowserLink(context, donateUrl)
             },
           )
-        }
 
-        item {
-          Dividers.Default()
-        }
-
-        item {
           Rows.TextRow(
             text = stringResource(R.string.preferences__appearance),
             icon = painterResource(R.drawable.symbol_appearance_24),
@@ -334,53 +292,39 @@ private fun AppSettingsContent(
               callbacks.navigate(AppSettingsRoute.AppearanceRoute.Appearance)
             }
           )
-        }
 
-        item {
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.preferences_chats__chats),
-            icon = painterResource(R.drawable.symbol_chat_24),
             onClick = {
               callbacks.navigate(AppSettingsRoute.ChatsRoute.Chats)
             },
             enabled = isRegisteredAndUpToDate
           )
-        }
 
-        item {
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.preferences__stories),
-            icon = painterResource(R.drawable.symbol_stories_24),
             onClick = {
               callbacks.navigate(AppSettingsRoute.StoriesRoute.Privacy(titleId = R.string.preferences__stories))
             },
             enabled = isRegisteredAndUpToDate
           )
-        }
 
-        item {
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.preferences__notifications),
-            icon = painterResource(R.drawable.symbol_bell_24),
             onClick = {
               callbacks.navigate(AppSettingsRoute.NotificationsRoute.Notifications)
             },
             enabled = isRegisteredAndUpToDate
           )
-        }
 
-        item {
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.preferences__privacy),
-            icon = SignalIcons.Lock.painter,
             onClick = {
               callbacks.navigate(AppSettingsRoute.PrivacyRoute.Privacy)
             },
             enabled = isRegisteredAndUpToDate
           )
-        }
 
-        item {
           Rows.TextRow(
             icon =  SignalIcons.Backup.imageVector,
             text = stringResource(R.string.preferences_chats__backups),
@@ -391,93 +335,71 @@ private fun AppSettingsContent(
               callbacks.copyRemoteBackupsSubscriberIdToClipboard()
             },
           )
-        }
 
-        item {
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.preferences__network),
-            icon = painterResource(R.drawable.ic_network_24),
             onClick = {
               callbacks.navigate(AppSettingsRoute.DataAndStorageRoute.Proxy)
             }
           )
-        }
 
-        item {
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.preferences__data_and_storage),
-            icon = painterResource(R.drawable.symbol_data_24),
             onClick = {
               callbacks.navigate(AppSettingsRoute.DataAndStorageRoute.DataAndStorage)
             }
           )
-        }
 
         if (state.showAppUpdates) {
-          item {
-            Rows.TextRow(
-              text = "App updates",
-              icon = painterResource(R.drawable.symbol_calendar_24),
-              onClick = {
+            LightSettingsRow(
+            text = "App updates",
+            onClick = {
                 callbacks.navigate(AppSettingsRoute.AppUpdates)
               }
-            )
-          }
+          )
         }
 
-        item {
-          Dividers.Default()
-        }
-
-        item {
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.preferences__help),
-            icon = painterResource(R.drawable.symbol_help_24),
             onClick = {
               callbacks.navigate(AppSettingsRoute.HelpRoute.Settings())
             }
           )
-        }
 
         if (state.showInternalPreferences) {
-          item {
-            Dividers.Default()
-          }
-
-          item {
-            Rows.TextRow(
-              text = "Labs",
-              icon = painterResource(R.drawable.symbol_flash_24),
-              onClick = {
+            LightSettingsRow(
+            text = "Labs",
+            onClick = {
                 callbacks.navigate(AppSettingsRoute.LabsRoute.Labs)
               }
-            )
-          }
+          )
 
-          item {
-            Rows.TextRow(
-              text = stringResource(R.string.preferences__internal_preferences),
-              icon = painterResource(R.drawable.symbol_key_24),
-              onClick = {
+            LightSettingsRow(
+            text = "Internal",
+            onClick = {
                 callbacks.navigate(AppSettingsRoute.InternalRoute.Internal)
               }
-            )
-          }
+          )
+        }
         }
       }
     }
   }
 }
 
+
 @Composable
 private fun BackupsWarningRow(
   text: String,
   onClick: () -> Unit
 ) {
-  Rows.TextRow(
-    text = {
-      Text(text = text)
-    },
+  LightSettingsRow(
+    text = text,
+    onClick = onClick,
+    warning = true
+  )
+}
+,
     icon = {
       Box {
         Icon(
@@ -499,12 +421,16 @@ private fun BackupsWarningRow(
   )
 }
 
+
 @Composable
 private fun BioRow(
   self: BioRecipientState,
   callbacks: Callbacks
 ) {
   val hasUsername by rememberUpdatedState(self.username.isNotBlank())
+  val prettyPhoneNumber = remember(self.e164) {
+    SignalE164Util.prettyPrint(self.e164)
+  }
 
   Row(
     verticalAlignment = Alignment.CenterVertically,
@@ -514,96 +440,35 @@ private fun BioRow(
           callbacks.navigate(AppSettingsRoute.AccountRoute.ManageProfile)
         }
       )
-      .horizontalGutters()
+      .fillMaxWidth()
+      .padding(horizontal = 16.dp, vertical = 24.dp)
   ) {
-    Box {
-      AvatarImage(
-        recipient = self.recipient,
-        modifier = Modifier
-          .padding(vertical = 24.dp)
-          .size(80.dp)
+    Column(
+      modifier = Modifier.weight(1f)
+    ) {
+      com.thelightphone.sdk.ui.LightText(
+        text = self.profileName.toString(),
+        variant = com.thelightphone.sdk.ui.LightTextVariant.Title1,
+        color = com.thelightphone.sdk.ui.LightColors.White
       )
 
-      if (self.featuredBadge != null) {
-        BadgeImageMedium(
-          badge = self.featuredBadge,
-          modifier = Modifier
-            .padding(bottom = 24.dp)
-            .size(24.dp)
-            .align(Alignment.BottomEnd)
-        )
-      }
-    }
-
-    Column(
-      modifier = Modifier
-        .weight(1f)
-        .padding(start = 24.dp, end = 12.dp)
-    ) {
-      Emojifier(text = self.profileName.toString()) { annotatedString, inlineTextContentMap ->
-        Text(
-          text = annotatedString,
-          inlineContent = inlineTextContentMap,
-          style = MaterialTheme.typography.titleLarge
-        )
-      }
-
-      val prettyPhoneNumber = if (LocalInspectionMode.current) {
-        self.e164
-      } else {
-        remember(self.e164) {
-          SignalE164Util.prettyPrint(self.e164)
-        }
-      }
-
-      Text(
+      com.thelightphone.sdk.ui.LightText(
         text = prettyPhoneNumber,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = TextStyle(
-          textDirection = TextDirection.ContentOrLtr
-        )
+        variant = com.thelightphone.sdk.ui.LightTextVariant.Body,
+        color = com.thelightphone.sdk.ui.LightColors.Gray
       )
 
       if (hasUsername) {
-        Text(
+        com.thelightphone.sdk.ui.LightText(
           text = self.username,
-          color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-      }
-
-      if (self.combinedAboutAndEmoji != null) {
-        Emojifier(
-          text = self.combinedAboutAndEmoji
-        ) { annotatedString, inlineTextContentMap ->
-          Text(
-            text = annotatedString,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            inlineContent = inlineTextContentMap,
-            modifier = Modifier.padding(top = 8.dp)
-          )
-        }
-      }
-    }
-
-    if (hasUsername) {
-      IconButtons.IconButton(
-        onClick = {
-          callbacks.navigate(AppSettingsRoute.UsernameLinkRoute.UsernameLink)
-        },
-        size = 36.dp,
-        colors = IconButtons.iconButtonColors(
-          containerColor = SignalTheme.colors.colorSurface4
-        )
-      ) {
-        Icon(
-          painter = SignalIcons.QrCode.painter,
-          contentDescription = null,
-          modifier = Modifier.size(20.dp)
+          variant = com.thelightphone.sdk.ui.LightTextVariant.Body,
+          color = com.thelightphone.sdk.ui.LightColors.Gray
         )
       }
     }
   }
 }
+
 
 @DayNightPreviews
 @Composable
@@ -718,6 +583,37 @@ private class TestBanner : Banner<Unit>() {
         Action(android.R.string.ok) {}
       ),
       paddingValues = contentPadding
+    )
+  }
+}
+
+@Composable
+private fun LightSettingsRow(
+  text: String,
+  onClick: () -> Unit,
+  enabled: Boolean = true,
+  warning: Boolean = false,
+  onLongClick: (() -> Unit)? = null
+) {
+  val haptics = LocalHapticFeedback.current
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 16.dp, vertical = 12.dp)
+      .combinedClickable(
+          enabled = enabled,
+          onClick = onClick,
+          onLongClick = onLongClick?.let { {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            it()
+          } }
+      ),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    com.thelightphone.sdk.ui.LightText(
+      text = text,
+      color = if (warning) MaterialTheme.colorScheme.error else if (enabled) com.thelightphone.sdk.ui.LightColors.White else com.thelightphone.sdk.ui.LightColors.Gray,
+      variant = com.thelightphone.sdk.ui.LightTextVariant.Body
     )
   }
 }
