@@ -1,5 +1,19 @@
 package org.thoughtcrime.securesms.components.settings.app
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
+
+
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.thelightphone.sdk.ui.LightColors
+import com.thelightphone.sdk.ui.LightTextVariant
+
+
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
@@ -202,10 +216,10 @@ private fun AppSettingsContent(
   org.thoughtcrime.securesms.light.MollyLightTheme {
     Column(
       modifier = Modifier
-        .background(com.thelightphone.sdk.ui.LightColors.Black)
+        .background(LightColors.Black)
         .padding(
-          top = androidx.compose.foundation.layout.WindowInsets.Companion.statusBars.asPaddingValues().calculateTopPadding(),
-          bottom = androidx.compose.foundation.layout.WindowInsets.Companion.navigationBars.asPaddingValues().calculateBottomPadding()
+          top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+          bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         )
     ) {
       com.thelightphone.sdk.ui.components.LightTopBar(
@@ -448,21 +462,21 @@ private fun BioRow(
     ) {
       com.thelightphone.sdk.ui.LightText(
         text = self.profileName.toString(),
-        variant = com.thelightphone.sdk.ui.LightTextVariant.Title1,
-        color = com.thelightphone.sdk.ui.LightColors.White
+        variant = LightTextVariant.Title1,
+        color = LightColors.White
       )
 
       com.thelightphone.sdk.ui.LightText(
         text = prettyPhoneNumber,
-        variant = com.thelightphone.sdk.ui.LightTextVariant.Body,
-        color = com.thelightphone.sdk.ui.LightColors.Gray
+        variant = LightTextVariant.Body,
+        color = LightColors.Gray
       )
 
       if (hasUsername) {
         com.thelightphone.sdk.ui.LightText(
           text = self.username,
-          variant = com.thelightphone.sdk.ui.LightTextVariant.Body,
-          color = com.thelightphone.sdk.ui.LightColors.Gray
+          variant = LightTextVariant.Body,
+          color = LightColors.Gray
         )
       }
     }
@@ -612,8 +626,8 @@ private fun LightSettingsRow(
   ) {
     com.thelightphone.sdk.ui.LightText(
       text = text,
-      color = if (warning) MaterialTheme.colorScheme.error else if (enabled) com.thelightphone.sdk.ui.LightColors.White else com.thelightphone.sdk.ui.LightColors.Gray,
-      variant = com.thelightphone.sdk.ui.LightTextVariant.Body
+      color = if (warning) MaterialTheme.colorScheme.error else if (enabled) LightColors.White else LightColors.Gray,
+      variant = LightTextVariant.Body
     )
   }
 }
