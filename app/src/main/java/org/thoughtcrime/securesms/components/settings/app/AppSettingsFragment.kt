@@ -4,6 +4,18 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.thelightphone.sdk.ui.LightColors
+import com.thelightphone.sdk.ui.LightTextVariant
+
+
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
 
 
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -299,9 +311,8 @@ private fun AppSettingsContent(
             },
           )
 
-          Rows.TextRow(
+          LightSettingsRow(
             text = stringResource(R.string.preferences__appearance),
-            icon = painterResource(R.drawable.symbol_appearance_24),
             onClick = {
               callbacks.navigate(AppSettingsRoute.AppearanceRoute.Appearance)
             }
@@ -339,15 +350,14 @@ private fun AppSettingsContent(
             enabled = isRegisteredAndUpToDate
           )
 
-          Rows.TextRow(
-            icon =  SignalIcons.Backup.imageVector,
+          LightSettingsRow(
             text = stringResource(R.string.preferences_chats__backups),
             onClick = {
               callbacks.navigate(AppSettingsRoute.BackupsRoute.Backups())
             },
             onLongClick = {
               callbacks.copyRemoteBackupsSubscriberIdToClipboard()
-            },
+            }
           )
 
           LightSettingsRow(
