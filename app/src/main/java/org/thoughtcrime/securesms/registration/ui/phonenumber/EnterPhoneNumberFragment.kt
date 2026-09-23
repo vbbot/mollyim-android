@@ -294,7 +294,7 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
 
   private fun initializeInputFields() {
     binding.countryCode.editText?.addTextChangedListener { s ->
-      val sanitized = LightRegistrationContracts.sanitizeCountryCode(s.orEmpty())
+      val sanitized = LightRegistrationContracts.sanitizeCountryCode(s?.toString().orEmpty())
       if (sanitized.isNotNullOrBlank()) {
         val countryCode: Int = sanitized.toInt()
         fragmentViewModel.setCountry(countryCode)
