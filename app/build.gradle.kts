@@ -63,6 +63,20 @@ wire {
 }
 
 android {
+  signingConfigs {
+    getByName("debug") {
+        storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+    }
+}
+buildTypes {
+    getByName("release") {
+        signingConfig = signingConfigs.getByName("debug")
+    }
+}
+
   namespace = "org.thoughtcrime.securesms"
 
   buildToolsVersion = libs.versions.buildTools.get()

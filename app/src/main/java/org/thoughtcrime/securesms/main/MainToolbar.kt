@@ -323,15 +323,6 @@ private fun ArchiveToolbar(
   )
 }
 
-@Composable
-
-
-@Composable
-
-
-@Composable
-
-
 @DayNightPreviews
 @Composable
 private fun FullMainToolbarPreview() {
