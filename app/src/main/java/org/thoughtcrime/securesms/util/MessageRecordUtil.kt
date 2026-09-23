@@ -124,11 +124,23 @@ fun MessageRecord.isPoll(): Boolean {
 }
 
 fun MessageRecord.isTextOnly(context: Context): Boolean {
+  return isTextOnlyIgnoringQuote(context) && !hasQuote()
+}
+
+/**
+ * [isTextOnly] but for the quote: true for a message whose only content beyond a plain text body is
+ * the message it replies to.
+ *
+ * Signal has nowhere to put a quote outside a bubble, so it lumps every reply in with media. The
+ * Light design has somewhere: a reply is one dimmed line above an otherwise ordinary message (see
+ * [org.thoughtcrime.securesms.conversation.v2.items.light.LightQuoteLine]), so a text reply is a
+ * text row and belongs on the text row's view holder, not on the media one.
+ */
+fun MessageRecord.isTextOnlyIgnoringQuote(context: Context): Boolean {
   return !isMms ||
     (
       !isViewOnceMessage() &&
         !hasLinkPreview() &&
-        !hasQuote() &&
         !hasExtraText() &&
         !hasDocument() &&
         !hasThumbnail() &&

@@ -130,6 +130,27 @@
         app:layout_constraintStart_toStartOf="@id/light_column_start"
         app:layout_constraintTop_toTopOf="@id/light_footer" />
 
+
+    <!--
+      The quoted message of a reply: one dimmed line above the body, glyph and all. No fill, no
+      border, no rule, no indent — see LightQuoteLine. A plain TextView rather than an EmojiTextView
+      because this is a single truncated line with no spans to render, and because an EmojiTextView
+      cannot be inflated outside the app's dependency graph.
+    -->
+    <TextView
+        android:id="@+id/light_quote_line"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAlignment="viewStart"
+        android:visibility="gone"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toStartOf="@id/light_column_start"
+        app:layout_constraintEnd_toEndOf="@id/light_column_end"
+        app:layout_constraintTop_toBottomOf="@id/light_footer"
+        tools:text="\u21b6 Steinar: see you at three"
+        tools:visibility="visible" />
+
     <FrameLayout
         android:id="@+id/conversation_item_body_wrapper"
         android:layout_width="wrap_content"
@@ -138,7 +159,7 @@
         app:layout_constraintHorizontal_bias="0"
         app:layout_constraintStart_toStartOf="@id/light_column_start"
         app:layout_constraintEnd_toEndOf="@id/light_column_end"
-        app:layout_constraintTop_toBottomOf="@id/light_footer">
+        app:layout_constraintTop_toBottomOf="@id/light_quote_line">
 
         <org.thoughtcrime.securesms.components.emoji.EmojiTextView
             android:id="@+id/conversation_item_body"

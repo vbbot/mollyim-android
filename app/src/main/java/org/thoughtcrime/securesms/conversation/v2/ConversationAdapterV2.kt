@@ -125,19 +125,25 @@ class ConversationAdapterV2(
         V2ConversationItemMediaViewHolder(V2ConversationItemMediaIncomingBinding.bind(view).bridge(), this)
       }
     } else {
+      // Media rows render in The Light Phone's design language too, on the same view as upstream:
+      // light_conversation_item_*_multimedia is conversation_item_*_multimedia rooted at
+      // LightConversationItem, which drops the bubble where Light has a grammar for what is inside
+      // it and keeps it where it does not. Note this is the live path -- the V2 media view holder
+      // above sits behind an internal, default-off flag and its thumbnail is an unfinished
+      // prototype with no click handling, no transfer controls and no album support.
       registerFactory(OutgoingMedia::class.java) { parent ->
-        val view = CachedInflater.from(parent.context).inflate<View>(R.layout.conversation_item_sent_multimedia, parent, false)
+        val view = CachedInflater.from(parent.context).inflate<View>(R.layout.light_conversation_item_sent_multimedia, parent, false)
         OutgoingMediaViewHolder(view)
       }
 
       registerFactory(IncomingMedia::class.java) { parent ->
-        val view = CachedInflater.from(parent.context).inflate<View>(R.layout.conversation_item_received_multimedia, parent, false)
+        val view = CachedInflater.from(parent.context).inflate<View>(R.layout.light_conversation_item_received_multimedia, parent, false)
         IncomingMediaViewHolder(view)
       }
     }
 
-    // Text-only messages render in The Light Phone's design language: bubble-less, aligned to an edge,
-    // footer above the body. Media, quotes, reactions and the rest stay on their existing layouts.
+    // Text-only messages -- and replies, which ConversationDataSource routes here rather than to the
+    // media path -- render bubble-less, aligned to an edge, footer above the body.
     registerFactory(OutgoingTextOnly::class.java) { parent ->
       val view = CachedInflater.from(parent.context).inflate<View>(R.layout.light_conversation_item_text_only_outgoing, parent, false)
       LightTextOnlyViewHolder(LightTextOnlyViewHolder.outgoing(LightConversationItemTextOnlyOutgoingBinding.bind(view)), this)

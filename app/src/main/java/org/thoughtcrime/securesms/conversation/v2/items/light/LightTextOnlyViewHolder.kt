@@ -6,11 +6,13 @@
 package org.thoughtcrime.securesms.conversation.v2.items.light
 
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.constraintlayout.widget.Guideline
 import androidx.core.view.updateLayoutParams
 import com.thelightphone.sdk.ui.LightTextVariant
 import org.signal.core.util.dp
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.database.model.MmsMessageRecord
 import org.thoughtcrime.securesms.conversation.v2.items.V2ConversationContext
 import org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemLayout
 import org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemTextOnlyBindingBridge
@@ -36,12 +38,12 @@ import org.thoughtcrime.securesms.util.adapter.mapping.MappingModel
  */
 class LightTextOnlyViewHolder<Model : MappingModel<Model>>(
   private val lightBinding: V2ConversationItemTextOnlyBindingBridge,
-  conversationContext: V2ConversationContext
+  private val lightContext: V2ConversationContext
 ) : V2ConversationItemTextOnlyViewHolder<Model>(
   lightBinding,
-  conversationContext,
+  lightContext,
   NoFooterTuck,
-  LightConversationItemTheme(lightBinding.root.context, conversationContext)
+  LightConversationItemTheme(lightBinding.root.context, lightContext)
 ) {
 
   companion object {
@@ -111,6 +113,9 @@ class LightTextOnlyViewHolder<Model : MappingModel<Model>>(
     }
   }
 
+  /** The quoted message of a reply. Hidden on every row that is not one. See [LightQuoteLine]. */
+  private val quoteLine: TextView = lightBinding.root.findViewById(R.id.light_quote_line)
+
   init {
     // Bubble-less. The superclass installs a ChatColorsDrawable here in its own init; detaching it is
     // what removes the fill, the corners and the chat colour in one go. The drawable itself stays
@@ -125,6 +130,7 @@ class LightTextOnlyViewHolder<Model : MappingModel<Model>>(
     // and this pins it on the view so that a name-colour payload cannot put the tint back.
     lightBinding.senderNameWithLabel?.setTextStyle(LightItemStyle.composeStyle(context, LightTextVariant.Detail))
     lightBinding.senderNameWithLabel?.pinColor(LightItemStyle.contentColor(context))
+    LightQuoteLine.style(quoteLine)
 
     val isIncoming = lightBinding.isIncoming
     lightBinding.root.findViewById<Guideline>(R.id.light_column_start)
@@ -148,10 +154,37 @@ class LightTextOnlyViewHolder<Model : MappingModel<Model>>(
    * bubble cluster shape and the Light design states directly.
    */
   override fun onBound() {
+    presentQuoteLine()
+
     val spacing = if (shape.isStartingShape) GROUP_START_SPACING else GROUPED_SPACING
     itemView.updateLayoutParams<ViewGroup.MarginLayoutParams> {
       topMargin = spacing
       bottomMargin = spacing
+    }
+  }
+
+  /**
+   * A reply's quoted message, as one line above the body.
+   *
+   * Signal routes anything carrying a quote to the media view holder because a quote has nowhere to
+   * live outside a bubble; `ConversationDataSource` sends text replies here instead, so the quote is
+   * presented here. Tapping it still jumps to the original -- the same listener `QuoteView` gets on
+   * the media path, including its deference to an in-progress multi-select.
+   */
+  private fun presentQuoteLine() {
+    val record = conversationMessage.messageRecord as? MmsMessageRecord
+    if (record == null || !LightQuoteLine.present(quoteLine, record)) {
+      quoteLine.setOnClickListener(null)
+      quoteLine.isClickable = false
+      return
+    }
+
+    quoteLine.setOnClickListener {
+      if (lightContext.selectedItems.isEmpty()) {
+        lightContext.clickListener.onQuoteClicked(record)
+      } else {
+        lightContext.clickListener.onItemClick(getMultiselectPartForLatestTouch())
+      }
     }
   }
 }
