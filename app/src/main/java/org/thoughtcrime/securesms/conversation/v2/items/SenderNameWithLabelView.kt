@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import org.thoughtcrime.securesms.groups.memberlabel.MemberLabel
@@ -36,6 +37,23 @@ class SenderNameWithLabelView : AbstractComposeView {
   private var labelBackgroundColor: Color by mutableStateOf(Color.Unspecified)
 
   private var memberLabel: MemberLabel? by mutableStateOf(null)
+
+  /** Overrides Signal's label type. The Light Phone thread supplies the SDK's `Detail` token. */
+  private var senderTextStyle: TextStyle? by mutableStateOf(null)
+
+  /**
+   * Overrides the per-member tint [setSender] carries, for palettes that are monochrome. Pinned on the
+   * view rather than re-applied after each bind so that a name-colour payload cannot undo it.
+   */
+  private var pinnedColor: Color? by mutableStateOf(null)
+
+  fun setTextStyle(style: TextStyle?) {
+    senderTextStyle = style
+  }
+
+  fun pinColor(@ColorInt color: Int) {
+    pinnedColor = Color(color)
+  }
 
   /**
    * Sets sender and label state and forces fresh composition to avoid stale measurements from a previously bound item.
@@ -96,7 +114,7 @@ class SenderNameWithLabelView : AbstractComposeView {
     if (labelTextColor != Color.Unspecified || labelBackgroundColor != Color.Unspecified) {
       SenderNameWithLabel(
         senderName = senderName,
-        senderColor = senderColor,
+        senderColor = pinnedColor ?: senderColor,
         memberLabel = memberLabel,
         labelTextColor = labelTextColor,
         labelBackgroundColor = labelBackgroundColor
@@ -104,8 +122,9 @@ class SenderNameWithLabelView : AbstractComposeView {
     } else {
       SenderNameWithLabel(
         senderName = senderName,
-        senderColor = senderColor,
-        memberLabel = memberLabel
+        senderColor = pinnedColor ?: senderColor,
+        memberLabel = memberLabel,
+        textStyle = senderTextStyle
       )
     }
   }

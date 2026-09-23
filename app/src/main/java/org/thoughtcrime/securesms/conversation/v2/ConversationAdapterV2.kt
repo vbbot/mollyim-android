@@ -24,6 +24,7 @@ import org.thoughtcrime.securesms.BindableConversationItem
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.Unbindable
 import org.thoughtcrime.securesms.components.settings.conversation.ConversationSettingsNavigator
+import org.thoughtcrime.securesms.conversation.ConversationUpdateItem
 import org.thoughtcrime.securesms.conversation.ConversationAdapter.ItemClickListener
 import org.thoughtcrime.securesms.conversation.ConversationAdapterBridge
 import org.thoughtcrime.securesms.conversation.ConversationHeaderCallbacks
@@ -46,15 +47,15 @@ import org.thoughtcrime.securesms.conversation.v2.data.ThreadHeader
 import org.thoughtcrime.securesms.conversation.v2.items.ChatColorsDrawable
 import org.thoughtcrime.securesms.conversation.v2.items.V2ConversationContext
 import org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemMediaViewHolder
-import org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemTextOnlyViewHolder
 import org.thoughtcrime.securesms.conversation.v2.items.V2Payload
 import org.thoughtcrime.securesms.conversation.v2.items.bridge
+import org.thoughtcrime.securesms.conversation.v2.items.light.LightTextOnlyViewHolder
 import org.thoughtcrime.securesms.database.SignalDatabase
 import org.thoughtcrime.securesms.database.model.MessageRecord
+import org.thoughtcrime.securesms.databinding.LightConversationItemTextOnlyIncomingBinding
+import org.thoughtcrime.securesms.databinding.LightConversationItemTextOnlyOutgoingBinding
 import org.thoughtcrime.securesms.databinding.V2ConversationItemMediaIncomingBinding
 import org.thoughtcrime.securesms.databinding.V2ConversationItemMediaOutgoingBinding
-import org.thoughtcrime.securesms.databinding.V2ConversationItemTextOnlyIncomingBinding
-import org.thoughtcrime.securesms.databinding.V2ConversationItemTextOnlyOutgoingBinding
 import org.thoughtcrime.securesms.giph.mp4.GiphyMp4PlaybackPolicyEnforcer
 import org.thoughtcrime.securesms.jobs.AvatarGroupsV2DownloadJob
 import org.thoughtcrime.securesms.jobs.RetrieveProfileAvatarJob
@@ -109,6 +110,7 @@ class ConversationAdapterV2(
 
     registerFactory(ConversationUpdate::class.java) { parent ->
       val view = CachedInflater.from(parent.context).inflate<View>(R.layout.conversation_item_update, parent, false)
+      (view as ConversationUpdateItem).useLightTypography()
       ConversationUpdateViewHolder(view)
     }
 
@@ -134,14 +136,16 @@ class ConversationAdapterV2(
       }
     }
 
+    // Text-only messages render in The Light Phone's design language: bubble-less, aligned to an edge,
+    // footer above the body. Media, quotes, reactions and the rest stay on their existing layouts.
     registerFactory(OutgoingTextOnly::class.java) { parent ->
-      val view = CachedInflater.from(parent.context).inflate<View>(R.layout.v2_conversation_item_text_only_outgoing, parent, false)
-      V2ConversationItemTextOnlyViewHolder(V2ConversationItemTextOnlyOutgoingBinding.bind(view).bridge(), this)
+      val view = CachedInflater.from(parent.context).inflate<View>(R.layout.light_conversation_item_text_only_outgoing, parent, false)
+      LightTextOnlyViewHolder(LightTextOnlyViewHolder.outgoing(LightConversationItemTextOnlyOutgoingBinding.bind(view)), this)
     }
 
     registerFactory(IncomingTextOnly::class.java) { parent ->
-      val view = CachedInflater.from(parent.context).inflate<View>(R.layout.v2_conversation_item_text_only_incoming, parent, false)
-      V2ConversationItemTextOnlyViewHolder(V2ConversationItemTextOnlyIncomingBinding.bind(view).bridge(), this)
+      val view = CachedInflater.from(parent.context).inflate<View>(R.layout.light_conversation_item_text_only_incoming, parent, false)
+      LightTextOnlyViewHolder(LightTextOnlyViewHolder.incoming(LightConversationItemTextOnlyIncomingBinding.bind(view)), this)
     }
   }
 

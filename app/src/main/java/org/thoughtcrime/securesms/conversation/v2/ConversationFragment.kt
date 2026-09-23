@@ -90,6 +90,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.BaseTransientBottomBar.Duration
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.transition.platform.MaterialContainerTransformSharedElementCallback
+import com.thelightphone.sdk.ui.LightTextVariant
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Completable
 import io.reactivex.rxjava3.core.Single
@@ -242,6 +243,7 @@ import org.thoughtcrime.securesms.conversation.v2.groups.ConversationGroupCallVi
 import org.thoughtcrime.securesms.conversation.v2.groups.ConversationGroupViewModel
 import org.thoughtcrime.securesms.conversation.v2.items.ChatColorsDrawable
 import org.thoughtcrime.securesms.conversation.v2.items.InteractiveConversationElement
+import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle
 import org.thoughtcrime.securesms.conversation.v2.keyboard.AttachmentKeyboardFragment
 import org.thoughtcrime.securesms.database.DraftTable
 import org.thoughtcrime.securesms.database.model.IdentityRecord
@@ -3324,6 +3326,15 @@ class ConversationFragment :
    * Controls animation and visibility of the scrollDateHeader.
    */
   private inner class ScrollDateHeaderHelper {
+
+    init {
+      // The floating chip carries the same string as the thread's own date headers, so it follows them
+      // into the Light type scale. It keeps an opaque background rather than the rounded pill: it
+      // hovers over message text and has to occlude it, but the Light design has no pills.
+      LightItemStyle.apply(binding.scrollDateHeader, LightTextVariant.Superfine)
+      binding.scrollDateHeader.setBackgroundColor(LightItemStyle.backgroundColor(requireContext()))
+      binding.scrollDateHeader.setTextColor(LightItemStyle.contentColor(requireContext()))
+    }
 
     private val slideIn = AnimationUtils.loadAnimation(
       requireContext(),

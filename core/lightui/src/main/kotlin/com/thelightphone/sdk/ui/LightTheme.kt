@@ -7,6 +7,7 @@
 
 package com.thelightphone.sdk.ui
 
+import android.content.Context
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -160,8 +161,21 @@ private val FallbackTypography = buildDefaultTypography(FontFamily.Default)
 @Composable
 fun rememberLightTypography(): LightTypography {
     val context = LocalContext.current
-    return remember(context) { buildDefaultTypography(lightFontFamily(context)) }
+    return remember(context) { lightTypography(context) }
 }
+
+/**
+ * MOLLY-VENDOR: non-composable accessor for the typography scale.
+ *
+ * Upstream only exposes the scale through [rememberLightTypography]/[LightThemeTokens], both of
+ * which are `@Composable`. Molly has to style plain Android `TextView`s with these tokens -- the
+ * conversation thread's date headers are drawn into a `RecyclerView` canvas by an `ItemDecoration`,
+ * and message bodies must stay `EmojiTextView`s to keep their spans -- so it needs the same values
+ * outside a composition. Returning the identical [buildDefaultTypography] result keeps the View and
+ * Compose sides from drifting.
+ */
+fun lightTypography(context: Context): LightTypography =
+    buildDefaultTypography(lightFontFamily(context))
 
 val LocalLightColors = staticCompositionLocalOf { DefaultColors }
 val LocalLightTypography = staticCompositionLocalOf { FallbackTypography }

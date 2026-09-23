@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright 2026 Signal Messenger, LLC
+  ~ SPDX-License-Identifier: AGPL-3.0-only
+  -->
+<!--
+  Outgoing text message, in The Light Phone's design language. The mirror of
+  light_conversation_item_text_only_incoming.xml — see that file for the guideline arithmetic.
+
+  Outgoing rows get a wider end gutter (2.5 grid units rather than 1.5) so the text stays clear of
+  the thread scrollbar, which is what the reference client does:
+
+      2.5 / 27                                          = 0.092593
+      1 - 0.092593                                      = 0.907407   (end gutter)
+      0.907407 - 0.875 * (1 - 0.055556 - 0.092593)      = 0.162037   (column start)
+-->
+<org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:focusable="true">
+
+    <!--
+      The message column's edges. Set at runtime from LightMessageColumn, which owns the arithmetic
+      and is pinned against the reference client by LightMessageRowGeometryTest; the zero here is
+      only a placeholder.
+    -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/light_column_start"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/light_column_end"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0" />
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/conversation_item_reply"
+        android:layout_width="@dimen/conversation_item_reply_size"
+        android:layout_height="@dimen/conversation_item_reply_size"
+        android:alpha="0"
+        android:tint="?attr/signal_icon_tint_secondary"
+        app:contentPadding="9dp"
+        app:layout_constraintBottom_toBottomOf="@id/conversation_item_body_wrapper"
+        app:layout_constraintStart_toStartOf="@id/conversation_item_body_wrapper"
+        app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.Circle"
+        app:srcCompat="@drawable/symbol_reply_24" />
+
+    <!-- Footer: its own line above the body, on the first message of a cluster. -->
+    <LinearLayout
+        android:id="@+id/light_footer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintHorizontal_bias="1"
+        app:layout_constraintStart_toStartOf="@id/light_column_start"
+        app:layout_constraintEnd_toEndOf="@id/light_column_end"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <org.thoughtcrime.securesms.components.AlertView
+            android:id="@+id/conversation_item_alert"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp" />
+
+        <TextView
+            android:id="@+id/conversation_item_footer_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            tools:text="8:14 AM" />
+
+        <org.thoughtcrime.securesms.components.ExpirationTimerView
+            android:id="@+id/conversation_item_expiration_timer"
+            android:layout_width="10dp"
+            android:layout_height="12dp"
+            android:layout_marginStart="4dp"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <ImageView
+            android:id="@+id/conversation_item_footer_pinned"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_marginStart="4dp"
+            android:visibility="gone"
+            app:srcCompat="@drawable/symbol_pin_filled_12"
+            tools:visibility="visible" />
+
+        <ImageView
+            android:id="@+id/conversation_item_footer_starred"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_marginStart="4dp"
+            android:visibility="gone"
+            app:srcCompat="@drawable/symbol_star_filled_12"
+            tools:visibility="visible" />
+
+        <org.thoughtcrime.securesms.components.DeliveryStatusView
+            android:id="@+id/conversation_item_delivery_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp" />
+
+    </LinearLayout>
+
+    <View
+        android:id="@+id/conversation_item_footer_background"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@id/light_column_end"
+        app:layout_constraintTop_toTopOf="@id/light_footer" />
+
+    <FrameLayout
+        android:id="@+id/conversation_item_body_wrapper"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintHorizontal_bias="1"
+        app:layout_constraintStart_toStartOf="@id/light_column_start"
+        app:layout_constraintEnd_toEndOf="@id/light_column_end"
+        app:layout_constraintTop_toBottomOf="@id/light_footer">
+
+        <org.thoughtcrime.securesms.components.emoji.EmojiTextView
+            android:id="@+id/conversation_item_body"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAlignment="viewStart"
+            tools:text="On my way." />
+
+    </FrameLayout>
+
+    <org.thoughtcrime.securesms.reactions.ReactionsConversationView
+        android:id="@+id/conversation_item_reactions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintHorizontal_bias="1"
+        app:layout_constraintStart_toStartOf="@id/light_column_start"
+        app:layout_constraintEnd_toEndOf="@id/light_column_end"
+        app:layout_constraintTop_toBottomOf="@id/conversation_item_body_wrapper"
+        app:rcv_outgoing="true" />
+
+</org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemLayout>

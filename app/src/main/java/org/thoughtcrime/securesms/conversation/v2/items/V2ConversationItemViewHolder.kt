@@ -13,8 +13,13 @@ import org.thoughtcrime.securesms.util.adapter.mapping.MappingViewHolder
  */
 abstract class V2ConversationItemViewHolder<Model : MappingModel<Model>>(
   root: V2ConversationItemLayout,
-  appearanceInfoProvider: V2ConversationContext
+  appearanceInfoProvider: V2ConversationContext,
+  /**
+   * Every colour an item paints itself with comes from here, so supplying a different one is how a
+   * design language re-colours the whole item at once -- including the presenters that run on partial
+   * re-binds, which a post-hoc fix-up in `bind` would miss.
+   */
+  protected val themeDelegate: V2ConversationItemTheme = V2ConversationItemTheme(root.context, appearanceInfoProvider)
 ) : MappingViewHolder<Model>(root) {
   protected val shapeDelegate = V2ConversationItemShape(appearanceInfoProvider)
-  protected val themeDelegate = V2ConversationItemTheme(context, appearanceInfoProvider)
 }
