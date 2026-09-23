@@ -2143,7 +2143,10 @@ class ConversationFragment :
 
       is ShareOrDraftData.SetQuote -> {
         composeText.setDraftText(data.draftText)
-        handleReplyToMessage(data.quote)
+        // Restoring a saved quote draft, not answering a reply the user just asked for: set the
+        // reply up but leave them on the thread. Opening the thread used to land straight in the
+        // composer, which read as the app being stuck on a reply they had already walked away from.
+        handleReplyToMessage(data.quote, openComposer = false)
       }
 
       is ShareOrDraftData.StartSendMedia -> {
@@ -2435,6 +2438,10 @@ class ConversationFragment :
 
     lightComposerView.onBack = { closeLightComposer(cancelEdit = true) }
     lightComposerView.onSend = { sendFromLightComposer() }
+    lightComposerView.onClearQuote = {
+      inputPanel.clearQuote()
+      presentLightComposer()
+    }
 
     lightActionPanel.onDismiss = { dismissLightActionPanel() }
 
@@ -3236,7 +3243,13 @@ class ConversationFragment :
 
   //region Message action handling
 
-  private fun handleReplyToMessage(conversationMessage: ConversationMessage) {
+  /**
+   * @param openComposer whether to take the user straight into the composer. True for a reply the
+   *   user just asked for; false when a saved quote draft is merely being restored onto a thread
+   *   the user has only opened, where hijacking the screen into a composer is not what they asked
+   *   for and leaves no obvious way back to the conversation.
+   */
+  private fun handleReplyToMessage(conversationMessage: ConversationMessage, openComposer: Boolean = true) {
     if (isSearchRequested) {
       searchMenuItem?.collapseActionView()
     }
@@ -3260,7 +3273,9 @@ class ConversationFragment :
     // LIGHT PHONE: both swipe-to-reply and the long-press menu's REPLY route through here, so this one
     // redirect covers both. Signal focused the inline input; the Light thread has no inline input to
     // focus, and a pending reply that the user cannot see or answer is worse than no reply at all.
-    openLightComposer()
+    if (openComposer) {
+      openLightComposer()
+    }
   }
 
   private fun handleEditMessage(conversationMessage: ConversationMessage) {
