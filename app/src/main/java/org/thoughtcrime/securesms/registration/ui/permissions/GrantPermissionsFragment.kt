@@ -53,7 +53,8 @@ class GrantPermissionsFragment : ComposeFragment() {
       deviceBuildVersion = Build.VERSION.SDK_INT,
       isBackupSelectionRequired = BackupUtil.isUserSelectionRequired(LocalContext.current),
       onNextClicked = this::launchPermissionRequests,
-      onNotNowClicked = this::proceedToNextScreen
+      onNotNowClicked = this::proceedToNextScreen,
+      onBackClicked = { findNavController().popBackStack() }
     )
   }
 
