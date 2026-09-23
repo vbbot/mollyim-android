@@ -15,16 +15,11 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -41,7 +36,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -51,22 +45,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onPlaced
-import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.DropdownMenus
@@ -74,17 +61,16 @@ import org.signal.core.ui.compose.IconButtons
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.ui.compose.TextFields
-import org.signal.core.ui.compose.Tooltips
 import org.signal.core.ui.compose.circularReveal
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.avatar.AvatarImage
 import org.thoughtcrime.securesms.calls.log.CallLogFilter
 import org.thoughtcrime.securesms.components.compose.ActionModeTopBar
-import org.thoughtcrime.securesms.components.settings.app.subscription.BadgeImageSmall
 import org.thoughtcrime.securesms.conversationlist.model.ConversationFilter
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.recipients.Recipient
-import org.thoughtcrime.securesms.recipients.rememberRecipientField
+
+/** Search is opened from the bottom bar now, so its circular reveal grows from the centre. */
+private val SEARCH_REVEAL_ORIGIN = Offset(0.5f, 0.5f)
 
 interface MainToolbarCallback {
   fun onNewGroupClick()
@@ -189,41 +175,36 @@ fun MainToolbar(
   ) { targetState ->
     when (targetState) {
       MainToolbarMode.CrossFadeKey.FULL -> Box {
-        var revealOffset by remember { mutableStateOf(Offset.Zero) }
+        // No persistent top bar. The Light chat list is a "list home" screen: it draws its own
+        // 2 grid unit spacer and keeps every affordance in the bottom bar, so all that is left to
+        // reserve here is the status bar inset the removed TopAppBar used to consume for us.
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.statusBars)
+        )
 
-        BoxWithConstraints {
-          val maxWidth = with(LocalDensity.current) {
-            maxWidth.toPx()
+        AnimatedVisibility(
+          visible = state.mode == MainToolbarMode.SEARCH,
+          enter = EnterTransition.None,
+          exit = ExitTransition.None
+        ) {
+          val visibility = transition.animateFloat(
+            transitionSpec = { tween(durationMillis = 400, easing = LinearOutSlowInEasing) },
+            label = "Visibility"
+          ) { state ->
+            if (state == EnterExitState.Visible) 1f else 0f
           }
 
-          PrimaryToolbar(
+          SearchToolbar(
             state = state,
             callback = callback,
-            enabled = state.mode != MainToolbarMode.SEARCH
-          ) {
-            revealOffset = Offset(it / maxWidth, 0.5f)
-          }
-
-          AnimatedVisibility(
-            visible = state.mode == MainToolbarMode.SEARCH,
-            enter = EnterTransition.None,
-            exit = ExitTransition.None
-          ) {
-            val visibility = transition.animateFloat(
-              transitionSpec = { tween(durationMillis = 400, easing = LinearOutSlowInEasing) },
-              label = "Visibility"
-            ) { state ->
-              if (state == EnterExitState.Visible) 1f else 0f
-            }
-
-            SearchToolbar(
-              state = state,
-              callback = callback,
-              modifier = Modifier
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .circularReveal(visibility, revealOffset)
-            )
-          }
+            modifier = Modifier
+              .windowInsetsPadding(WindowInsets.statusBars)
+              // Search is opened from the bottom bar now, so the reveal grows from the centre
+              // rather than from the position of a top bar button.
+              .circularReveal(visibility, SEARCH_REVEAL_ORIGIN)
+          )
         }
       }
 
@@ -365,208 +346,8 @@ private fun ArchiveToolbar(
   )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PrimaryToolbar(
-  state: MainToolbarState,
-  callback: MainToolbarCallback,
-  enabled: Boolean = true,
-  onSearchButtonPositioned: (Float) -> Unit
-) {
-  TopAppBar(
-    colors = TopAppBarDefaults.topAppBarColors(
-      containerColor = state.toolbarColor ?: MaterialTheme.colorScheme.surface
-    ),
-    navigationIcon = {
-      val contentDescription = stringResource(R.string.conversation_list_settings_shortcut)
-      Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-          .padding(start = 20.dp, end = 16.dp)
-          .size(48.dp)
-      ) {
-        AvatarImage(
-          recipient = state.self,
-          modifier = Modifier
-            .clip(CircleShape)
-            .size(28.dp),
-          contentDescription = contentDescription
-        )
-
-        val interactionSource = remember { MutableInteractionSource() }
-        Box(
-          modifier = Modifier
-            .fillMaxSize()
-            .clickable(
-              enabled = enabled,
-              onClick = callback::onSettingsClick,
-              interactionSource = interactionSource,
-              indication = ripple(radius = 14.dp)
-            )
-            .semantics {
-              this.contentDescription = contentDescription
-            }
-        )
-
-        val badge by rememberRecipientField(state.self) { featuredBadge }
-
-        BadgeImageSmall(
-          badge = badge,
-          modifier = Modifier
-            .padding(start = 14.dp, top = 16.dp)
-            .size(16.dp)
-        )
-
-        HeadsUpIndicator(
-          state = state,
-          modifier = Modifier.padding(start = 20.dp, bottom = 20.dp)
-        )
-      }
-    },
-    title = {
-      Text(
-        text = stringResource(R.string.app_name)
-      )
-    },
-    actions = {
-      NotificationProfileAction(state, callback)
-      ProxyAction(state, callback)
-
-      if (state.destination == MainNavigationListLocation.STORIES && SignalStore.labs.storyArchive) {
-        IconButtons.IconButton(
-          onClick = callback::onStoryArchiveClick
-        ) {
-          Icon(
-            imageVector = ImageVector.vectorResource(R.drawable.symbol_story_archive_24),
-            contentDescription = stringResource(R.string.StoryArchive__story_archive)
-          )
-        }
-      }
-
-      IconButtons.IconButton(
-        onClick = callback::onSearchClick,
-        modifier = Modifier.onPlaced {
-          onSearchButtonPositioned(it.positionInWindow().x + (it.size.width / 2f))
-        }
-      ) {
-        Icon(
-          imageVector = SignalIcons.Search.imageVector,
-          contentDescription = stringResource(R.string.conversation_list_search_description)
-        )
-      }
-
-      val controller = remember { DropdownMenus.MenuController() }
-      val dismiss = remember(controller) { { controller.hide() } }
-
-      TooltipOverflowButton(
-        onOverflowClick = { controller.show() },
-        isTooltipVisible = state.showNotificationProfilesTooltip,
-        onDismiss = { callback.onNotificationProfileTooltipDismissed() }
-      )
-
-      DropdownMenus.Menu(
-        controller = controller
-      ) {
-        when (state.destination) {
-          MainNavigationListLocation.ARCHIVE -> Unit
-          MainNavigationListLocation.CHATS -> ChatDropdownItems(state, callback, dismiss)
-          MainNavigationListLocation.CALLS -> CallDropdownItems(state.callFilter, callback, dismiss)
-          MainNavigationListLocation.STORIES -> StoryDropDownItems(callback, dismiss)
-        }
-      }
-    }
-  )
-}
-
-@Composable
-private fun TooltipOverflowButton(
-  onOverflowClick: () -> Unit,
-  onDismiss: () -> Unit,
-  isTooltipVisible: Boolean
-) {
-  Tooltips.PlainBelowAnchor(
-    onDismiss = onDismiss,
-    isTooltipVisible = isTooltipVisible,
-    tooltipContent = {
-      Text(text = stringResource(R.string.ConversationListFragment__turn_your_notification_profile_on_or_off_here))
-    },
-    anchorContent = {
-      IconButtons.IconButton(
-        onClick = onOverflowClick
-      ) {
-        Icon(
-          imageVector = ImageVector.vectorResource(R.drawable.symbol_more_vertical),
-          contentDescription = stringResource(R.string.MainToolbar__more_options_content_description)
-        )
-      }
-    }
-  )
-}
-
-@Composable
-private fun NotificationProfileAction(
-  state: MainToolbarState,
-  callback: MainToolbarCallback
-) {
-  if (state.hasEnabledNotificationProfile) {
-    IconButtons.IconButton(
-      onClick = callback::onNotificationProfileClick
-    ) {
-      // TODO [alex] - Add proper icon (cannot utilize layer-list)
-      Image(
-        painter = painterResource(R.drawable.ic_moon_24),
-        contentDescription = stringResource(R.string.MainToolbar__notification_profile_content_description)
-      )
-    }
-  }
-}
-
-@Composable
-private fun ProxyAction(
-  state: MainToolbarState,
-  callback: MainToolbarCallback
-) {
-  if (state.proxyState != MainToolbarState.ProxyState.NONE) {
-    IconButtons.IconButton(
-      onClick = callback::onProxyClick
-    ) {
-      Image(
-        imageVector = ImageVector.vectorResource(state.proxyState.icon),
-        contentDescription = stringResource(R.string.MainToolbar__proxy_content_description)
-      )
-    }
-  }
-}
-
-@Composable
-private fun HeadsUpIndicator(state: MainToolbarState, modifier: Modifier = Modifier) {
-  if (!state.hasUnreadPayments && !state.hasFailedBackups && !state.isOutOfRemoteStorageSpace) {
-    return
-  }
-
-  val color = when {
-    state.isOutOfRemoteStorageSpace -> Color.Transparent
-    state.hasFailedBackups -> Color(0xFFFFCC00)
-    else -> MaterialTheme.colorScheme.primary
-  }
-
-  Box(
-    modifier = modifier
-      .size(13.dp)
-      .background(color = color, shape = CircleShape)
-  ) {
-    if (state.isOutOfRemoteStorageSpace) {
-      Icon(
-        imageVector = ImageVector.vectorResource(R.drawable.symbol_error_circle_fill_16),
-        tint = MaterialTheme.colorScheme.error,
-        contentDescription = null
-      )
-    }
-  }
-}
-
-@Composable
-private fun StoryDropDownItems(callback: MainToolbarCallback, onOptionSelected: () -> Unit) {
+internal fun StoryDropDownItems(callback: MainToolbarCallback, onOptionSelected: () -> Unit) {
   DropdownMenus.Item(
     text = {
       Text(
@@ -581,7 +362,7 @@ private fun StoryDropDownItems(callback: MainToolbarCallback, onOptionSelected: 
 }
 
 @Composable
-private fun CallDropdownItems(callFilter: CallLogFilter, callback: MainToolbarCallback, onOptionSelected: () -> Unit) {
+internal fun CallDropdownItems(callFilter: CallLogFilter, callback: MainToolbarCallback, onOptionSelected: () -> Unit) {
   DropdownMenus.Item(
     text = {
       Text(
@@ -646,7 +427,7 @@ private fun CallDropdownItems(callFilter: CallLogFilter, callback: MainToolbarCa
 }
 
 @Composable
-private fun ChatDropdownItems(state: MainToolbarState, callback: MainToolbarCallback, onOptionSelected: () -> Unit) {
+internal fun ChatDropdownItems(state: MainToolbarState, callback: MainToolbarCallback, onOptionSelected: () -> Unit) {
   if (state.hasPassphrase) {
     DropdownMenus.Item(
       text = {
@@ -802,18 +583,6 @@ private fun ArchiveToolbarPreview() {
         self = Recipient(isResolving = false)
       ),
       callback = MainToolbarCallback.Empty
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun TooltipOverflowButtonPreview() {
-  Previews.Preview {
-    TooltipOverflowButton(
-      onOverflowClick = {},
-      onDismiss = {},
-      isTooltipVisible = true
     )
   }
 }

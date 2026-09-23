@@ -31,7 +31,6 @@ import org.thoughtcrime.securesms.components.snackbars.rememberSnackbarState
 import org.thoughtcrime.securesms.megaphone.Megaphone
 import org.thoughtcrime.securesms.megaphone.MegaphoneActionController
 import org.thoughtcrime.securesms.megaphone.Megaphones
-import org.thoughtcrime.securesms.window.NavigationType
 
 interface MainBottomChromeCallback : MainFloatingActionButtonsCallback {
   fun onMegaphoneVisible(megaphone: Megaphone)
@@ -47,14 +46,12 @@ interface MainBottomChromeCallback : MainFloatingActionButtonsCallback {
 }
 
 data class MainBottomChromeState(
-  val destination: MainNavigationListLocation = MainNavigationListLocation.CHATS,
   val megaphoneState: MainMegaphoneState = MainMegaphoneState(),
   val mainToolbarMode: MainToolbarMode = MainToolbarMode.FULL
 )
 
 /**
  * Stack of bottom chrome components:
- * - The Floating Action buttons
  * - The megaphone view
  * - The snackbar
  */
@@ -66,24 +63,16 @@ fun MainBottomChrome(
   modifier: Modifier = Modifier
 ) {
   val isSplitPane = LocalResources.current.rememberIsSplitPane()
-  val navigationType = NavigationType.rememberNavigationType()
 
   Column(
     modifier = modifier
       .fillMaxWidth()
       .animateContentSize()
   ) {
-    if (state.mainToolbarMode == MainToolbarMode.FULL && navigationType != NavigationType.RAIL) {
-      Box(
-        contentAlignment = Alignment.CenterEnd,
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        MainFloatingActionButtons(
-          destination = state.destination,
-          callback = callback
-        )
-      }
-    }
+    // The camera and compose floating action buttons used to sit here, floating over the list and
+    // covering its timestamp column. They now live in MainLightBottomBar: compose as a bar slot,
+    // camera inside the overflow menu. Tablet/rail layouts still get their FABs inline from
+    // MainNavigationRail, which is untouched.
 
     if (state.mainToolbarMode == MainToolbarMode.FULL) {
       MainMegaphoneContainer(

@@ -13,16 +13,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
@@ -34,19 +30,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.BlendModeColorFilterCompat
 import androidx.core.graphics.BlendModeCompat
@@ -99,120 +86,10 @@ data class MainNavigationState(
   val compact: Boolean = false
 )
 
-/**
- * Chats list bottom navigation bar.
- */
-@Composable
-fun MainNavigationBar(
-  state: MainNavigationState,
-  onDestinationSelected: (MainNavigationListLocation) -> Unit
-) {
-  NavigationBar(
-    containerColor = colorAttribute(R.attr.navbar_container_color),
-    contentColor = MaterialTheme.colorScheme.onSurface,
-    modifier = Modifier.height(if (state.compact) 48.dp else 80.dp),
-    windowInsets = WindowInsets(0, 0, 0, 0)
-  ) {
-    val entries = remember(state.isStoriesFeatureEnabled) {
-      if (state.isStoriesFeatureEnabled) {
-        MainNavigationListLocation.entries.filterNot { it == MainNavigationListLocation.ARCHIVE }
-      } else {
-        MainNavigationListLocation.entries.filterNot { it == MainNavigationListLocation.STORIES || it == MainNavigationListLocation.ARCHIVE }
-      }
-    }
-
-    entries.forEach { destination ->
-
-      val badgeCount = when (destination) {
-        MainNavigationListLocation.ARCHIVE -> error("Not supported")
-        MainNavigationListLocation.CHATS -> state.chatsCount
-        MainNavigationListLocation.CALLS -> state.callsCount
-        MainNavigationListLocation.STORIES -> state.storiesCount
-      }
-
-      val selected = state.currentListLocation == destination
-      NavigationBarItem(
-        colors = NavigationBarItemDefaults.colors(
-          indicatorColor = colorAttribute(R.attr.navbar_active_indicator_color),
-          selectedTextColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        selected = selected,
-        icon = {
-          NavigationDestinationIcon(
-            destination = destination,
-            selected = selected
-          )
-        },
-        label = if (state.compact) null else {
-          { NavigationDestinationLabel(destination) }
-        },
-        onClick = {
-          onDestinationSelected(destination)
-        },
-        modifier = Modifier.drawNavigationBarBadge(count = badgeCount, compact = state.compact)
-      )
-    }
-  }
-}
-
-/**
- * Draws badge over navigation bar item. We do this since they're required to be inside a row,
- * and things get really funky or clip weird if we try to use a normal composable.
- */
-@Composable
-private fun Modifier.drawNavigationBarBadge(count: Int, compact: Boolean): Modifier {
-  return if (count <= 0) {
-    this
-  } else {
-    val formatted = formatCount(count)
-    val textMeasurer = rememberTextMeasurer()
-    val color = colorResource(R.color.ConversationListTabs__unread)
-    val textStyle = MaterialTheme.typography.labelMedium
-    val textLayoutResult = remember(formatted) {
-      textMeasurer.measure(formatted, textStyle)
-    }
-
-    var size by remember { mutableStateOf(IntSize.Zero) }
-
-    val padding = with(LocalDensity.current) {
-      4.dp.toPx()
-    }
-
-    val xOffsetExtra = with(LocalDensity.current) {
-      4.dp.toPx()
-    }
-
-    val yOffset = with(LocalDensity.current) {
-      if (compact) 6.dp.toPx() else 10.dp.toPx()
-    }
-
-    this
-      .onSizeChanged {
-        size = it
-      }
-      .drawWithContent {
-        drawContent()
-
-        val xOffset = size.width.toFloat() / 2f + xOffsetExtra
-        val yRadius = size.height.toFloat() / 2f
-
-        if (size != IntSize.Zero) {
-          drawRoundRect(
-            color = color,
-            topLeft = Offset(xOffset, yOffset),
-            size = Size(textLayoutResult.size.width.toFloat() + padding * 2, textLayoutResult.size.height.toFloat()),
-            cornerRadius = CornerRadius(yRadius, yRadius)
-          )
-
-          drawText(
-            textLayoutResult = textLayoutResult,
-            color = Color.White,
-            topLeft = Offset(xOffset + padding, yOffset)
-          )
-        }
-      }
-  }
-}
+// Molly's Material bottom navigation bar used to live here. It has been replaced by
+// MainLightBottomBar, which is built out of the Light SDK's own LightBottomBar rather than
+// Material 3's NavigationBar. The navigation rail below is unchanged: it is the tablet/landscape
+// path, and LP3 never reaches it.
 
 /**
  * Navigation Rail for medium and large form factor devices.
@@ -373,25 +250,6 @@ private fun MainNavigationRailPreview() {
         currentListLocation = selected
       ),
       mainFloatingActionButtonsCallback = MainFloatingActionButtonsCallback.Empty,
-      onDestinationSelected = { selected = it }
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun MainNavigationBarPreview() {
-  Previews.Preview {
-    var selected by remember { mutableStateOf(MainNavigationListLocation.CHATS) }
-
-    MainNavigationBar(
-      state = MainNavigationState(
-        chatsCount = 500,
-        callsCount = 10,
-        storiesCount = 5,
-        currentListLocation = selected,
-        compact = false
-      ),
       onDestinationSelected = { selected = it }
     )
   }
