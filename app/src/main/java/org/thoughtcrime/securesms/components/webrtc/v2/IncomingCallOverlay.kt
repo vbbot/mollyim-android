@@ -8,6 +8,8 @@ package org.thoughtcrime.securesms.components.webrtc.v2
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.os.Handler
+import android.os.Looper
 import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -56,11 +58,18 @@ class IncomingCallOverlay(private val context: Context) {
     private val TAG = Log.tag(IncomingCallOverlay::class.java)
   }
 
+  private val mainHandler = Handler(Looper.getMainLooper())
+
   private var windowManager: WindowManager? = null
   private var composeView: ComposeView? = null
   private var lifecycleOwner: OverlayLifecycleOwner? = null
 
   fun show(recipientId: RecipientId, isVideoCall: Boolean) {
+    // WindowManager and LifecycleRegistry both require the main thread.
+    mainHandler.post { showOnMainThread(recipientId, isVideoCall) }
+  }
+
+  private fun showOnMainThread(recipientId: RecipientId, isVideoCall: Boolean) {
     dismiss()
 
     val recipient = Recipient.resolved(recipientId)
@@ -111,6 +120,14 @@ class IncomingCallOverlay(private val context: Context) {
   }
 
   fun dismiss() {
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      dismissOnMainThread()
+    } else {
+      mainHandler.post { dismissOnMainThread() }
+    }
+  }
+
+  private fun dismissOnMainThread() {
     lifecycleOwner?.stop()
     lifecycleOwner = null
 
