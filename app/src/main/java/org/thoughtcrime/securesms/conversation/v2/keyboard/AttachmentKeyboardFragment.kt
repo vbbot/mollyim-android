@@ -17,21 +17,24 @@ import io.reactivex.rxjava3.kotlin.subscribeBy
 import org.signal.core.models.media.Media
 import org.signal.core.ui.logging.LoggingFragment
 import org.signal.core.ui.permissions.Permissions
+import org.signal.core.ui.util.StorageUtil
 import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.core.util.concurrent.addTo
 import org.signal.core.util.permissions.PermissionCompat
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.conversation.AttachmentKeyboard
 import org.thoughtcrime.securesms.conversation.AttachmentKeyboardButton
 import org.thoughtcrime.securesms.conversation.ManageContextMenu
 import org.thoughtcrime.securesms.conversation.v2.ConversationViewModel
+import org.thoughtcrime.securesms.conversation.v2.keyboard.light.LIGHT_ATTACHMENT_ACTIONS
+import org.thoughtcrime.securesms.conversation.v2.keyboard.light.LightAttachmentPickerState
+import org.thoughtcrime.securesms.conversation.v2.keyboard.light.LightAttachmentPickerView
 import org.thoughtcrime.securesms.recipients.Recipient
 
 /**
- * Fragment wrapped version of [AttachmentKeyboard] to help encapsulate logic the view
- * needs from external sources.
+ * Owns attachment-picker behavior while [LightAttachmentPickerView] supplies the Light presentation.
+ * Permission APIs, media loading, recipient policy and fragment result shapes deliberately stay here.
  */
-class AttachmentKeyboardFragment : LoggingFragment(R.layout.attachment_keyboard_fragment), AttachmentKeyboard.Callback {
+class AttachmentKeyboardFragment : LoggingFragment(R.layout.attachment_keyboard_fragment) {
 
   companion object {
     const val RESULT_KEY = "AttachmentKeyboardFragmentResult"
@@ -42,23 +45,30 @@ class AttachmentKeyboardFragment : LoggingFragment(R.layout.attachment_keyboard_
   private val viewModel: AttachmentKeyboardViewModel by viewModels()
 
   private lateinit var conversationViewModel: ConversationViewModel
-  private lateinit var attachmentKeyboardView: AttachmentKeyboard
+  private lateinit var attachmentPickerView: LightAttachmentPickerView
 
   private val lifecycleDisposable = LifecycleDisposable()
+  private var recentMedia: List<Media> = emptyList()
 
   @Suppress("ReplaceGetOrSet")
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
     lifecycleDisposable.bindTo(viewLifecycleOwner)
 
-    attachmentKeyboardView = view.findViewById(R.id.attachment_keyboard)
-    attachmentKeyboardView.apply {
-      setCallback(this@AttachmentKeyboardFragment)
+    attachmentPickerView = view.findViewById(R.id.attachment_keyboard)
+    attachmentPickerView.apply {
+      onBack = { requireActivity().onBackPressedDispatcher.onBackPressed() }
+      onActionSelected = ::onAttachmentSelectorClicked
+      onMediaSelected = ::onAttachmentMediaClicked
+      onPermissionsRequested = ::onAttachmentPermissionsRequested
+      onManageRequested = ::onDisplayMoreContextMenu
     }
+    renderState()
 
     viewModel.getRecentMedia()
       .subscribeBy {
-        attachmentKeyboardView.onMediaChanged(it)
+        recentMedia = it
+        renderState()
       }
       .addTo(lifecycleDisposable)
 
@@ -73,21 +83,31 @@ class AttachmentKeyboardFragment : LoggingFragment(R.layout.attachment_keyboard_
       .recipient
       .observeOn(AndroidSchedulers.mainThread())
       .subscribeBy {
-        attachmentKeyboardView.setWallpaperEnabled(it.hasWallpaper)
         updateButtonsAvailable(it)
       }
       .addTo(lifecycleDisposable)
   }
 
-  override fun onAttachmentMediaClicked(media: Media) {
+  private fun renderState() {
+    attachmentPickerView.submit(
+      LightAttachmentPickerState.map(
+        actions = LIGHT_ATTACHMENT_ACTIONS,
+        media = recentMedia,
+        canOnlyReadSelectedMedia = StorageUtil.canOnlyReadSelectedMediaStore(),
+        canReadAnyMedia = StorageUtil.canReadAnyFromMediaStore()
+      )
+    )
+  }
+
+  private fun onAttachmentMediaClicked(media: Media) {
     setFragmentResult(RESULT_KEY, bundleOf(MEDIA_RESULT to media))
   }
 
-  override fun onAttachmentSelectorClicked(button: AttachmentKeyboardButton) {
+  private fun onAttachmentSelectorClicked(button: AttachmentKeyboardButton) {
     setFragmentResult(RESULT_KEY, bundleOf(BUTTON_RESULT to button))
   }
 
-  override fun onAttachmentPermissionsRequested() {
+  private fun onAttachmentPermissionsRequested() {
     Permissions.with(requireParentFragment())
       .request(*PermissionCompat.forImagesAndVideos())
       .ifNecessary()
@@ -102,11 +122,11 @@ class AttachmentKeyboardFragment : LoggingFragment(R.layout.attachment_keyboard_
       .execute()
   }
 
-  override fun onDisplayMoreContextMenu(v: View, showAbove: Boolean, showAtStart: Boolean) {
+  private fun onDisplayMoreContextMenu(showAtStart: Boolean) {
     ManageContextMenu.show(
       context = requireContext(),
-      anchorView = v,
-      showAbove = showAbove,
+      anchorView = attachmentPickerView,
+      showAbove = true,
       showAtStart = showAtStart,
       onSelectMore = { selectMorePhotos() },
       onSettings = { requireContext().startActivity(Permissions.getApplicationSettingsIntent(requireContext())) }
