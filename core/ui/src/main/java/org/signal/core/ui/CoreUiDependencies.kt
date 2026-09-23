@@ -6,6 +6,7 @@
 package org.signal.core.ui
 
 import android.app.Application
+import androidx.annotation.VisibleForTesting
 
 object CoreUiDependencies {
 
@@ -17,6 +18,19 @@ object CoreUiDependencies {
       return
     }
 
+    _application = application
+    _provider = provider
+  }
+
+  /**
+   * MOLLY: [init] is first-writer-wins, which is fine in production but not under Robolectric,
+   * where test classes sharing a sandbox classloader also share this object. Whichever class ran
+   * first leaves the real provider installed, and the next one's fake is silently dropped -- its
+   * [provideForceSplitPane] then reads an uninitialised SignalStore and throws. Tests must be able
+   * to overwrite unconditionally.
+   */
+  @VisibleForTesting
+  fun initForTests(application: Application, provider: Provider) {
     _application = application
     _provider = provider
   }
