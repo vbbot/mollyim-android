@@ -35,6 +35,10 @@ public class AttachmentKeyboard extends FrameLayout implements InputAwareLayout.
   private static final int                            ANIMATION_DURATION  = 150;
   private static final List<AttachmentKeyboardButton> DEFAULT_BUTTONS     = Arrays.asList(
       AttachmentKeyboardButton.GALLERY,
+      // LIGHT PHONE: second, directly after the gallery. The microphone has no place left on the
+      // thread's bottom bar, so this is the only entry point to a voice note and it has to read as a
+      // primary action rather than as an afterthought at the end of the strip.
+      AttachmentKeyboardButton.VOICE_NOTE,
       AttachmentKeyboardButton.FILE,
       AttachmentKeyboardButton.POLL,
       AttachmentKeyboardButton.CONTACT,
