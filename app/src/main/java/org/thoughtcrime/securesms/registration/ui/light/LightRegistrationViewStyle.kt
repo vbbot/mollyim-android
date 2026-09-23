@@ -137,6 +137,10 @@ object LightRegistrationViewStyle {
     editText.setHintTextColor(secondary(editText))
     editText.background = null
     editText.backgroundTintList = null
+    // Force vertical centering — TextInputLayout wrapping can leave internal top/bottom
+    // padding that pushes the text down, misaligning it with adjacent bare EditTexts.
+    editText.gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+    editText.setPadding(editText.paddingLeft, 0, editText.paddingRight, 0)
   }
 
   /** Styles all six OTP cells without replacing their paste watcher or completion callback. */

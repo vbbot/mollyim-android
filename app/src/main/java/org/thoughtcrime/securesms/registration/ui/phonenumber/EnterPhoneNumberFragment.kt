@@ -101,7 +101,7 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
-    setDebugLogSubmitMultiTapView(binding.verifyHeader)
+    setDebugLogSubmitMultiTapView(binding.toolbar)
     requireActivity().onBackPressedDispatcher.addCallback(
       viewLifecycleOwner,
       object : OnBackPressedCallback(true) {
@@ -115,8 +115,8 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
     countryPickerView = binding.countryPicker
 
     LightRegistrationViewStyle.surface(binding.root)
-    LightRegistrationViewStyle.title(binding.verifyHeader)
-    LightRegistrationViewStyle.body(binding.verifySubheader)
+    binding.verifyHeader.visibility = View.GONE
+    binding.verifySubheader.visibility = View.GONE
     LightRegistrationViewStyle.body(binding.country)
     LightRegistrationViewStyle.input(binding.countryCode)
     LightRegistrationViewStyle.input(binding.number)
@@ -149,8 +149,9 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
     val activity = requireActivity() as AppCompatActivity
     activity.setSupportActionBar(binding.toolbar)
 
-    // Set navigation icon and click listener AFTER setSupportActionBar — the
+    // Set title, navigation icon and click listener AFTER setSupportActionBar — the
     // ActionBar wrapper clears any listener registered before it takes over.
+    activity.supportActionBar?.title = getString(R.string.RegistrationActivity_phone_number)
     binding.toolbar.setNavigationIcon(com.thelightphone.sdk.ui.R.drawable.ic_back_white)
     LightRegistrationViewStyle.toolbar(binding.toolbar)
     binding.toolbar.setNavigationOnClickListener { popBackStack() }
