@@ -92,6 +92,13 @@ object LightRegistrationViewStyle {
     val materialButton = button.findViewById<MaterialButton>(R.id.button)
     action(materialButton)
 
+    // The CircularProgressIndicator lives behind the MaterialButton. When the button
+    // is enabled, CircularProgressMaterialButton sets the indicator to VISIBLE — which
+    // is normally harmless because the opaque button covers it. Our transparent button
+    // exposes it as a dot. Make the button opaque BLACK so it hides the indicator in
+    // BUTTON state; when spinning the button goes INVISIBLE and the indicator shows.
+    materialButton.backgroundTintList = ColorStateList.valueOf(Color.BLACK)
+
     button.findViewById<CircularProgressIndicator>(R.id.progress_indicator)?.apply {
       setIndicatorColor(content(button))
       trackColor = Color.TRANSPARENT
@@ -111,8 +118,16 @@ object LightRegistrationViewStyle {
     layout.boxStrokeColor = foreground
     layout.setBoxStrokeWidth((1f * density).roundToInt())
     layout.setBoxStrokeWidthFocused((2f * density).roundToInt())
-    layout.defaultHintTextColor = ColorStateList.valueOf(secondary)
-    layout.hintTextColor = ColorStateList.valueOf(foreground)
+
+    // Disable the floating label. In outline mode the label cuts through the top
+    // border and forces the EditText downward so text is no longer vertically centred.
+    // Move the hint to the EditText instead so it still shows as placeholder text.
+    val savedHint = layout.hint
+    layout.isHintEnabled = false
+    layout.isHintAnimationEnabled = false
+    if (!savedHint.isNullOrEmpty()) {
+      layout.editText?.hint = savedHint
+    }
 
     layout.editText?.let(::input)
   }
