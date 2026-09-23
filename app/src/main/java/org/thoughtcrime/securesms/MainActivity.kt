@@ -370,7 +370,10 @@ class MainActivity :
       val isActionModeActive = mainToolbarState.mode == MainToolbarMode.ACTION_MODE
       val isSearchModeActive = mainToolbarState.mode == MainToolbarMode.SEARCH
       val isNavigationRailVisible = mainToolbarState.mode != MainToolbarMode.SEARCH
-      val isNavigationBarVisible = mainToolbarState.mode == MainToolbarMode.FULL
+      // A list screen with a Light action panel open takes the bottom bar's place, the same way
+      // search and multi-select already do. See MainNavigationViewModel.isBottomBarSuppressed.
+      val isBottomBarSuppressed by mainNavigationViewModel.isBottomBarSuppressed.collectAsStateWithLifecycle()
+      val isNavigationBarVisible = mainToolbarState.mode == MainToolbarMode.FULL && !isBottomBarSuppressed
       val isBackHandlerEnabled = mainToolbarState.destination != MainNavigationListLocation.CHATS && !isActionModeActive && !isSearchModeActive
 
       BackHandler(enabled = isBackHandlerEnabled) {

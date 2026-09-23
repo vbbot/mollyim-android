@@ -30,41 +30,16 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler"
+    <!--
+        LIGHT PHONE: the call log itself is Compose now. It draws its own empty state, so the
+        LinearLayout of Material TextViews that used to sit over the list is gone with the
+        RecyclerView.
+    -->
+    <org.thoughtcrime.securesms.calls.log.light.LightCallLogView
+        android:id="@+id/light_call_log"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="?attr/colorSurface"
-        android:clipToPadding="false"
-        android:paddingBottom="80dp"
-        android:scrollbars="vertical"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"
-        tools:listitem="@layout/conversation_list_item_view" />
-
-    <LinearLayout
-        android:id="@+id/empty_state"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_marginTop="96dp"
-        android:orientation="vertical"
-        android:visibility="gone">
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/CallLogFragment__no_calls"
-            android:textAlignment="center"
-            android:textAppearance="@style/Signal.Text.BodyLarge" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/CallLogFragment__get_started_by_calling_a_friend"
-            android:textAlignment="center"
-            android:textAppearance="@style/Signal.Text.BodyLarge" />
-
-    </LinearLayout>
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
     <org.thoughtcrime.securesms.components.menu.SignalBottomActionBar
         android:id="@+id/bottom_action_bar"
@@ -76,5 +51,18 @@
         android:layout_marginBottom="16dp"
         android:visibility="gone"
         tools:visibility="visible" />
+
+    <!--
+        LIGHT PHONE: the bottom action panel a long press on a call opens. Full-screen because the
+        panel covers the app's bottom bar while it is open and a tap in the band above it dismisses.
+        Last in the file and elevated so that it draws over the multi-select bottom action bar, which
+        can be up at the same time.
+    -->
+    <org.thoughtcrime.securesms.light.LightActionPanelView
+        android:id="@+id/light_action_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="13dp"
+        android:visibility="gone" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

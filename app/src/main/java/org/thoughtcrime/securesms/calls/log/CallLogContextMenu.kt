@@ -1,16 +1,11 @@
 package org.thoughtcrime.securesms.calls.log
 
-import android.view.View
-import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.recyclerview.widget.RecyclerView
 import io.reactivex.rxjava3.kotlin.subscribeBy
 import org.signal.core.util.concurrent.LifecycleDisposable
-import org.signal.core.util.dp
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.calls.YouAreAlreadyInACallSnackbar
 import org.thoughtcrime.securesms.components.menu.ActionItem
-import org.thoughtcrime.securesms.components.menu.SignalContextMenu
 import org.thoughtcrime.securesms.components.settings.conversation.ConversationSettingsActivity
 import org.thoughtcrime.securesms.conversation.ConversationIntents
 import org.thoughtcrime.securesms.database.CallTable
@@ -20,7 +15,13 @@ import org.thoughtcrime.securesms.util.CommunicationActions
 import org.signal.core.ui.R as CoreUiR
 
 /**
- * Context menu for row items on the Call Log screen.
+ * What a long press on a call log row offers, and which of those actions apply to which row.
+ *
+ * This is only the *contents* of the menu. It used to present them too, as a `SignalContextMenu`
+ * dropped below the pressed row; the Light call log shows the same list as rows in a
+ * `LightActionPanel` instead (see `CallLogFragment.showCallMenu`). The gating stayed here so that
+ * there is still exactly one place that decides a group you have left offers no video call, a call
+ * link offers no chat, and a call that is still running cannot be deleted.
  */
 class CallLogContextMenu(
   private val fragment: Fragment,
@@ -29,46 +30,24 @@ class CallLogContextMenu(
 
   private val lifecycleDisposable by lazy { LifecycleDisposable().bindTo(fragment.viewLifecycleOwner) }
 
-  fun show(recyclerView: RecyclerView, anchor: View, call: CallLogRow.Call) {
-    recyclerView.suppressLayout(true)
-    anchor.isSelected = true
-    SignalContextMenu.Builder(anchor, anchor.parent as ViewGroup)
-      .preferredVerticalPosition(SignalContextMenu.VerticalPosition.BELOW)
-      .offsetY(12.dp)
-      .onDismiss {
-        anchor.isSelected = false
-        recyclerView.suppressLayout(false)
-      }
-      .show(
-        listOfNotNull(
-          getVideoCallActionItem(call.peer),
-          getAudioCallActionItem(call),
-          getGoToChatActionItem(call),
-          getInfoActionItem(call.peer, (call.id as CallLogRow.Id.Call).children.toLongArray()),
-          getSelectActionItem(call),
-          getDeleteActionItem(call)
-        )
-      )
+  fun getActions(call: CallLogRow.Call): List<ActionItem> {
+    return listOfNotNull(
+      getVideoCallActionItem(call.peer),
+      getAudioCallActionItem(call),
+      getGoToChatActionItem(call),
+      getInfoActionItem(call.peer, (call.id as CallLogRow.Id.Call).children.toLongArray()),
+      getSelectActionItem(call),
+      getDeleteActionItem(call)
+    )
   }
 
-  fun show(recyclerView: RecyclerView, anchor: View, callLink: CallLogRow.CallLink) {
-    recyclerView.suppressLayout(true)
-    anchor.isSelected = true
-    SignalContextMenu.Builder(anchor, anchor.parent as ViewGroup)
-      .preferredVerticalPosition(SignalContextMenu.VerticalPosition.BELOW)
-      .offsetY(12.dp)
-      .onDismiss {
-        anchor.isSelected = false
-        recyclerView.suppressLayout(false)
-      }
-      .show(
-        listOfNotNull(
-          getVideoCallActionItem(callLink.recipient),
-          getInfoActionItem(callLink.recipient, longArrayOf()),
-          getSelectActionItem(callLink),
-          getDeleteActionItem(callLink)
-        )
-      )
+  fun getActions(callLink: CallLogRow.CallLink): List<ActionItem> {
+    return listOfNotNull(
+      getVideoCallActionItem(callLink.recipient),
+      getInfoActionItem(callLink.recipient, longArrayOf()),
+      getSelectActionItem(callLink),
+      getDeleteActionItem(callLink)
+    )
   }
 
   private fun getVideoCallActionItem(peer: Recipient): ActionItem? {

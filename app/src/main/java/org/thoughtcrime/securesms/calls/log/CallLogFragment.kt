@@ -13,11 +13,9 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
-import io.reactivex.rxjava3.core.BackpressureStrategy
 import io.reactivex.rxjava3.kotlin.Flowables
 import io.reactivex.rxjava3.kotlin.subscribeBy
 import kotlinx.coroutines.launch
@@ -28,19 +26,16 @@ import org.signal.core.util.DimensionUnit
 import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.core.util.concurrent.addTo
 import org.signal.core.util.logging.Log
-import org.signal.core.util.orNull
 import org.thoughtcrime.securesms.MainNavigator
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.calls.links.create.CreateCallLinkBottomSheetDialogFragment
+import org.thoughtcrime.securesms.calls.log.light.LightCallLogView
 import org.thoughtcrime.securesms.components.ProgressCardDialogFragment
-import org.thoughtcrime.securesms.components.ScrollToPositionDelegate
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
 import org.thoughtcrime.securesms.components.menu.ActionItem
 import org.thoughtcrime.securesms.components.settings.conversation.ConversationSettingsActivity
 import org.thoughtcrime.securesms.components.snackbars.SnackbarState
 import org.thoughtcrime.securesms.conversation.ConversationUpdateTick
-import org.thoughtcrime.securesms.conversation.SignalBottomActionBarController
-import org.thoughtcrime.securesms.conversation.v2.ConversationDialogs
 import org.thoughtcrime.securesms.conversationlist.ConversationFilterBehavior
 import org.thoughtcrime.securesms.conversationlist.chatfilter.ConversationFilterSource
 import org.thoughtcrime.securesms.conversationlist.chatfilter.ConversationListFilterPullView.OnCloseClicked
@@ -49,16 +44,15 @@ import org.thoughtcrime.securesms.conversationlist.chatfilter.FilterLerp
 import org.thoughtcrime.securesms.conversationlist.chatfilter.FilterPullState
 import org.thoughtcrime.securesms.databinding.CallLogFragmentBinding
 import org.thoughtcrime.securesms.dependencies.AppDependencies
+import org.thoughtcrime.securesms.light.LightPanelAction
+import org.thoughtcrime.securesms.light.LightPanelActions
 import org.thoughtcrime.securesms.main.MainNavigationDetailLocation
 import org.thoughtcrime.securesms.main.MainNavigationListLocation
 import org.thoughtcrime.securesms.main.MainNavigationViewModel
 import org.thoughtcrime.securesms.main.MainSnackbarHostKey
 import org.thoughtcrime.securesms.main.MainToolbarMode
 import org.thoughtcrime.securesms.main.MainToolbarViewModel
-import org.thoughtcrime.securesms.main.Material3OnScrollHelperBinder
-import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.service.webrtc.links.CallLinkRoomId
-import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.ViewUtil
 import org.thoughtcrime.securesms.util.doAfterNextLayout
 import org.thoughtcrime.securesms.util.fragments.requireListener
@@ -68,28 +62,38 @@ import org.signal.core.ui.R as CoreUiR
 
 /**
  * Call Log tab.
+ *
+ * The list itself is [LightCallLogView], a Compose screen built out of the Light Phone SDK's
+ * components; this fragment keeps everything around it -- the pull-to-filter header, search,
+ * multi-select and its bottom action bar, and every dialog -- and drives the view the way it used to
+ * drive `CallLogAdapter`.
  */
 @SuppressLint("DiscouragedApi")
-class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Callbacks, CallLogContextMenu.Callbacks {
+class CallLogFragment : Fragment(R.layout.call_log_fragment), LightCallLogView.Callback, CallLogContextMenu.Callbacks {
 
   companion object {
     private val TAG = Log.tag(CallLogFragment::class.java)
+
+    /** Rows from the top within which a tap on the Calls tab scrolls smoothly rather than jumping. */
+    private const val SMOOTH_SCROLL_TO_TOP_THRESHOLD = 25
   }
 
   private var filterViewOffsetChangeListener: AppBarLayout.OnOffsetChangedListener? = null
 
   private val binding: CallLogFragmentBinding by ViewBinderDelegate(CallLogFragmentBinding::bind) {
     binding.recyclerCoordinatorAppBar.removeOnOffsetChangedListener(filterViewOffsetChangeListener)
+    // The panel dies with the view it lives in, so the bottom bar has to be given back explicitly --
+    // the flag is on an activity-scoped view model and would otherwise outlive this screen.
+    mainNavigationViewModel.setBottomBarSuppressed(false)
   }
 
   private val disposables = LifecycleDisposable()
   private val callLogContextMenu = CallLogContextMenu(this, this)
   private lateinit var callLogActionMode: CallLogActionMode
   private val conversationUpdateTick: ConversationUpdateTick = ConversationUpdateTick(this::onTimestampTick)
-  private var callLogAdapter: CallLogAdapter? = null
   private val backPressedCallback = OnBackPressed()
 
-  private lateinit var signalBottomActionBarController: SignalBottomActionBarController
+  private var reportedFirstDataSet = false
 
   private val viewModel: CallLogViewModel by activityViewModels()
   private val mainToolbarViewModel: MainToolbarViewModel by activityViewModels()
@@ -101,7 +105,6 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
 
     callLogActionMode = CallLogActionMode(CallLogActionModeCallback(), mainToolbarViewModel)
 
-    val callLogAdapter = CallLogAdapter(this)
     disposables.bindTo(viewLifecycleOwner)
 
     disposables += mainToolbarViewModel.getCallLogEventsFlowable().subscribeBy {
@@ -112,32 +115,12 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
       }
     }
 
-    callLogAdapter.setPagingController(viewModel.controller)
-    callLogAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-      override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-        (requireActivity() as? MainNavigator.NavigatorProvider)?.onFirstRender()
-        callLogAdapter.unregisterAdapterDataObserver(this)
-      }
-    })
+    binding.lightCallLog.callback = this
+    binding.lightActionPanel.onDismiss = { dismissCallMenu() }
 
-    val scrollToPositionDelegate = ScrollToPositionDelegate(
-      recyclerView = binding.recycler,
-      canJumpToPosition = { callLogAdapter.isAvailableAround(it) }
-    )
-
-    disposables += scrollToPositionDelegate
-    disposables += Flowables.combineLatest(viewModel.data, viewModel.selected, mainNavigationViewModel.observableActiveCallId.toFlowable(BackpressureStrategy.LATEST))
+    disposables += Flowables.combineLatest(viewModel.data, viewModel.selected)
       .observeOn(AndroidSchedulers.mainThread())
-      .subscribe { (data, selected, activeRowId) ->
-        val filteredCount = callLogAdapter.submitCallRows(
-          data,
-          selected,
-          activeCallLogRowId = activeRowId.orNull().takeIf { resources.isSplitPane() },
-          viewModel.callLogPeekHelper.localDeviceCallRecipientId,
-          scrollToPositionDelegate::notifyListCommitted
-        )
-        binding.emptyState.visible = filteredCount == 0
-      }
+      .subscribe { (data, selected) -> onCallLogChanged(data, selected) }
 
     disposables += Flowables.combineLatest(viewModel.selected, viewModel.totalCount)
       .distinctUntilChanged()
@@ -150,11 +133,6 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
           callLogActionMode.end()
         }
       }
-
-    binding.recycler.adapter = callLogAdapter
-    this.callLogAdapter = callLogAdapter
-
-    requireListener<Material3OnScrollHelperBinder>().bindScrollHelper(binding.recycler, viewLifecycleOwner)
 
     binding.pullView.setPillText(R.string.CallLogFragment__filtered_by_missed)
 
@@ -174,14 +152,16 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
       )
     )
 
-    initializePullToFilter(scrollToPositionDelegate)
-    initializeTapToScrollToTop(scrollToPositionDelegate)
+    initializePullToFilter()
+    initializeTapToScrollToTop()
 
-    requireActivity().onBackPressedDispatcher.addCallback(backPressedCallback)
+    // Scoped to the *view* lifecycle, not the fragment's: the handler reaches into the binding to
+    // see whether the action panel is up, so it must not outlive the view that owns it.
+    requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backPressedCallback)
     viewLifecycleOwner.lifecycleScope.launch {
       repeatOnLifecycle(Lifecycle.State.RESUMED) {
         mainToolbarViewModel.state.collect {
-          backPressedCallback.isEnabled = it.mode == MainToolbarMode.SEARCH
+          updateBackPressedState()
         }
       }
     }
@@ -189,12 +169,6 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
     if (!resources.isSplitPane()) {
       ViewUtil.setBottomMargin(binding.bottomActionBar, ViewUtil.getNavigationBarHeight(binding.bottomActionBar))
     }
-
-    signalBottomActionBarController = SignalBottomActionBarController(
-      binding.bottomActionBar,
-      binding.recycler,
-      BottomActionBarControllerCallback()
-    )
   }
 
   override fun onResume() {
@@ -205,14 +179,43 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
   }
 
   private fun onTimestampTick() {
-    callLogAdapter?.onTimestampTick()
+    binding.lightCallLog.refreshTimestamps()
   }
 
-  private fun initializeTapToScrollToTop(scrollToPositionDelegate: ScrollToPositionDelegate) {
+  /**
+   * Hands a new page of rows to the Light list.
+   *
+   * The old adapter dropped the paging source's `null` holes and let `PagingMappingAdapter.getItem`
+   * ask for the missing pages as rows were bound. The Compose list keeps the holes as blank rows of
+   * the right height and asks for data from the deepest row the user has reached instead, so the
+   * scrollbar never lies about how long the list is while a page is in flight.
+   */
+  private fun onCallLogChanged(rows: List<CallLogRow?>, selection: CallLogSelectionState) {
+    val firstVisibleItem = binding.lightCallLog.firstCompletelyVisibleItemPosition()
+
+    binding.lightCallLog.submit(
+      rows = rows,
+      selection = selection,
+      localDeviceCallRecipientId = viewModel.callLogPeekHelper.localDeviceCallRecipientId
+    )
+
+    // A new call lands at the top of the log. When the user was already parked there, follow it.
+    if (firstVisibleItem == 0) {
+      binding.lightCallLog.scrollToTop(smooth = false)
+    }
+
+    if (!reportedFirstDataSet && rows.isNotEmpty()) {
+      reportedFirstDataSet = true
+      (requireActivity() as? MainNavigator.NavigatorProvider)?.onFirstRender()
+    }
+  }
+
+  private fun initializeTapToScrollToTop() {
     disposables += mainNavigationViewModel.tabClickEventsObservable
       .filter { it == MainNavigationListLocation.CALLS }
       .subscribeBy(onNext = {
-        scrollToPositionDelegate.resetScrollPosition()
+        val firstVisibleItem = binding.lightCallLog.firstCompletelyVisibleItemPosition()
+        binding.lightCallLog.scrollToTop(smooth = firstVisibleItem <= SMOOTH_SCROLL_TO_TOP_THRESHOLD)
       })
   }
 
@@ -254,7 +257,7 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
     }
   }
 
-  private fun initializePullToFilter(scrollToPositionDelegate: ScrollToPositionDelegate) {
+  private fun initializePullToFilter() {
     val collapsingToolbarLayout = binding.collapsingToolbar
     val openHeight = DimensionUnit.DP.toPixels(FilterLerp.FILTER_OPEN_HEIGHT).toInt()
 
@@ -263,8 +266,8 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
         FilterPullState.CLOSING -> {
           viewModel.setFilter(CallLogFilter.ALL)
           mainToolbarViewModel.setCallLogFilter(CallLogFilter.ALL)
-          binding.recycler.doAfterNextLayout {
-            scrollToPositionDelegate.resetScrollPosition()
+          binding.lightCallLog.doAfterNextLayout {
+            binding.lightCallLog.scrollToTop(smooth = false)
           }
         }
 
@@ -312,76 +315,87 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
     }
   }
 
-  override fun onCreateACallLinkClicked() {
+  override fun onCreateCallLinkClicked() {
     CreateCallLinkBottomSheetDialogFragment().show(parentFragmentManager, BottomSheetUtil.STANDARD_BOTTOM_SHEET_FRAGMENT_TAG)
   }
 
-  override fun onCallClicked(callLogRow: CallLogRow.Call) {
-    if (viewModel.selectionStateSnapshot.isNotEmpty(binding.recycler.adapter!!.itemCount)) {
-      viewModel.toggleSelected(callLogRow.id)
-    } else if (!callLogRow.peer.isCallLink) {
+  override fun onCallClicked(call: CallLogRow.Call) {
+    if (viewModel.selectionStateSnapshot.isNotEmpty(binding.lightCallLog.itemCount)) {
+      viewModel.toggleSelected(call.id)
+    } else if (!call.peer.isCallLink) {
       val intent = ConversationSettingsActivity.forCall(
         requireContext(),
-        callLogRow.peer,
-        (callLogRow.id as CallLogRow.Id.Call).children.toLongArray()
+        call.peer,
+        (call.id as CallLogRow.Id.Call).children.toLongArray()
       )
       startActivity(intent)
     } else {
-      goToCallLinkDetails(callLogRow.peer.requireCallLinkRoomId())
+      goToCallLinkDetails(call.peer.requireCallLinkRoomId())
     }
   }
 
-  override fun onCallLinkClicked(callLogRow: CallLogRow.CallLink) {
-    if (viewModel.selectionStateSnapshot.isNotEmpty(binding.recycler.adapter!!.itemCount)) {
-      viewModel.toggleSelected(callLogRow.id)
+  override fun onCallLinkClicked(callLink: CallLogRow.CallLink) {
+    if (viewModel.selectionStateSnapshot.isNotEmpty(binding.lightCallLog.itemCount)) {
+      viewModel.toggleSelected(callLink.id)
     } else {
-      mainNavigationViewModel.goTo(MainNavigationDetailLocation.CallLinkDetails(callLogRow.record.roomId))
+      mainNavigationViewModel.goTo(MainNavigationDetailLocation.CallLinkDetails(callLink.record.roomId))
     }
   }
 
-  override fun onCallLongClicked(itemView: View, callLogRow: CallLogRow.Call): Boolean {
-    callLogContextMenu.show(binding.recycler, itemView, callLogRow)
-    return true
+  override fun onCallLongClicked(row: CallLogRow) {
+    showCallMenu(row)
   }
 
-  override fun onCallLinkLongClicked(itemView: View, callLinkLogRow: CallLogRow.CallLink): Boolean {
-    callLogContextMenu.show(binding.recycler, itemView, callLinkLogRow)
-    return true
+  override fun onDataNeededAroundIndex(index: Int) {
+    viewModel.controller.onDataNeededAroundIndex(index)
   }
 
-  override fun onClearFilterClicked() {
+  /**
+   * Opens the Light action panel over the long-pressed call.
+   *
+   * The rows are Molly's own menu for that row: [CallLogContextMenu] decides which of video call,
+   * audio call, go to chat, info, select and delete apply and gates them, exactly as it did for the
+   * dropdown this replaces, so every one of them (and any the next upstream merge adds) arrives here
+   * already correct.
+   */
+  private fun showCallMenu(row: CallLogRow) {
+    val actions = when (row) {
+      is CallLogRow.Call -> callLogContextMenu.getActions(row)
+      is CallLogRow.CallLink -> callLogContextMenu.getActions(row)
+      else -> return
+    }
+
+    showCallMenu(LightPanelActions.from(actions, onDismiss = { dismissCallMenu() }))
+  }
+
+  private fun showCallMenu(actions: List<LightPanelAction>) {
+    if (actions.isEmpty()) {
+      return
+    }
+
+    binding.lightActionPanel.show(actions)
+    // The panel is half of whatever it is drawn in, and this fragment is drawn *above* the app's
+    // bottom bar -- so without this the panel would stop a bar's height short of the screen edge and
+    // leave its dismiss chevron floating over the tab icons. The bar steps aside instead, the
+    // content slot grows to the full screen, and the panel lands on the bottom edge where the
+    // reference client's does.
+    mainNavigationViewModel.setBottomBarSuppressed(true)
+    updateBackPressedState()
+  }
+
+  private fun dismissCallMenu() {
+    if (!binding.lightActionPanel.isOpen) {
+      return
+    }
+
+    binding.lightActionPanel.close()
+    mainNavigationViewModel.setBottomBarSuppressed(false)
+    updateBackPressedState()
+  }
+
+  private fun onClearFilterClicked() {
     binding.pullView.toggle()
     binding.recyclerCoordinatorAppBar.setExpanded(false, true)
-  }
-
-  override fun onStartAudioCallClicked(recipient: Recipient) {
-    CommunicationActions.startVoiceCall(this, recipient) {
-      mainNavigationViewModel.snackbarRegistry.emit(
-        SnackbarState(
-          getString(R.string.CommunicationActions__you_are_already_in_a_call),
-          hostKey = MainSnackbarHostKey.MainChrome
-        )
-      )
-    }
-  }
-
-  override fun onStartVideoCallClicked(recipient: Recipient, canUserBeginCall: CallLogRow.CanStartCall) {
-    when (canUserBeginCall) {
-      CallLogRow.CanStartCall.ALLOWED -> {
-        CommunicationActions.startVideoCall(this, recipient) {
-          mainNavigationViewModel.snackbarRegistry.emit(
-            SnackbarState(
-              getString(R.string.CommunicationActions__you_are_already_in_a_call),
-              hostKey = MainSnackbarHostKey.MainChrome
-            )
-          )
-        }
-      }
-
-      CallLogRow.CanStartCall.GROUP_TERMINATED -> ConversationDialogs.displayCannotStartGroupCallDueToGroupEndedDialog(requireContext())
-      CallLogRow.CanStartCall.NOT_A_MEMBER -> ConversationDialogs.displayCannotStartGroupCallDueToNoLongerAMemberDialog(requireContext())
-      CallLogRow.CanStartCall.ADMIN_ONLY -> ConversationDialogs.displayCannotStartGroupCallDueToPermissionsDialog(requireContext())
-    }
   }
 
   override fun startSelection(call: CallLogRow) {
@@ -440,6 +454,14 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
     return mainToolbarViewModel.state.value.mode == MainToolbarMode.SEARCH
   }
 
+  /**
+   * Back has two things to undo on this tab, and the callback has to be enabled for either of them
+   * or the press falls straight through to the activity.
+   */
+  private fun updateBackPressedState() {
+    backPressedCallback.isEnabled = binding.lightActionPanel.isOpen || isSearchVisible()
+  }
+
   private fun performDeletion(count: Int, callLogStagedDeletion: CallLogStagedDeletion) {
     var progressDialog: ProgressCardDialogFragment? = null
     var errorDialog: AlertDialog? = null
@@ -494,19 +516,20 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
       .addTo(disposables)
   }
 
-  private inner class BottomActionBarControllerCallback : SignalBottomActionBarController.Callback {
-    override fun onBottomActionBarVisibilityChanged(visibility: Int) = Unit
-  }
-
   inner class CallLogActionModeCallback : CallLogActionMode.Callback {
     override fun startActionMode() {
       requireListener<Callback>().onMultiSelectStarted()
-      signalBottomActionBarController.setVisibility(true)
+      // The multi-select bar is animated straight in and out, as the chat list's is. The
+      // SignalBottomActionBarController that used to do it also re-padded and re-scrolled a
+      // RecyclerView underneath, and there is no longer one to re-pad.
+      ViewUtil.animateIn(binding.bottomActionBar, binding.bottomActionBar.enterAnimation)
     }
 
     override fun onActionModeWillEnd() {
       requireListener<Callback>().onMultiSelectFinished()
-      signalBottomActionBarController.setVisibility(false)
+      if (binding.bottomActionBar.visible) {
+        ViewUtil.animateOut(binding.bottomActionBar, binding.bottomActionBar.exitAnimation)
+      }
       viewModel.clearSelected()
     }
 
@@ -518,6 +541,11 @@ class CallLogFragment : Fragment(R.layout.call_log_fragment), CallLogAdapter.Cal
 
   private inner class OnBackPressed : OnBackPressedCallback(enabled = false) {
     override fun handleOnBackPressed() {
+      if (binding.lightActionPanel.isOpen) {
+        dismissCallMenu()
+        return
+      }
+
       closeSearchIfOpen()
     }
   }

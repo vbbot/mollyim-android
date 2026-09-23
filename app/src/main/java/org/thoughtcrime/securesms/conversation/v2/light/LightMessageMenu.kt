@@ -9,16 +9,16 @@ import android.content.Context
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.menu.ActionItem
 import org.thoughtcrime.securesms.light.LightPanelAction
-import java.util.Locale
+import org.thoughtcrime.securesms.light.LightPanelActions
 
 /**
  * The first level of the Light context window: what a long press offers for one message.
  *
  * Molly already decides which actions apply to a message, and decides it correctly --
  * `ConversationReactionOverlay.buildMessageMenu` returns a gated list of [ActionItem], each carrying
- * an icon, a label and the thing to do. This takes that list, drops the icon, and hands the rest to
- * the panel. Nothing here knows what REPLY or PIN mean; an action added upstream arrives as a row
- * without this file changing.
+ * an icon, a label and the thing to do. [LightPanelActions] turns that list into rows; nothing here
+ * knows what REPLY or PIN mean, so an action added upstream arrives as a row without this file
+ * changing.
  *
  * The reaction rows are the one thing added on top, because Signal puts reactions in a scrubber
  * above the menu rather than in it, and the Light Phone has no scrubber -- they become rows like
@@ -64,17 +64,7 @@ object LightMessageMenu {
         }
       }
 
-      actions.forEach { action ->
-        // Upper case at the display edge rather than in the strings, because these are Signal's own
-        // menu labels and they are shared with the dropdown, the selection toolbar and every
-        // translation of both. Locale-sensitive: an invariant upper case mangles Turkish.
-        add(
-          LightPanelAction(action.title.toString().uppercase(Locale.getDefault())) {
-            onDismiss()
-            action.action.run()
-          }
-        )
-      }
+      addAll(LightPanelActions.from(actions, onDismiss))
     }
   }
 }
