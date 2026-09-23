@@ -153,6 +153,20 @@ class WebRtcCallActivity : PassphraseRequiredActivity(), SafetyNumberChangeDialo
 
   @SuppressLint("MissingInflatedId")
   override fun onCreate(savedInstanceState: Bundle?, ready: Boolean) {
+    // Always show over the lock screen and turn on the display immediately — this activity is only
+    // ever launched in the context of a call, including during an incoming ring, and waiting for
+    // the first EventBus state update is too late when the screen is off.
+    if (Build.VERSION.SDK_INT >= 27) {
+      setShowWhenLocked(true)
+      setTurnScreenOn(true)
+    } else {
+      @Suppress("DEPRECATION")
+      window.addFlags(
+        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+          WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+      )
+    }
+
     val callIntent: CallIntent = getCallIntent()
     Log.i(TAG, "onCreate(${callIntent.isStartedFromFullScreen})")
 

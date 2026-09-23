@@ -16,12 +16,14 @@ import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.os.Build
+import android.provider.Settings
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyManager
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.IntentCompat
 import androidx.core.os.bundleOf
+import org.thoughtcrime.securesms.components.webrtc.v2.IncomingCallOverlay
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Single
 import io.reactivex.rxjava3.disposables.Disposable
@@ -146,6 +148,7 @@ class ActiveCallManager(
   private var signalAudioManager: SignalAudioManager? = null
   private var previousNotificationId = -1
   private var previousNotificationDisposable = Disposable.disposed()
+  private val incomingCallOverlay = IncomingCallOverlay(application)
 
   init {
     Log.i(TAG, "init(bkgRestricted: ${DeviceProperties.isBackgroundRestricted()})")
@@ -160,6 +163,7 @@ class ActiveCallManager(
   fun shutdown(fromTimeout: Boolean = false) {
     Log.v(TAG, "shutdown")
 
+    incomingCallOverlay.dismiss()
     previousNotificationDisposable.dispose()
 
     uncaughtExceptionHandlerManager?.unregister()
@@ -206,7 +210,18 @@ class ActiveCallManager(
             }
           }
       }
+
+      if (type == CallNotificationBuilder.TYPE_INCOMING_RINGING) {
+        if (Settings.canDrawOverlays(application)) {
+          incomingCallOverlay.show(recipientId, isVideoCall)
+        } else {
+          // SYSTEM_ALERT_WINDOW not granted — falls back to the fullscreen notification intent.
+          // User must grant "Display Over Other Apps" once via Settings > Apps > Special App Access.
+          Log.w(TAG, "SYSTEM_ALERT_WINDOW not granted; skipping overlay for incoming call")
+        }
+      }
     } else {
+      incomingCallOverlay.dismiss()
       ActiveCallForegroundService.update(application, type, recipientId, isVideoCall)
     }
   }
