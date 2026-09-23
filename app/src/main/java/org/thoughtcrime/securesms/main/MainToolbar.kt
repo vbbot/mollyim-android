@@ -7,37 +7,24 @@ package org.thoughtcrime.securesms.main
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.EnterExitState
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,31 +33,32 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.unit.dp
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.DropdownMenus
 import org.signal.core.ui.compose.IconButtons
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.gridUnitsAsDp
+import com.thelightphone.sdk.ui.lightClickable
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.TextFields
-import org.signal.core.ui.compose.circularReveal
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.calls.log.CallLogFilter
 import org.thoughtcrime.securesms.components.compose.ActionModeTopBar
 import org.thoughtcrime.securesms.conversationlist.model.ConversationFilter
 import org.thoughtcrime.securesms.keyvalue.SignalStore
+import org.thoughtcrime.securesms.light.LightSearchField
+import org.thoughtcrime.securesms.light.MollyLightTheme
+import org.thoughtcrime.securesms.light.rememberLightTintedPainter
 import org.thoughtcrime.securesms.recipients.Recipient
 
-/** Search is opened from the bottom bar now, so its circular reveal grows from the centre. */
-private val SEARCH_REVEAL_ORIGIN = Offset(0.5f, 0.5f)
+/** The labs search-filter glyph's slot, matching the field's own leading and clear slots. */
+private const val SEARCH_FILTER_SLOT_UNITS = 1f
+
+/** The "a filter is applied" dot, sized off the glyph rather than in absolute dp. */
+private const val SEARCH_FILTER_DOT_UNITS = 0.25f
 
 interface MainToolbarCallback {
   fun onNewGroupClick()
@@ -184,26 +172,17 @@ fun MainToolbar(
             .windowInsetsPadding(WindowInsets.statusBars)
         )
 
-        AnimatedVisibility(
-          visible = state.mode == MainToolbarMode.SEARCH,
-          enter = EnterTransition.None,
-          exit = ExitTransition.None
-        ) {
-          val visibility = transition.animateFloat(
-            transitionSpec = { tween(durationMillis = 400, easing = LinearOutSlowInEasing) },
-            label = "Visibility"
-          ) { state ->
-            if (state == EnterExitState.Visible) 1f else 0f
-          }
-
+        // Swapped in outright rather than revealed. The circular reveal this replaced was a
+        // Material motion idiom, and nothing else in the Light port animates a surface into
+        // existence -- the tabs, the action panel and every list swap directly. It also read badly
+        // here specifically: the field is a full-bleed black row with a white rule under it, so a
+        // circular clip wiped that rule on in an arc, which is the one part of the control the eye
+        // actually tracks.
+        if (state.mode == MainToolbarMode.SEARCH) {
           SearchToolbar(
             state = state,
             callback = callback,
-            modifier = Modifier
-              .windowInsetsPadding(WindowInsets.statusBars)
-              // Search is opened from the bottom bar now, so the reveal grows from the centre
-              // rather than from the position of a top bar button.
-              .circularReveal(visibility, SEARCH_REVEAL_ORIGIN)
+            modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
           )
         }
       }
@@ -227,6 +206,29 @@ private fun ActionModeToolbar(
   )
 }
 
+/**
+ * The search field, in the Light idiom.
+ *
+ * This replaced a Material 3 filled `TextField` -- a grey rounded capsule with a floating
+ * placeholder -- which was the last piece of Material chrome on the app's main screen and looked it:
+ * the screen behind it has no top bar at all any more, so the capsule appeared out of nowhere,
+ * sitting on a surface colour nothing else on the screen used.
+ *
+ * It is the *same* control as the contact picker's, [LightSearchField], rather than a second field
+ * that resembles it -- see that file for the shape and for why an ordinary Compose text field is all
+ * it takes to raise the LP3's keyboard.
+ *
+ * Two things are configured differently from the picker's:
+ *
+ * - **The leading glyph is BACK, and it is tappable.** In the picker the field filters a list that
+ *   is on screen either way, so its leading slot is a decorative magnifier. Here the field *is* the
+ *   search mode, and the Light bottom bar is hidden while that mode is up (`MainActivity` only shows
+ *   it in `FULL`), so without this the only way out would be the system back gesture.
+ * - **The labs search filter keeps its entry point.** `SignalStore.labs.betterSearch` is off by
+ *   default and `SearchFilterBottomSheet` is deliberately untouched, so the glyph is drawn through
+ *   [rememberLightTintedPainter] rather than left as a raw Signal drawable -- `symbol_filter_24` is
+ *   authored with a dark fill, which on the Light theme's true-black background is invisible.
+ */
 @Composable
 private fun SearchToolbar(
   state: MainToolbarState,
@@ -235,87 +237,62 @@ private fun SearchToolbar(
 ) {
   val focusRequester = remember { FocusRequester() }
 
-  CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
-    TextFields.TextField(
-      value = state.searchQuery,
-      onValueChange = callback::onSearchQueryUpdated,
-      leadingIcon = {
-        IconButtons.IconButton(
-          onClick = callback::onCloseSearchClick
-        ) {
-          Icon(
-            imageVector = SignalIcons.ArrowStart.imageVector,
-            contentDescription = stringResource(R.string.MainToolbar__close_search_content_description)
-          )
-        }
-      },
-      trailingIcon = {
-        Row {
-          if (SignalStore.labs.betterSearch) {
-            Box(contentAlignment = Alignment.TopEnd) {
-              IconButtons.IconButton(
-                onClick = callback::onSearchFilterClick
-              ) {
-                Icon(
-                  imageVector = ImageVector.vectorResource(R.drawable.symbol_filter_24),
-                  contentDescription = stringResource(R.string.MainToolbar__search_filter_content_description)
-                )
-              }
-              if (state.hasActiveSearchFilter) {
-                Box(
-                  modifier = Modifier
-                    .padding(top = 8.dp, end = 8.dp)
-                    .size(8.dp)
-                    .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape)
-                )
-              }
-            }
-          }
-          if (state.searchQuery.isNotEmpty()) {
-            IconButtons.IconButton(
-              onClick = {
-                callback.onSearchQueryUpdated("")
-              }
-            ) {
-              Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_x_20),
-                contentDescription = stringResource(R.string.MainToolbar__clear_search_content_description)
-              )
-            }
-          }
-        }
-      },
-      contentPadding = PaddingValues(0.dp),
-      colors = TextFieldDefaults.colors(
-        focusedIndicatorColor = Color.Transparent,
-        unfocusedIndicatorColor = Color.Transparent,
-        disabledIndicatorColor = Color.Transparent,
-        errorIndicatorColor = Color.Transparent,
-        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-        errorContainerColor = MaterialTheme.colorScheme.surfaceVariant
-      ),
-      textStyle = MaterialTheme.typography.bodyLarge,
-      shape = RoundedCornerShape(50),
-      singleLine = true,
-      placeholder = {
-        Text(text = stringResource(state.searchHint))
+  MollyLightTheme {
+    LightSearchField(
+      // Read here and not in MainToolbar's body on purpose: the query changes on every keystroke,
+      // and pulling it up would re-invoke the Crossfade's content per character.
+      query = state.searchQuery,
+      onQueryChange = callback::onSearchQueryUpdated,
+      hint = stringResource(state.searchHint),
+      focusRequester = focusRequester,
+      onBack = callback::onCloseSearchClick,
+      trailing = if (SignalStore.labs.betterSearch) {
+        { SearchFilterGlyph(hasActiveFilter = state.hasActiveSearchFilter, onClick = callback::onSearchFilterClick) }
+      } else {
+        null
       },
       modifier = modifier
-        .background(color = state.toolbarColor ?: MaterialTheme.colorScheme.surface)
-        .height(dimensionResource(R.dimen.signal_m3_toolbar_height))
-        .padding(horizontal = 16.dp, vertical = 10.dp)
-        .fillMaxWidth()
-        .focusRequester(focusRequester)
     )
   }
 
-  LaunchedEffect(state.mode) {
-    if (state.mode == MainToolbarMode.SEARCH) {
-      focusRequester.requestFocus()
-    } else {
-      focusRequester.freeFocus()
+  // Unconditional, because this composable only exists while the mode *is* SEARCH -- entering
+  // search is what creates it. That is also what raises the keyboard: the LP3's IME is the system
+  // default, so focusing an ordinary Compose text field brings it up with no further help.
+  LaunchedEffect(Unit) {
+    focusRequester.requestFocus()
+  }
+}
+
+/**
+ * The labs search-filter affordance: the glyph, with a dot over it while a filter is applied.
+ *
+ * The dot is the Light stand-in for Material's `colorPrimary` badge -- there is no accent colour in
+ * this design, so "on" is said with the content colour and with size instead.
+ */
+@Composable
+private fun SearchFilterGlyph(
+  hasActiveFilter: Boolean,
+  onClick: () -> Unit
+) {
+  Box(
+    modifier = Modifier
+      .size(SEARCH_FILTER_SLOT_UNITS.gridUnitsAsDp())
+      .lightClickable(onClick = onClick),
+    contentAlignment = Alignment.Center
+  ) {
+    Image(
+      painter = rememberLightTintedPainter(R.drawable.symbol_filter_24),
+      contentDescription = stringResource(R.string.MainToolbar__search_filter_content_description),
+      modifier = Modifier.fillMaxSize()
+    )
+
+    if (hasActiveFilter) {
+      Box(
+        modifier = Modifier
+          .align(Alignment.TopEnd)
+          .size(SEARCH_FILTER_DOT_UNITS.gridUnitsAsDp())
+          .background(color = LightThemeTokens.colors.content, shape = CircleShape)
+      )
     }
   }
 }

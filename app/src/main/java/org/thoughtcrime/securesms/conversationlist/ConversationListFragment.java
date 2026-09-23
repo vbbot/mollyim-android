@@ -20,7 +20,6 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
@@ -48,7 +47,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.LinearSmoothScroller;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -104,15 +102,12 @@ import org.thoughtcrime.securesms.components.spoiler.SpoilerAnnotation;
 import org.thoughtcrime.securesms.components.voice.VoiceNoteMediaControllerOwner;
 import org.thoughtcrime.securesms.components.voice.VoiceNotePlayerView;
 import org.thoughtcrime.securesms.contacts.ContactSelectionDisplayMode;
-import org.thoughtcrime.securesms.contacts.paged.ContactSearchAdapter;
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchConfiguration;
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchData;
-import org.thoughtcrime.securesms.contacts.paged.ContactSearchKey;
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchPagedDataSourceRepository;
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchRepository;
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchState;
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchViewModel;
-import org.thoughtcrime.securesms.contacts.paged.ContactSearchViewModelKt;
 import org.thoughtcrime.securesms.contacts.selection.ContactSelectionArguments;
 import org.thoughtcrime.securesms.conversation.ConversationUpdateTick;
 import org.thoughtcrime.securesms.conversationlist.chatfilter.ConversationFilterRequest;
@@ -120,6 +115,7 @@ import org.thoughtcrime.securesms.conversationlist.chatfilter.ConversationFilter
 import org.thoughtcrime.securesms.conversationlist.chatfilter.ConversationListFilterPullView;
 import org.thoughtcrime.securesms.conversationlist.chatfilter.FilterLerp;
 import org.thoughtcrime.securesms.conversationlist.light.LightConversationListView;
+import org.thoughtcrime.securesms.conversationlist.light.LightSearchResultsView;
 import org.thoughtcrime.securesms.conversationlist.model.Conversation;
 import org.thoughtcrime.securesms.conversationlist.model.ConversationFilter;
 import org.thoughtcrime.securesms.database.MessageTable.MarkedMessageInfo;
@@ -154,7 +150,6 @@ import org.thoughtcrime.securesms.util.RemoteConfig;
 import org.thoughtcrime.securesms.util.SignalLocalMetrics;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.thoughtcrime.securesms.util.ViewUtil;
-import org.thoughtcrime.securesms.util.adapter.mapping.PagingMappingAdapter;
 import org.thoughtcrime.securesms.verify.SelfVerificationFailureSheet;
 import org.whispersystems.signalservice.api.websocket.WebSocketConnectionState;
 
@@ -186,16 +181,11 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
 
   private static final String TAG = Log.tag(ConversationListFragment.class);
 
-  private static final long SEARCH_LOADING_SHOW_DELAY_MS = 150L;
-
   private static final int MAX_CHATS_ABOVE_FOLD             = 7;
   private static final int MAX_CONTACTS_ABOVE_FOLD          = 5;
   private static final int MAX_GROUP_MEMBERSHIPS_ABOVE_FOLD = 5;
   private View                                   coordinator;
   private RecyclerView                           chatFolderList;
-  private RecyclerView                           list;
-  private View                                   searchLoading;
-  private boolean                                searchInProgress;
   private Stub<ComposeView>                      bannerView;
   private ConversationListFilterPullView         pullView;
   private AppBarLayout                           pullViewAppBarLayout;
@@ -205,12 +195,7 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
   private View                                   contextMenuAnchor;
   private boolean                                showingSearchResults;
   private boolean                                reportedFirstDataSet;
-  private PagingMappingAdapter<ContactSearchKey> searchAdapter;
-  private final Runnable                         showSearchLoadingRunnable = () -> {
-    if (searchLoading != null && searchInProgress && showingSearchResults) {
-      searchLoading.setVisibility(View.VISIBLE);
-    }
-  };
+  private LightSearchResultsView                 searchResults;
   private Drawable                               archiveDrawable;
   private AppForegroundObserver.Listener         appForegroundObserver;
   private VoiceNoteMediaControllerOwner          mediaControllerOwner;
@@ -302,11 +287,10 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
     lifecycleDisposable.bindTo(getViewLifecycleOwner());
 
     chatFolderList          = view.findViewById(R.id.chat_folder_list);
-    list                    = view.findViewById(R.id.list);
     listContainer           = view.findViewById(R.id.list_container);
     conversationList        = view.findViewById(R.id.light_conversation_list);
+    searchResults           = view.findViewById(R.id.light_search_results);
     contextMenuAnchor       = view.findViewById(R.id.conversation_list_context_menu_anchor);
-    searchLoading           = view.findViewById(R.id.search_loading);
     bottomActionBar         = view.findViewById(R.id.conversation_list_bottom_action_bar);
     bannerView              = new Stub<>(view.findViewById(R.id.banner_compose_view));
     voiceNotePlayerViewStub = new Stub<>(view.findViewById(R.id.voice_note_player));
@@ -318,35 +302,20 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
         false,
         new ContactSearchRepository(),
         false,
-        new ConversationListSearchAdapter.ChatFilterRepository(),
+        new ConversationListSearchModels.ChatFilterRepository(),
         new SearchRepository(requireContext().getString(R.string.note_to_self)),
         new ContactSearchPagedDataSourceRepository(requireContext(), requireContext().getString(R.string.note_to_self)),
         Collections.emptySet(),
         true
     )).get(ContactSearchViewModel.class);
 
-    searchAdapter = new ConversationListSearchAdapter(
-        requireContext(),
-        Collections.emptySet(),
-        new ContactSearchAdapter.DisplayOptions(false, ContactSearchAdapter.DisplaySecondaryInformation.NEVER, false, false),
-        new ContactSearchClickCallbacks(),
-        new ContactSearchAdapter.LongClickCallbacksAdapter(),
-        new ContactSearchAdapter.StoryContextMenuCallbacks() {
-          @Override public void onOpenStorySettings(@NonNull ContactSearchData.Story story) {}
-          @Override public void onRemoveGroupStory(@NonNull ContactSearchData.Story story, boolean isSelected) {}
-          @Override public void onDeletePrivateStory(@NonNull ContactSearchData.Story story, boolean isSelected) {}
-        },
-        ContactSearchAdapter.EmptyCallButtonClickCallbacks.INSTANCE,
-        getViewLifecycleOwner(),
-        Glide.with(this)
-    );
-
-    ContactSearchViewModelKt.bindAdapterToLifecycle(contactSearchViewModel, getViewLifecycleOwner(), searchAdapter, this::mapSearchStateToConfiguration);
-    ContactSearchViewModelKt.bindSearchInProgressToLifecycle(contactSearchViewModel, getViewLifecycleOwner(), inProgress -> {
-      searchInProgress = inProgress;
-      updateSearchLoadingVisibility();
-      return Unit.INSTANCE;
-    });
+    // Search results are a Compose list now, so the adapter, the lifecycle binder and the
+    // search-in-progress spinner all go: LightSearchResultsView collects the same view model
+    // itself, and draws "Searching..." in Light type instead of a Material progress indicator.
+    // mapSearchStateToConfiguration is handed over unchanged -- the configuration, the repository
+    // and the FTS layer underneath it are untouched.
+    searchResults.setCallback(new LightSearchResultsCallback());
+    searchResults.bind(contactSearchViewModel, this::mapSearchStateToConfiguration);
 
     initializeSearchFilterListener();
 
@@ -406,11 +375,6 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
     chatFolderList.setAdapter(chatFolderAdapter);
     chatFolderList.setItemAnimator(chatFolderItemAnimator);
 
-    // @id/list now only ever renders search results; the conversation list itself is the Compose
-    // LightConversationListView above it.
-    list.setLayoutManager(new LinearLayoutManager(requireActivity()));
-    CachedInflater.from(list.getContext()).clear();
-
     initializeViewModel();
     initializeListAdapters();
     initializeVoiceNotePlayer();
@@ -447,15 +411,12 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
     // The Light row has no "currently open conversation" highlight -- it is name + time + unread
     // marker and nothing else -- so the split-pane active-recipient tracking has nothing to drive.
 
-    requireCallback().bindScrollHelper(list, getViewLifecycleOwner(), chatFolderList, color -> {
-      for (int i = 0; i < chatFolderList.getChildCount(); i++) {
-        View child = chatFolderList.getChildAt(i);
-        if (child != null && child.isSelected()) {
-          child.setBackgroundTintList(ColorStateList.valueOf(color));
-        }
-      }
-      return Unit.INSTANCE;
-    });
+    // No Material3OnScrollHelper any more: both of this screen's lists are Compose, so there is no
+    // RecyclerView left to attach one to. It only ever fired on the search list's scroll anyway
+    // (the chat list stopped being a RecyclerView two milestones ago), and everything it drove has
+    // a sane default without it -- the toolbar colour it set is consumed only by the action-mode
+    // and archive top bars, both of which already fall back to the Material surface colour when it
+    // is null, and the Light design has no top bar here to tint in the first place.
 
     smoothScroller = new LinearSmoothScroller(requireContext()) {
       @Override
@@ -483,7 +444,6 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
     }
 
     coordinator             = null;
-    list                    = null;
     listContainer           = null;
     contextMenuAnchor       = null;
     bottomActionBar         = null;
@@ -494,11 +454,9 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
       conversationList = null;
     }
 
-    searchAdapter = null;
-
-    if (searchLoading != null) {
-      searchLoading.removeCallbacks(showSearchLoadingRunnable);
-      searchLoading = null;
+    if (searchResults != null) {
+      searchResults.setCallback(null);
+      searchResults = null;
     }
 
     dismissProgressDialog();
@@ -852,55 +810,30 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
     getViewLifecycleOwner().getLifecycle().addObserver(conversationUpdateTick);
   }
 
-  /** Shows the Compose conversation list and tears down whatever the search RecyclerView was showing. */
+  /**
+   * Shows the Compose conversation list. This is also search's empty state: opening search with no
+   * query leaves the chat list exactly where it was, under the field, rather than blanking the
+   * screen to ask for input.
+   */
   private void showConversationList() {
-    if (list == null || conversationList == null) {
+    if (searchResults == null || conversationList == null) {
       return;
-    }
-
-    if (showingSearchResults) {
-      list.setAdapter(null);
     }
 
     showingSearchResults = false;
-    list.setVisibility(View.GONE);
+    searchResults.setVisibility(View.GONE);
     conversationList.setVisibility(View.VISIBLE);
-
-    updateSearchLoadingVisibility();
   }
 
-  /** Swaps the Compose conversation list out for the legacy search-results RecyclerView. */
+  /** Swaps the Compose conversation list out for the Compose search results. */
   private void showSearchResults() {
-    if (list == null || conversationList == null) {
+    if (searchResults == null || conversationList == null) {
       return;
     }
 
-    if (!showingSearchResults) {
-      showingSearchResults = true;
-      list.setAdapter(searchAdapter);
-    }
-
+    showingSearchResults = true;
     conversationList.setVisibility(View.GONE);
-    list.setVisibility(View.VISIBLE);
-
-    updateSearchLoadingVisibility();
-  }
-
-  private void updateSearchLoadingVisibility() {
-    if (searchLoading == null) {
-      return;
-    }
-
-    boolean shouldShow = searchInProgress && showingSearchResults;
-    searchLoading.removeCallbacks(showSearchLoadingRunnable);
-
-    if (shouldShow) {
-      if (searchLoading.getVisibility() != View.VISIBLE) {
-        searchLoading.postDelayed(showSearchLoadingRunnable, SEARCH_LOADING_SHOW_DELAY_MS);
-      }
-    } else {
-      searchLoading.setVisibility(View.GONE);
-    }
+    searchResults.setVisibility(View.VISIBLE);
   }
 
   protected boolean isArchived() {
@@ -1395,25 +1328,17 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
 
     items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_trash_24, getResources().getString(R.string.ConversationListFragment_delete), () -> handleDelete(id)));
 
-    // Only the search RecyclerView needs its layout frozen under the menu; the Compose list is
-    // anchored to a static overlay view instead.
-    final boolean suppressListLayout = container == list;
-
+    // No layout suppression any more. It existed to freeze the search RecyclerView underneath an
+    // open menu; both lists are Compose now and both anchor the menu to the static overlay view
+    // instead, which does not move when the list behind it does.
     activeContextMenu = new SignalContextMenu.Builder(view, container)
         .offsetX(ViewUtil.dpToPx(12))
         .offsetY(ViewUtil.dpToPx(12))
         .onDismiss(() -> {
           activeContextMenu = null;
           view.setSelected(false);
-          if (suppressListLayout && list != null) {
-            list.suppressLayout(false);
-          }
         })
         .show(items);
-
-    if (suppressListLayout) {
-      list.suppressLayout(true);
-    }
 
     return true;
   }
@@ -1711,41 +1636,61 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
     }
   }
 
-  private class ContactSearchClickCallbacks implements ConversationListSearchAdapter.ConversationListSearchClickCallbacks {
+  /**
+   * What a tap on each kind of search result means.
+   *
+   * Every one of these bodies is the body the Material
+   * {@code ConversationListSearchAdapter.ConversationListSearchClickCallbacks} had -- a conversation
+   * opens its thread, a contact opens or starts one, a message hit jumps to that message in its
+   * thread, "view more" expands its section. Only the interface it implements changed, because the
+   * rows that call it are Compose now and have no {@link View} to hand over.
+   */
+  private final class LightSearchResultsCallback implements LightSearchResultsView.Callback {
 
     @Override
-    public void onThreadClicked(@NonNull View view, @NonNull ContactSearchData.Thread thread, boolean isSelected) {
+    public void onThreadClicked(@NonNull ContactSearchData.Thread thread) {
       onConversationClicked(thread.getThreadWithRecipient());
     }
 
+    /**
+     * Long press on a search result. Identical in effect to a long press on a chat list row: the
+     * invisible anchor is parked over the row's bounds so {@link SignalContextMenu} has a View to
+     * drop down from. {@code isFromSearch} stays true, which is what suppresses the menu entries
+     * that make no sense on a result.
+     */
     @Override
-    public boolean onThreadLongClicked(@NonNull View view, @NonNull ContactSearchData.Thread thread) {
-      return showConversationContextMenu(new Conversation(thread.getThreadWithRecipient()), view, list, true);
+    public void onThreadLongClicked(@NonNull ContactSearchData.Thread thread, @NonNull Rect bounds) {
+      if (contextMenuAnchor == null || listContainer == null) {
+        return;
+      }
+
+      FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) contextMenuAnchor.getLayoutParams();
+      params.width      = Math.max(1, bounds.width());
+      params.height     = Math.max(1, bounds.height());
+      params.leftMargin = bounds.left;
+      params.topMargin  = bounds.top;
+      contextMenuAnchor.setLayoutParams(params);
+
+      contextMenuAnchor.post(() -> {
+        if (contextMenuAnchor != null && listContainer != null) {
+          showConversationContextMenu(new Conversation(thread.getThreadWithRecipient()), contextMenuAnchor, listContainer, true);
+        }
+      });
     }
 
     @Override
-    public void onMessageClicked(@NonNull View view, @NonNull ContactSearchData.Message thread, boolean isSelected) {
-      ConversationListFragment.this.onMessageClicked(thread.getMessageResult());
+    public void onMessageClicked(@NonNull ContactSearchData.Message message) {
+      ConversationListFragment.this.onMessageClicked(message.getMessageResult());
     }
 
     @Override
-    public void onGroupWithMembersClicked(@NonNull View view, @NonNull ContactSearchData.GroupWithMembers groupWithMembers, boolean isSelected) {
-      onContactClicked(Recipient.resolved(groupWithMembers.getGroupRecord().getRecipientId()));
+    public void onContactClicked(@NonNull ContactSearchData.KnownRecipient contact) {
+      ConversationListFragment.this.onContactClicked(contact.getRecipient());
     }
 
     @Override
-    public void onClearFilterClicked() {
-      onClearFilterClick();
-    }
-
-    @Override
-    public void onStoryClicked(@NonNull View view, @NonNull ContactSearchData.Story story, boolean isSelected) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void onKnownRecipientClicked(@NonNull View view, @NonNull ContactSearchData.KnownRecipient knownRecipient, boolean isSelected) {
-      onContactClicked(knownRecipient.getRecipient());
+    public void onGroupWithMembersClicked(@NonNull ContactSearchData.GroupWithMembers groupWithMembers) {
+      ConversationListFragment.this.onContactClicked(Recipient.resolved(groupWithMembers.getGroupRecord().getRecipientId()));
     }
 
     @Override
@@ -1754,13 +1699,8 @@ public class ConversationListFragment extends MainFragment implements ClearFilte
     }
 
     @Override
-    public void onUnknownRecipientClicked(@NonNull View view, @NonNull ContactSearchData.UnknownRecipient unknownRecipient, boolean isSelected) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void onChatTypeClicked(@NonNull View view, @NonNull ContactSearchData.ChatTypeRow chatTypeRow, boolean isSelected) {
-      throw new UnsupportedOperationException();
+    public void onClearFilterClicked() {
+      ConversationListFragment.this.onClearFilterClick();
     }
   }
 

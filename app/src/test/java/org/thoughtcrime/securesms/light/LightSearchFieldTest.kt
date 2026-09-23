@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-package org.thoughtcrime.securesms.recipients.ui.light
+package org.thoughtcrime.securesms.light
 
 import android.app.Application
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,10 +34,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.signal.core.ui.CoreUiDependenciesRule
-import org.thoughtcrime.securesms.light.MollyLightTheme
 
 /**
- * The picker's search field.
+ * The app's one Light search field, shared by the contact picker and the chat/call search toolbar.
  *
  * This screen's field is the one input in the port that had to become a real Light control rather
  * than be covered over, because on a Light Phone it is how you find anybody: there is no alphabet
@@ -49,7 +48,7 @@ import org.thoughtcrime.securesms.light.MollyLightTheme
 @RunWith(RobolectricTestRunner::class)
 // LP3 geometry: 1080x1240 at 3x, i.e. 360dp x 413dp.
 @Config(application = Application::class, qualifiers = "w360dp-h413dp-xxhdpi")
-class LightRecipientSearchBarTest {
+class LightSearchFieldTest {
 
   @get:Rule
   val coreUiDependenciesRule = CoreUiDependenciesRule(RuntimeEnvironment.getApplication())
@@ -144,6 +143,51 @@ class LightRecipientSearchBarTest {
     assertThat(hint).isCloseTo(field, OVERLAP_TOLERANCE_UNITS)
   }
 
+  /**
+   * The toolbar's field is the *only* way out of search besides the system back gesture: the Light
+   * bottom bar is hidden while search mode is up, so if this affordance goes missing the mode
+   * becomes a trap on a device whose gesture bar is easy to miss.
+   */
+  @Test
+  fun `the toolbar's field offers a way back out of search`() {
+    var backs = 0
+
+    composeTestRule.setContent {
+      Bar(query = "", onBack = { backs++ })
+    }
+
+    composeTestRule.onNodeWithContentDescription(BACK_DESCRIPTION).performClick()
+
+    assertThat(backs).isEqualTo(1)
+  }
+
+  /**
+   * The picker's field has no way out because it needs none -- the list it filters is on screen
+   * either way, so a back arrow there would be a second, competing "leave this screen".
+   */
+  @Test
+  fun `the picker's field has no back affordance`() {
+    composeTestRule.setContent { Bar(query = "") }
+
+    composeTestRule.onAllNodesWithContentDescription(BACK_DESCRIPTION).assertCountEquals(0)
+  }
+
+  /** Both callers keep the clear affordance, and it stays independent of the back one. */
+  @Test
+  fun `clearing and leaving are different actions`() {
+    var query = "ada"
+    var backs = 0
+
+    composeTestRule.setContent {
+      Bar(query = query, onQueryChange = { query = it }, onBack = { backs++ })
+    }
+
+    composeTestRule.onNodeWithContentDescription(CLEAR_DESCRIPTION).performClick()
+
+    assertThat(query).isEqualTo("")
+    assertThat(backs).isEqualTo(0)
+  }
+
   private fun centreUnits(gridUnit: Dp, bounds: DpRect): Float {
     val root = composeTestRule.onRoot().getUnclippedBoundsInRoot()
     return ((bounds.top.value + bounds.bottom.value) / 2f - root.top.value) / gridUnit.value
@@ -156,12 +200,13 @@ class LightRecipientSearchBarTest {
   }
 
   @Composable
-  private fun Bar(query: String, onQueryChange: (String) -> Unit = {}) {
+  private fun Bar(query: String, onQueryChange: (String) -> Unit = {}, onBack: (() -> Unit)? = null) {
     MollyLightTheme {
-      LightRecipientSearchBar(
+      LightSearchField(
         query = query,
         onQueryChange = onQueryChange,
         hint = HINT,
+        onBack = onBack,
         modifier = Modifier.fillMaxWidth()
       )
     }
@@ -170,6 +215,7 @@ class LightRecipientSearchBarTest {
   companion object {
     private const val HINT = "Name, username or number"
     private const val CLEAR_DESCRIPTION = "Reset search filter"
+    private const val BACK_DESCRIPTION = "Close search"
     private const val NAME_LEFT_UNITS = 1.75f
     private const val TOLERANCE_UNITS = 0.05f
 

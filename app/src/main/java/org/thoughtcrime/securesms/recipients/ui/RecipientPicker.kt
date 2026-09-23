@@ -49,7 +49,7 @@ import org.thoughtcrime.securesms.recipients.PhoneNumber
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.recipients.ui.RecipientPicker.DisplayMode.Companion.flag
-import org.thoughtcrime.securesms.recipients.ui.light.LightRecipientSearchBar
+import org.thoughtcrime.securesms.light.LightSearchField
 import java.util.Optional
 import java.util.function.Consumer
 
@@ -99,7 +99,7 @@ fun RecipientPicker(
     // itself -- the Light bar is a column with a rule under it, and requesting focus on that column
     // would do nothing. Un-padded, because the field carries the list's own 0.5-grid-unit margin so
     // that what you type sits in the same column as the names it filters.
-    LightRecipientSearchBar(
+    LightSearchField(
       hint = searchBarHint,
       query = searchQuery,
       onQueryChange = { filter -> callbacks.listActions.onSearchQueryChanged(query = filter) },

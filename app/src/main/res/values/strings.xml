@@ -9976,5 +9976,8 @@
     <!-- Very short label for "yesterday" shown in the timestamp column of a Light conversation list row. The column is only a few characters wide, so this must stay extremely short (4-5 characters) -->
     <string name="LightConversationList__yesterday_short">Yest</string>
 
+    <!-- Shown in place of the search results while a search is still running and nothing has been found yet -->
+    <string name="LightSearch__searching">Searching…</string>
+
     <!-- EOF -->
 </resources>

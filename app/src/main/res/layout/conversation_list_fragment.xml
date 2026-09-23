@@ -76,10 +76,10 @@
         </com.google.android.material.appbar.AppBarLayout>
 
         <!--
-            The conversation list itself is Compose (@id/light_conversation_list). @id/list only
-            renders SEARCH results now, which still use the legacy ConversationListItem views, so
-            the two swap visibility. The anchor is an invisible stand-in that gets resized and moved
-            over a Compose row on long press, so SignalContextMenu has a View to drop down from.
+            Both lists are Compose now: @id/light_conversation_list is the chat list and
+            @id/light_search_results is what search shows instead, and the two swap visibility. The
+            anchor is an invisible stand-in that gets resized and moved over a Compose row on long
+            press, so SignalContextMenu has a View to drop down from; it serves both lists.
         -->
         <FrameLayout
             android:id="@+id/list_container"
@@ -93,16 +93,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/list"
+            <org.thoughtcrime.securesms.conversationlist.light.LightSearchResultsView
+                android:id="@+id/light_search_results"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="?attr/colorSurface"
-                android:clipToPadding="false"
-                android:paddingBottom="160dp"
-                android:scrollbars="vertical"
                 android:visibility="gone"
-                tools:listitem="@layout/conversation_list_item_view"
                 tools:visibility="visible" />
 
             <View
@@ -112,20 +107,6 @@
                 android:visibility="invisible" />
         </FrameLayout>
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
-
-    <com.google.android.material.progressindicator.CircularProgressIndicator
-        android:id="@+id/search_loading"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:indeterminate="true"
-        android:visibility="gone"
-        app:indicatorColor="?attr/colorPrimary"
-        app:indicatorSize="40dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/banner_barrier"
-        tools:visibility="visible" />
 
     <org.thoughtcrime.securesms.components.menu.SignalBottomActionBar
         android:id="@+id/conversation_list_bottom_action_bar"
