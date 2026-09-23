@@ -104,7 +104,9 @@ object LightRegistrationViewStyle {
 
     val density = layout.resources.displayMetrics.density
 
-    layout.boxBackgroundColor = Color.TRANSPARENT
+    // Switch to outline mode so the filled background is completely removed.
+    layout.boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
+    layout.setBoxBackgroundColor(Color.TRANSPARENT)
     layout.setBoxCornerRadii(0f, 0f, 0f, 0f)
     layout.boxStrokeColor = foreground
     layout.setBoxStrokeWidth((1f * density).roundToInt())
@@ -118,7 +120,8 @@ object LightRegistrationViewStyle {
   fun input(editText: EditText) {
     text(editText, LightTextVariant.Copy)
     editText.setHintTextColor(secondary(editText))
-    editText.backgroundTintList = actionColors(editText)
+    editText.background = null
+    editText.backgroundTintList = null
   }
 
   /** Styles all six OTP cells without replacing their paste watcher or completion callback. */

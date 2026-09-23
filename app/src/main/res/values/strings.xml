@@ -3795,6 +3795,21 @@
     <!-- device_link_fragment -->
     <string name="device_link_fragment__link_device">Link device</string>
 
+    <!-- RegisterLinkDeviceQrFragment -->
+    <string name="RegisterLinkDeviceQrFragment__link_device">LINK DEVICE</string>
+    <string name="RegisterLinkDeviceQrFragment__scanned">Scanned on device</string>
+    <string name="RegisterLinkDeviceQrFragment__open_signal_settings">Open Signal Settings on your device</string>
+    <string name="RegisterLinkDeviceQrFragment__tap_linked_devices">Tap &#8220;Linked devices&#8221;</string>
+    <string name="RegisterLinkDeviceQrFragment__tap_link_and_scan">Tap &#8220;Link a new device&#8221; and scan this code</string>
+    <string name="RegisterLinkDeviceQrFragment__provisioning_error">Failed to provision device. Please try again.</string>
+    <string name="RegisterLinkDeviceQrFragment__error_incorrect_verification">Verification failed. Please try again.</string>
+    <string name="RegisterLinkDeviceQrFragment__error_invalid_request">Invalid request. Please try again.</string>
+    <string name="RegisterLinkDeviceQrFragment__error_max_devices">You have reached the maximum number of linked devices.</string>
+    <string name="RegisterLinkDeviceQrFragment__error_missing_capability">Your account is missing a required capability.</string>
+    <string name="RegisterLinkDeviceQrFragment__error_network">Network error. Please check your connection and try again.</string>
+    <string name="RegisterLinkDeviceQrFragment__error_rate_limited">Too many attempts. Please wait and try again.</string>
+    <string name="RegisterLinkDeviceQrFragment__error_unexpected">An unexpected error occurred. Please try again.</string>
+
     <!-- device_list_fragment -->
     <string name="device_list_fragment__no_devices_linked">No devices linked</string>
     <string name="device_list_fragment__link_new_device">Link new device</string>

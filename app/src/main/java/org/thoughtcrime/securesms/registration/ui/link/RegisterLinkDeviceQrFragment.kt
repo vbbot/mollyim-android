@@ -10,38 +10,29 @@ import android.view.View
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -50,26 +41,36 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightIcons
+import com.thelightphone.sdk.ui.LightScrollBarPosition
+import com.thelightphone.sdk.ui.LightScrollView
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.LightTopBar
+import com.thelightphone.sdk.ui.LightTopBarCenter
+import com.thelightphone.sdk.ui.gridUnitsAsDp
+import com.thelightphone.sdk.ui.lightClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.horizontalGutters
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.app.usernamelinks.QrCode
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
-import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
 
 /**
- * Crude show QR code on link device to allow linking from primary device.
+ * Presents a QR code the user's existing Signal device can scan to link this LP3 as a linked device.
  */
 class RegisterLinkDeviceQrFragment : ComposeFragment() {
 
@@ -122,7 +123,6 @@ class RegisterLinkDeviceQrFragment : ComposeFragment() {
   }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RegisterLinkDeviceQrScreen(
   state: RegisterLinkDeviceQrViewModel.RegisterLinkDeviceState,
@@ -130,42 +130,41 @@ private fun RegisterLinkDeviceQrScreen(
   onErrorDismiss: () -> Unit = {},
   onCancel: () -> Unit = {}
 ) {
-  // TODO [link-device] use actual design
-  RegistrationScreen(
-    title = "Scan this code with your phone",
-    subtitle = null,
-    bottomContent = {
-      TextButton(
-        onClick = onCancel,
-        modifier = Modifier.align(Alignment.Center)
-      ) {
-        Text(text = stringResource(android.R.string.cancel))
-      }
-    }
-  ) {
-    FlowRow(
-      horizontalArrangement = Arrangement.spacedBy(space = 48.dp, alignment = Alignment.CenterHorizontally),
-      verticalArrangement = Arrangement.spacedBy(space = 48.dp),
+  MollyLightTheme {
+    Column(
       modifier = Modifier
-        .fillMaxWidth()
-        .horizontalGutters()
+        .fillMaxSize()
+        .background(LightThemeTokens.colors.background)
     ) {
-      Box(
+      LightTopBar(
+        leftButton = LightBarButton.LightIcon(
+          icon = LightIcons.BACK,
+          onClick = onCancel,
+          contentDescription = stringResource(android.R.string.cancel)
+        ),
+        center = LightTopBarCenter.Text(stringResource(R.string.RegisterLinkDeviceQrFragment__link_device)),
+        modifier = Modifier.statusBarsPadding()
+      )
+
+      LightScrollView(
+        scrollBarPosition = LightScrollBarPosition.Outside,
         modifier = Modifier
-          .widthIn(160.dp, 320.dp)
-          .aspectRatio(1f)
-          .clip(RoundedCornerShape(24.dp))
-          .background(SignalTheme.colors.colorSurface5)
-          .padding(40.dp)
+          .weight(1f)
+          .fillMaxWidth()
       ) {
-        SignalTheme(isDarkMode = false) {
+        Column(
+          horizontalAlignment = Alignment.CenterHorizontally,
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2f.gridUnitsAsDp(), vertical = 1f.gridUnitsAsDp())
+        ) {
+          // QR code on white background — deliberate light inner surface for scanner contrast.
           Box(
             modifier = Modifier
-              .clip(RoundedCornerShape(12.dp))
-              .background(MaterialTheme.colorScheme.surface)
-              .fillMaxWidth()
-              .fillMaxHeight()
-              .padding(16.dp),
+              .fillMaxWidth(0.7f)
+              .aspectRatio(1f)
+              .background(Color.White)
+              .padding(1f.gridUnitsAsDp()),
             contentAlignment = Alignment.Center
           ) {
             AnimatedContent(
@@ -173,104 +172,100 @@ private fun RegisterLinkDeviceQrScreen(
               contentKey = { it::class },
               contentAlignment = Alignment.Center,
               label = "qr-code-progress",
-              modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight()
+              modifier = Modifier.fillMaxSize()
             ) { qrState ->
               when (qrState) {
                 is RegisterLinkDeviceQrViewModel.QrState.Loaded -> {
                   QrCode(
                     data = qrState.qrData,
-                    foregroundColor = Color(0xFF2449C0),
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .fillMaxHeight()
+                    foregroundColor = Color.Black,
+                    modifier = Modifier.fillMaxSize()
                   )
                 }
 
                 RegisterLinkDeviceQrViewModel.QrState.Loading -> {
-                  Box(contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(modifier = Modifier.size(48.dp))
-                  }
+                  CircularProgressIndicator(
+                    modifier = Modifier.size(3f.gridUnitsAsDp()),
+                    color = Color.Black
+                  )
                 }
 
                 is RegisterLinkDeviceQrViewModel.QrState.Scanned,
                 RegisterLinkDeviceQrViewModel.QrState.Failed -> {
                   Column(
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(1f.gridUnitsAsDp())
                   ) {
-                    val text = if (state.qrState is RegisterLinkDeviceQrViewModel.QrState.Scanned) {
-                      "Scanned on device"
+                    val status = if (qrState is RegisterLinkDeviceQrViewModel.QrState.Scanned) {
+                      stringResource(R.string.RegisterLinkDeviceQrFragment__scanned)
                     } else {
                       stringResource(R.string.RestoreViaQr_qr_code_error)
                     }
-
-                    Text(
-                      text = text,
-                      textAlign = TextAlign.Center,
-                      style = MaterialTheme.typography.bodySmall,
-                      color = MaterialTheme.colorScheme.onSurfaceVariant
+                    LightText(
+                      text = status,
+                      variant = LightTextVariant.Detail,
+                      align = TextAlign.Center,
+                      color = Color.Black
                     )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Buttons.Small(
-                      onClick = onRetryQrCode
-                    ) {
-                      Text(text = stringResource(R.string.RestoreViaQr_retry))
-                    }
+                    Spacer(modifier = Modifier.height(0.5f.gridUnitsAsDp()))
+                    LightText(
+                      text = stringResource(R.string.RestoreViaQr_retry),
+                      variant = LightTextVariant.Button,
+                      color = Color.Black,
+                      modifier = Modifier
+                        .lightClickable(onClick = onRetryQrCode)
+                        .padding(0.5f.gridUnitsAsDp())
+                    )
                   }
                 }
               }
             }
           }
+
+          Spacer(modifier = Modifier.height(1.5f.gridUnitsAsDp()))
+
+          InstructionRow(
+            icon = SignalIcons.Settings.painter,
+            instruction = stringResource(R.string.RegisterLinkDeviceQrFragment__open_signal_settings)
+          )
+          InstructionRow(
+            icon = SignalIcons.Link.painter,
+            instruction = stringResource(R.string.RegisterLinkDeviceQrFragment__tap_linked_devices)
+          )
+          InstructionRow(
+            icon = SignalIcons.QrCode.painter,
+            instruction = stringResource(R.string.RegisterLinkDeviceQrFragment__tap_link_and_scan)
+          )
         }
       }
 
-      // TODO [link-device] use actual copy
-      Column(
-        modifier = Modifier
-          .align(alignment = Alignment.CenterVertically)
-          .widthIn(160.dp, 320.dp)
-      ) {
-        InstructionRow(
-          icon = SignalIcons.Settings.painter,
-          instruction = "Open Signal Settings on your device"
+      RegistrationBottomActions(
+        center = RegistrationAction(
+          label = stringResource(android.R.string.cancel),
+          onClick = onCancel
         )
-
-        InstructionRow(
-          icon = SignalIcons.Link.painter,
-          instruction = "Tap \"Linked devices\""
-        )
-
-        InstructionRow(
-          icon = SignalIcons.QrCode.painter,
-          instruction = "Tap \"Link a new device\" and scan this code"
-        )
-      }
+      )
     }
 
     if (state.isRegistering) {
       Dialogs.IndeterminateProgressDialog()
     } else if (state.showProvisioningError) {
       Dialogs.SimpleMessageDialog(
-        message = "failed provision",
+        message = stringResource(R.string.RegisterLinkDeviceQrFragment__provisioning_error),
         onDismiss = onErrorDismiss,
         dismiss = stringResource(android.R.string.ok)
       )
     } else if (state.registrationErrorResult != null) {
       val message = when (state.registrationErrorResult) {
-        RegisterLinkDeviceResult.IncorrectVerification -> "incorrect verification"
-        RegisterLinkDeviceResult.InvalidRequest -> "invalid request"
-        RegisterLinkDeviceResult.MaxLinkedDevices -> "max linked devices reached"
-        RegisterLinkDeviceResult.MissingCapability -> "missing capability, must update"
-        is RegisterLinkDeviceResult.NetworkException -> "network exception ${state.registrationErrorResult.t.message}"
-        is RegisterLinkDeviceResult.RateLimited -> "rate limited ${state.registrationErrorResult.retryAfter}"
-        is RegisterLinkDeviceResult.UnexpectedException -> "unexpected exception ${state.registrationErrorResult.t.message}"
+        RegisterLinkDeviceResult.IncorrectVerification -> stringResource(R.string.RegisterLinkDeviceQrFragment__error_incorrect_verification)
+        RegisterLinkDeviceResult.InvalidRequest -> stringResource(R.string.RegisterLinkDeviceQrFragment__error_invalid_request)
+        RegisterLinkDeviceResult.MaxLinkedDevices -> stringResource(R.string.RegisterLinkDeviceQrFragment__error_max_devices)
+        RegisterLinkDeviceResult.MissingCapability -> stringResource(R.string.RegisterLinkDeviceQrFragment__error_missing_capability)
+        is RegisterLinkDeviceResult.NetworkException -> stringResource(R.string.RegisterLinkDeviceQrFragment__error_network)
+        is RegisterLinkDeviceResult.RateLimited -> stringResource(R.string.RegisterLinkDeviceQrFragment__error_rate_limited)
+        is RegisterLinkDeviceResult.UnexpectedException -> stringResource(R.string.RegisterLinkDeviceQrFragment__error_unexpected)
         RegisterLinkDeviceResult.Success -> throw IllegalStateException()
       }
-
       Dialogs.SimpleMessageDialog(
         message = message,
         onDismiss = onErrorDismiss,
@@ -286,32 +281,34 @@ private fun InstructionRow(
   instruction: String
 ) {
   Row(
+    verticalAlignment = Alignment.CenterVertically,
     modifier = Modifier
-      .padding(vertical = 12.dp)
+      .fillMaxWidth()
+      .padding(vertical = 0.75f.gridUnitsAsDp())
   ) {
     Icon(
       painter = icon,
       contentDescription = null,
-      tint = MaterialTheme.colorScheme.onSurfaceVariant
+      tint = LightThemeTokens.colors.contentSecondary,
+      modifier = Modifier.size(1.5f.gridUnitsAsDp())
     )
 
-    Spacer(modifier = Modifier.width(16.dp))
+    Spacer(modifier = Modifier.width(1f.gridUnitsAsDp()))
 
-    Text(
+    LightText(
       text = instruction,
-      style = MaterialTheme.typography.bodyLarge,
-      color = MaterialTheme.colorScheme.onSurfaceVariant
+      variant = LightTextVariant.Paragraph,
+      lighten = true
     )
   }
 }
 
 @DayNightPreviews
 @Composable
-private fun InstructionRowPreview() {
+private fun RegisterLinkDeviceQrScreenPreview() {
   Previews.Preview {
-    InstructionRow(
-      icon = SignalIcons.Phone.painter,
-      instruction = "Instruction!"
+    RegisterLinkDeviceQrScreen(
+      state = RegisterLinkDeviceQrViewModel.RegisterLinkDeviceState()
     )
   }
 }
