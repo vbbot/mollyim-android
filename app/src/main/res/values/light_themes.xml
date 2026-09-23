@@ -1,20 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Signal.DayNight" parent="TextSecure.LightTheme" />
+    <!--
+        LIGHT PHONE: day mode resolves to the dark themes.
 
-    <style name="Signal.DayNight.Registration" parent="TextSecure.LightRegistrationTheme" />
+        This is the day half of a day/night pair with `values-night/dark_themes.xml`, which defines
+        exactly these style names. Android replaces rather than merges qualified resource files, so
+        whichever copy applies is the only one that exists as far as the app is concerned.
 
-    <style name="Signal.DayNight.WallpaperCropper" parent="Theme.Signal.WallpaperCropper.Light" />
+        The Light Phone III has no day mode, so both copies now name the same parents. Pointing day
+        at the dark parents rather than restyling the light ones is what makes the day/night split
+        disappear wholesale: `TextSecure.BaseLightTheme` does not just carry light colours, it also
+        sets `android:windowLightStatusBar` and `android:windowLightNavigationBar` to true, which on
+        a black background would paint dark system icons onto black and make them invisible. The
+        dark themes already have those false, a dark action bar, dark bottom sheets and dark popup
+        overlays, so day and night now take byte-identical styling.
 
-    <style name="Signal.DayNight.BottomSheet.Rounded" parent="Theme.Signal.RoundedBottomSheet.Light" />
+        The palettes are black on both sides regardless (see core/ui molly_colors.xml), so this is
+        belt and braces rather than the only line of defence.
+    -->
+    <style name="Signal.DayNight" parent="TextSecure.DarkTheme" />
 
-    <style name="Signal.DayNight.ConversationSettings" parent="TextSecure.LightNoActionBar.ConversationSettings" />
+    <style name="Signal.DayNight.Registration" parent="TextSecure.DarkRegistrationTheme" />
 
-    <style name="Theme.Signal.DayNight.NoActionBar" parent="TextSecure.LightNoActionBar" />
+    <style name="Signal.DayNight.WallpaperCropper" parent="Theme.Signal.WallpaperCropper" />
 
-    <style name="Theme.Molly.Dynamic" parent="Theme.Molly.Dynamic.Light" />
-    <style name="Theme.Molly.Dynamic.NoActionBar" parent="Theme.Molly.Dynamic.NoActionBar.Light" />
-    <style name="Theme.Molly.Dynamic.Registration" parent="Theme.Molly.Dynamic.Registration.Light" />
-    <style name="Theme.Molly.Dynamic.ConversationSettings" parent="Theme.Molly.Dynamic.ConversationSettings.Light" />
-    <style name="Theme.Molly.Starting" parent="Theme.Molly.Starting.Light" />
+    <style name="Signal.DayNight.BottomSheet.Rounded" parent="Theme.Signal.RoundedBottomSheet" />
+
+    <style name="Signal.DayNight.ConversationSettings" parent="TextSecure.DarkNoActionBar.ConversationSettings" />
+
+    <style name="Theme.Signal.DayNight.NoActionBar" parent="TextSecure.DarkNoActionBar" />
+
+    <style name="Theme.Molly.Dynamic" parent="Theme.Molly.Dynamic.Dark" />
+    <style name="Theme.Molly.Dynamic.NoActionBar" parent="Theme.Molly.Dynamic.NoActionBar.Dark" />
+    <style name="Theme.Molly.Dynamic.Registration" parent="Theme.Molly.Dynamic.Registration.Dark" />
+    <style name="Theme.Molly.Dynamic.ConversationSettings" parent="Theme.Molly.Dynamic.ConversationSettings.Dark" />
+    <style name="Theme.Molly.Starting" parent="Theme.Molly.Starting.Dark" />
 </resources>

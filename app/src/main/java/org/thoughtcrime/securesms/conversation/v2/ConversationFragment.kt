@@ -133,9 +133,7 @@ import org.signal.core.util.concurrent.addTo
 import org.signal.core.util.dp
 import org.signal.core.util.logging.Log
 import org.signal.core.util.orNull
-import org.signal.core.util.requireDrawable
 import org.signal.core.util.requireParcelableCompat
-import org.signal.core.util.setActionItemTint
 import org.signal.ringrtc.CallLinkRootKey
 import org.thoughtcrime.securesms.BlockUnblockDialog
 import org.thoughtcrime.securesms.MainActivity
@@ -245,6 +243,7 @@ import org.thoughtcrime.securesms.conversation.v2.items.ChatColorsDrawable
 import org.thoughtcrime.securesms.conversation.v2.items.InteractiveConversationElement
 import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle
 import org.thoughtcrime.securesms.conversation.v2.keyboard.AttachmentKeyboardFragment
+import org.thoughtcrime.securesms.conversation.v2.light.LightConversationTopBarLeftAction
 import org.thoughtcrime.securesms.database.DraftTable
 import org.thoughtcrime.securesms.database.model.IdentityRecord
 import org.thoughtcrime.securesms.database.model.InMemoryMessageRecord
@@ -698,11 +697,7 @@ class ConversationFragment :
     )
     conversationToolbarOnScrollHelper.attach(binding.conversationItemRecycler)
     presentConversationTitle(viewModel.recipientSnapshot)
-    if (viewModel.recipientSnapshot?.isGroup == true) {
-      presentGroupConversationSubtitle(createGroupSubtitleString(viewModel.titleViewParticipantsSnapshot))
-    }
     presentActionBarMenu()
-    presentStoryRing()
 
     observeConversationThread()
     observePlaintextExportState()
@@ -1123,6 +1118,7 @@ class ConversationFragment :
 
     searchMenuItem?.collapseActionView()
     binding.toolbar.isInvisible = true
+    binding.lightTopBar.isInvisible = true
     if (scheduledMessagesStub.isVisible) {
       reShowScheduleMessagesBar = true
       scheduledMessagesStub.visibility = View.GONE
@@ -1149,16 +1145,13 @@ class ConversationFragment :
     setBottomActionBarVisibility(false)
 
     binding.toolbar.isInvisible = false
+    binding.lightTopBar.isInvisible = false
     if (reShowScheduleMessagesBar) {
       scheduledMessagesStub.visibility = View.VISIBLE
       reShowScheduleMessagesBar = false
     }
 
     binding.conversationItemRecycler.invalidateItemDecorations()
-  }
-
-  private fun createGroupSubtitleString(members: List<Recipient>): String {
-    return members.joinToString(", ") { r -> if (r.isSelf) getString(R.string.ConversationTitleView_you) else r.getDisplayName(requireContext()) }
   }
 
   private fun observeConversationThread() {
@@ -1267,12 +1260,6 @@ class ConversationFragment :
       .observeOn(AndroidSchedulers.mainThread())
       .distinctUntilChanged { r1, r2 -> r1 === r2 || r1.hasSameContent(r2) }
       .subscribeBy(onNext = this::onRecipientChanged)
-
-    disposables += viewModel.titleViewParticipants
-      .map { createGroupSubtitleString(it) }
-      .distinctUntilChanged()
-      .observeOn(AndroidSchedulers.mainThread())
-      .subscribeBy(onNext = this::presentGroupConversationSubtitle)
 
     disposables += viewModel.scrollButtonState
       .subscribeBy(onNext = this::presentScrollButtons)
@@ -1566,25 +1553,6 @@ class ConversationFragment :
     }
   }
 
-  private fun presentStoryRing() {
-    if (SignalStore.story.isFeatureDisabled) {
-      return
-    }
-
-    disposables += viewModel.storyRingState.subscribeBy {
-      binding.conversationTitleView.conversationTitleView.setStoryRingFromState(it)
-    }
-
-    binding.conversationTitleView.conversationTitleView.setOnStoryRingClickListener {
-      val recipient: Recipient = viewModel.recipientSnapshot ?: return@setOnStoryRingClickListener
-      val args = StoryViewerArgs.Builder(recipient.id, recipient.shouldHideStory)
-        .isFromQuote(true)
-        .build()
-
-      startActivity(StoryViewerActivity.createIntent(requireContext(), args))
-    }
-  }
-
   private fun presentInputReadyState(inputReadyState: InputReadyState) {
     presentConversationTitle(inputReadyState.conversationRecipient)
 
@@ -1642,8 +1610,6 @@ class ConversationFragment :
   }
 
   private fun presentIdentityRecordsState(identityRecordsState: IdentityRecordsState) {
-    binding.conversationTitleView.root.setVerified(identityRecordsState.isVerified)
-
     if (identityRecordsState.isUnverified) {
       binding.conversationBanner.showUnverifiedBanner(identityRecordsState.identityRecords)
     } else {
@@ -1792,6 +1758,11 @@ class ConversationFragment :
       menuProvider = ConversationOptionsMenu.Provider(optionsMenuCallback, disposables)
       binding.toolbar.addMenuProvider(menuProvider!!)
       invalidateOptionsMenu()
+
+      binding.lightTopBar.hasOverflow = true
+      // The Light bar draws the ellipses; the Toolbar still owns the menu and the popup. Its own
+      // overflow button is laid out directly behind that ellipses, so the popup lands under it.
+      binding.lightTopBar.onOverflowClick = { binding.toolbar.showOverflowMenu() }
     }
 
     when (args.conversationScreenType) {
@@ -1813,82 +1784,47 @@ class ConversationFragment :
   }
 
   private fun updateNavigationIconForNormal(isFullScreenPane: Boolean) {
-    if (!resources.isSplitPane() || isFullScreenPane) {
-      binding.toolbar.setNavigationIcon(CoreUiR.drawable.symbol_arrow_start_24)
-      binding.toolbar.navigationIcon?.setTint(
-        ThemeUtil.getThemedColor(
-          requireContext(),
-          if (viewModel.wallpaperSnapshot != null) CoreUiR.color.signal_colorNeutralInverse else MaterialR.attr.colorOnSurfaceVariant
-        )
-      )
-      binding.toolbar.setNavigationContentDescription(R.string.ConversationFragment__content_description_back_button)
-      binding.toolbar.setNavigationOnClickListener {
-        binding.root.hideKeyboard(composeText)
-        requireActivity().onBackPressedDispatcher.onBackPressed()
-      }
-      binding.toolbar.setContentInsetsRelative(
-        46.dp,
-        binding.toolbar.contentInsetEnd
-      )
+    binding.lightTopBar.onLeftClick = {
+      binding.root.hideKeyboard(composeText)
+      requireActivity().onBackPressedDispatcher.onBackPressed()
+    }
+
+    // A split pane already shows the list beside the thread, so there is nothing to go back to.
+    binding.lightTopBar.leftAction = if (!resources.isSplitPane() || isFullScreenPane) {
+      LightConversationTopBarLeftAction.BACK
     } else {
-      binding.toolbar.navigationIcon = null
-      binding.toolbar.setContentInsetsRelative(
-        24.dp,
-        binding.toolbar.contentInsetEnd
-      )
+      LightConversationTopBarLeftAction.NONE
     }
   }
 
   private fun presentNavigationIconForBubble() {
-    binding.toolbar.navigationIcon = DrawableUtil.tint(
-      requireContext().requireDrawable(R.drawable.ic_notification),
-      ThemeUtil.getThemedColor(requireContext(), R.attr.signal_accent_primary)
-    )
-
-    binding.toolbar.setNavigationContentDescription(R.string.ConversationFragment__content_description_launch_signal_button)
-
-    binding.toolbar.setNavigationOnClickListener {
+    binding.lightTopBar.leftAction = LightConversationTopBarLeftAction.LAUNCH_MAIN_APP
+    binding.lightTopBar.onLeftClick = {
       startActivity(MainActivity.clearTop(requireContext()))
     }
   }
 
-  private fun presentGroupConversationSubtitle(subtitle: String) {
-    val titleView = binding.conversationTitleView.root
-
-    if (subtitle.isBlank()) {
-      titleView.setGroupRecipientSubtitle(null)
-      return
-    }
-
-    titleView.setGroupRecipientSubtitle(subtitle)
-  }
-
+  /**
+   * The Light top bar carries a name and nothing else, so everything the old `ConversationTitleView`
+   * layered around it -- avatar, phone-number subtitle, verified tick, disappearing-messages badge,
+   * mute and block glyphs -- is gone from the bar. None of that state is lost: it all still lives in
+   * conversation settings, which the name still opens.
+   */
   private fun presentConversationTitle(recipient: Recipient?) {
     if (recipient == null) {
       return
     }
 
-    val titleView = binding.conversationTitleView.root
-
-    titleView.setTitle(Glide.with(this), recipient)
-
-    if (recipient.expiresInSeconds > 0) {
-      titleView.showExpiring(recipient)
+    binding.lightTopBar.title = if (recipient.isSelf) {
+      getString(R.string.note_to_self)
     } else {
-      titleView.clearExpiring()
+      recipient.getDisplayName(requireContext())
     }
 
-    if (!args.conversationScreenType.isInPopup) {
-      titleView.setOnClickListener {
-        optionsMenuCallback.handleConversationSettings()
-      }
-    }
-
-    if (recipient.isSystemContact) {
-      titleView.setOnLongClickListener {
-        startActivity(Intent(Intent.ACTION_VIEW, recipient.contactUri))
-        return@setOnLongClickListener true
-      }
+    binding.lightTopBar.onTitleClick = if (args.conversationScreenType.isInPopup) {
+      null
+    } else {
+      { optionsMenuCallback.handleConversationSettings() }
     }
   }
 
@@ -1901,19 +1837,6 @@ class ConversationFragment :
     }
 
     val wallpaperEnabled = chatWallpaper != null || recipient.isReleaseNotes
-
-    val toolbarTint = ThemeUtil.getThemedColor(
-      requireContext(),
-      if (wallpaperEnabled) {
-        CoreUiR.color.signal_colorNeutralInverse
-      } else {
-        MaterialR.attr.colorOnSurface
-      }
-    )
-
-    binding.toolbar.setTitleTextColor(toolbarTint)
-    binding.toolbar.setActionItemTint(toolbarTint)
-    binding.toolbar.navigationIcon?.setTint(toolbarTint)
 
     binding.conversationWallpaper.visible = wallpaperEnabled
     binding.scrollToBottom.setWallpaperEnabled(wallpaperEnabled)
@@ -4203,6 +4126,9 @@ class ConversationFragment :
           inputPanel.setHideForSearch(true)
           viewModel.onChatSearchOpened()
           binding.conversationDisabledInput.visible = false
+          // The SearchView expands into the Toolbar that the Light bar is painted over, so the
+          // Light bar has to step aside for as long as the search is open.
+          binding.lightTopBar.isInvisible = true
 
           (0 until menu.size()).forEach {
             if (menu.getItem(it) != searchMenuItem) {
@@ -4215,6 +4141,7 @@ class ConversationFragment :
 
         override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
           searchView.setOnQueryTextListener(null)
+          binding.lightTopBar.isInvisible = false
           closeChatSearch()
           return true
         }
@@ -4227,17 +4154,6 @@ class ConversationFragment :
           searchViewModel.onSearchOpened()
         }
       }
-
-      val toolbarTextAndIconColor = ThemeUtil.getThemedColor(
-        requireContext(),
-        if (viewModel.wallpaperSnapshot != null) {
-          CoreUiR.color.signal_colorNeutralInverse
-        } else {
-          MaterialR.attr.colorOnSurface
-        }
-      )
-
-      binding.toolbar.setActionItemTint(toolbarTextAndIconColor)
     }
 
     override fun handleVideo() {

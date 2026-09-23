@@ -5,7 +5,7 @@
     <!-- <color name="conversation_toolbar_color">?attr/colorSurfaceContainer</color> -->
     <color name="conversation_toolbar_color_wallpaper">@color/signal_colorTransparentInverse5</color>
     <color name="conversation_toolbar_color_wallpaper_scrolled">@color/signal_colorTransparentInverse5</color>
-    <color name="conversation_toolbar_color_incognito">#4A2D73</color>
+    <color name="conversation_toolbar_color_incognito">#2A2A2A</color>
 
     <!-- <color name="signal_accent_primary">@color/core_ultramarine_light</color> -->
     <color name="signal_inverse_primary">@color/core_white</color>
@@ -134,7 +134,7 @@
 
     <!-- <color name="reactions_pill_text_color">?attr/colorOnSurfaceVariant</color> -->
     <color name="reactions_pill_selected_text_color">@color/core_grey_15</color>
-    <color name="reactions_screen_dark_shade_color">#D9100E1F</color>
+    <color name="reactions_screen_dark_shade_color">#D9000000</color>
     <color name="reactions_screen_light_shade_color">@color/transparent_white_10</color>
 
     <color name="shared_contact_details_titlebar">@color/grey_900</color>
@@ -195,7 +195,7 @@
     <!-- <color name="safety_tip_background">@color/signal_dark_colorSecondaryContainer</color> -->
     <!-- <color name="safety_tip_image_background">@color/signal_dark_colorSecondary</color> -->
 
-    <color name="signal_colorOnWarning">#FFEB977D</color>
+    <color name="signal_colorOnWarning">#FFC6C6C6</color>
 
     <color name="release_notes_bubble">#FF444664</color>
     <color name="release_notes_bubble_text">#FFFFFFFF</color>

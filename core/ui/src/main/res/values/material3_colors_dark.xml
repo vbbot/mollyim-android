@@ -13,7 +13,7 @@
     <!-- <color name="signal_dark_colorOnPrimaryContainer">#DDDCFC</color> -->
     <!-- <color name="signal_dark_colorOnSecondary">#2E2A42</color> -->
     <!-- <color name="signal_dark_colorOnSecondaryContainer">#E3DCF9</color> -->
-    <color name="signal_dark_colorOnSurface">#E3E1E6</color>
+    <color name="signal_dark_colorOnSurface">#E9E9E9</color>
     <!-- <color name="signal_dark_colorOnSurfaceVariant">#BEBCC4</color> -->
     <!-- <color name="signal_dark_colorOutlineVariant">#6E5DB9</color> -->
     <!-- <color name="signal_dark_colorOnBackground">#E3E1E6</color> -->
@@ -33,7 +33,7 @@
     <color name="signal_dark_colorTransparent3">#29FFFFFF</color>
     <color name="signal_dark_colorTransparent4">#7AFFFFFF</color>
     <color name="signal_dark_colorTransparent5">#B8FFFFFF</color>
-    <color name="signal_dark_colorNeutral">#121212</color>
+    <color name="signal_dark_colorNeutral">#000000</color>
     <color name="signal_dark_colorNeutralVariant">#5C5C5C</color>
     <color name="signal_dark_colorTransparentInverse1">#0A000000</color>
     <color name="signal_dark_colorTransparentInverse2">#14000000</color>
@@ -44,6 +44,6 @@
     <color name="signal_dark_colorNeutralVariantInverse">#A3FFFFFF</color>
 
     <!-- <color name="signal_dark_colorBackground_92">#EB100E1F</color> -->
-    <color name="signal_dark_colorNeutral_87">#DE121212</color>
+    <color name="signal_dark_colorNeutral_87">#DE000000</color>
     <!-- <color name="signal_dark_colorSurfaceVariant_92">#EB302F33</color> -->
 </resources>

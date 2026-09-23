@@ -24,7 +24,6 @@ import com.thelightphone.sdk.ui.LightThemeColors
 import com.thelightphone.sdk.ui.LightTypography
 import com.thelightphone.sdk.ui.designVerticalPxToSp
 import com.thelightphone.sdk.ui.lightTypography
-import org.signal.core.ui.util.ThemeUtil
 
 /**
  * Applies The Light Phone SDK's typography scale to plain Android [TextView]s.
@@ -146,12 +145,14 @@ object LightItemStyle {
   }
 
   /**
-   * The palette `MollyLightTheme` installs on the Compose side, for the same reason: Molly follows its
-   * own light/dark setting rather than pinning to the Light Phone's black-on-white.
+   * The palette `MollyLightTheme` installs on the Compose side, so View-land and Compose-land agree.
+   *
+   * Always [LightThemeColors.Dark]. This used to follow Molly's own light/dark setting; the Light
+   * Phone III has no day mode and the rest of the app is now pinned black to match, so there is no
+   * longer anything for it to follow. [context] is kept so that the accessors below -- and the rest
+   * of this object, whose typography genuinely is context-derived -- keep one shape.
    */
-  fun colors(context: Context): LightColors {
-    return if (ThemeUtil.isDarkTheme(context)) LightThemeColors.Dark else LightThemeColors.Light
-  }
+  fun colors(context: Context): LightColors = LightThemeColors.Dark
 
   /**
    * The foreground colour for bubble-less message content.
