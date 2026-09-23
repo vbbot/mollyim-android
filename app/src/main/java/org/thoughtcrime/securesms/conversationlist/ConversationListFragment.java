@@ -22,9 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
-import android.content.res.Resources;
-import android.graphics.Canvas;
-import android.graphics.drawable.ColorDrawable;
+import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -39,24 +37,18 @@ import android.widget.FrameLayout;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.ColorInt;
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.content.res.AppCompatResources;
 import androidx.compose.ui.platform.ComposeView;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
-import androidx.core.view.ViewCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.DefaultItemAnimator;
-import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.LinearSmoothScroller;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.airbnb.lottie.SimpleColorFilter;
 import com.bumptech.glide.Glide;
-import com.google.android.material.animation.ArgbEvaluatorCompat;
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -67,7 +59,6 @@ import org.greenrobot.eventbus.ThreadMode;
 import org.signal.core.ui.BottomSheetUtil;
 import org.signal.core.ui.WindowSizeClassExtensionsKt;
 import org.signal.core.ui.compose.Snackbars;
-import org.signal.core.ui.util.ThemeUtil;
 import org.signal.core.ui.view.Stub;
 import org.signal.core.util.AppForegroundObserver;
 import org.signal.core.util.DimensionUnit;
@@ -128,6 +119,7 @@ import org.thoughtcrime.securesms.conversationlist.chatfilter.ConversationFilter
 import org.thoughtcrime.securesms.conversationlist.chatfilter.ConversationFilterSource;
 import org.thoughtcrime.securesms.conversationlist.chatfilter.ConversationListFilterPullView;
 import org.thoughtcrime.securesms.conversationlist.chatfilter.FilterLerp;
+import org.thoughtcrime.securesms.conversationlist.light.LightConversationListView;
 import org.thoughtcrime.securesms.conversationlist.model.Conversation;
 import org.thoughtcrime.securesms.conversationlist.model.ConversationFilter;
 import org.thoughtcrime.securesms.database.MessageTable.MarkedMessageInfo;
@@ -160,14 +152,12 @@ import org.thoughtcrime.securesms.util.CachedInflater;
 import org.thoughtcrime.securesms.util.ConversationUtil;
 import org.thoughtcrime.securesms.util.RemoteConfig;
 import org.thoughtcrime.securesms.util.SignalLocalMetrics;
-import org.thoughtcrime.securesms.util.SnapToTopDataObserver;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.thoughtcrime.securesms.util.ViewUtil;
 import org.thoughtcrime.securesms.util.adapter.mapping.PagingMappingAdapter;
 import org.thoughtcrime.securesms.verify.SelfVerificationFailureSheet;
 import org.whispersystems.signalservice.api.websocket.WebSocketConnectionState;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -180,18 +170,14 @@ import java.util.stream.Collectors;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
-import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import kotlin.Unit;
 
 import static org.signal.core.ui.WindowSizeClassExtensionsKt.getWindowSizeClass;
-import static org.signal.core.ui.WindowSizeClassExtensionsKt.isSplitPane;
 
 
-public class ConversationListFragment extends MainFragment implements ConversationListAdapter.OnConversationClickListener,
-                                                                      ClearFilterViewHolder.OnClearFilterClickListener,
-                                                                      ChatFolderAdapter.Callbacks,
-                                                                      ConversationListAdapter.EmptyFolderViewHolder.OnFolderSettingsClickListener
+public class ConversationListFragment extends MainFragment implements ClearFilterViewHolder.OnClearFilterClickListener,
+                                                                      ChatFolderAdapter.Callbacks
 {
   public static final short MESSAGE_REQUESTS_REQUEST_CODE_CREATE_NAME = 32562;
   public static final short SMS_ROLE_REQUEST_CODE                     = 32563;
@@ -214,15 +200,17 @@ public class ConversationListFragment extends MainFragment implements Conversati
   private ConversationListFilterPullView         pullView;
   private AppBarLayout                           pullViewAppBarLayout;
   private ConversationListViewModel              viewModel;
-  private RecyclerView.Adapter                   activeAdapter;
-  private ConversationListAdapter                defaultAdapter;
+  private LightConversationListView              conversationList;
+  private ViewGroup                              listContainer;
+  private View                                   contextMenuAnchor;
+  private boolean                                showingSearchResults;
+  private boolean                                reportedFirstDataSet;
   private PagingMappingAdapter<ContactSearchKey> searchAdapter;
   private final Runnable                         showSearchLoadingRunnable = () -> {
-    if (searchLoading != null && searchInProgress && activeAdapter == searchAdapter) {
+    if (searchLoading != null && searchInProgress && showingSearchResults) {
       searchLoading.setVisibility(View.VISIBLE);
     }
   };
-  private SnapToTopDataObserver                  snapToTopDataObserver;
   private Drawable                               archiveDrawable;
   private AppForegroundObserver.Listener         appForegroundObserver;
   private VoiceNoteMediaControllerOwner          mediaControllerOwner;
@@ -234,8 +222,6 @@ public class ConversationListFragment extends MainFragment implements Conversati
   private ChatFolderAdapter                      chatFolderAdapter;
   private RecyclerView.SmoothScroller            smoothScroller;
 
-  protected ConversationListArchiveItemDecoration archiveDecoration;
-  protected ConversationListItemAnimator          itemAnimator;
   private   Stopwatch                             startupStopwatch;
   private   ContactSearchViewModel                contactSearchViewModel;
   private   MainToolbarViewModel                  mainToolbarViewModel;
@@ -317,6 +303,9 @@ public class ConversationListFragment extends MainFragment implements Conversati
 
     chatFolderList          = view.findViewById(R.id.chat_folder_list);
     list                    = view.findViewById(R.id.list);
+    listContainer           = view.findViewById(R.id.list_container);
+    conversationList        = view.findViewById(R.id.light_conversation_list);
+    contextMenuAnchor       = view.findViewById(R.id.conversation_list_context_menu_anchor);
     searchLoading           = view.findViewById(R.id.search_loading);
     bottomActionBar         = view.findViewById(R.id.conversation_list_bottom_action_bar);
     bannerView              = new Stub<>(view.findViewById(R.id.banner_compose_view));
@@ -410,11 +399,6 @@ public class ConversationListFragment extends MainFragment implements Conversati
       pullView.onUserDrag(progress);
     });
 
-    int colorPrimary = ThemeUtil.getThemedColor(requireContext(), com.google.android.material.R.attr.colorPrimary);
-
-    archiveDecoration = new ConversationListArchiveItemDecoration(new ColorDrawable(colorPrimary));
-    itemAnimator      = new ConversationListItemAnimator();
-
     chatFolderAdapter = new ChatFolderAdapter(this);
     DefaultItemAnimator chatFolderItemAnimator = getChatFolderItemAnimator();
 
@@ -422,20 +406,13 @@ public class ConversationListFragment extends MainFragment implements Conversati
     chatFolderList.setAdapter(chatFolderAdapter);
     chatFolderList.setItemAnimator(chatFolderItemAnimator);
 
+    // @id/list now only ever renders search results; the conversation list itself is the Compose
+    // LightConversationListView above it.
     list.setLayoutManager(new LinearLayoutManager(requireActivity()));
-    list.setItemAnimator(itemAnimator);
-    list.addItemDecoration(archiveDecoration);
     CachedInflater.from(list.getContext()).clear();
-    CachedInflater.from(list.getContext()).cacheUntilLimit(R.layout.conversation_list_item_view, list, 10);
-
-    snapToTopDataObserver = new SnapToTopDataObserver(list);
-
-    new ItemTouchHelper(new ArchiveListenerCallback(colorPrimary,
-                                                    colorPrimary)).attachToRecyclerView(list);
 
     initializeViewModel();
     initializeListAdapters();
-    initializeTypingObserver();
     initializeVoiceNotePlayer();
     initializeBanners();
     maybeScheduleRefreshProfileJob();
@@ -461,22 +438,14 @@ public class ConversationListFragment extends MainFragment implements Conversati
     lifecycleDisposable.add(mainNavigationViewModel.getTabClickEventsObservable().filter(tab -> tab == MainNavigationListLocation.CHATS)
                                                    .subscribe(unused -> {
                                                      Log.d(TAG, "Scroll to top please");
-                                                     LinearLayoutManager layoutManager            = (LinearLayoutManager) list.getLayoutManager();
-                                                     int                 firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition();
-                                                     if (firstVisibleItemPosition <= LIST_SMOOTH_SCROLL_TO_TOP_THRESHOLD) {
-                                                       list.smoothScrollToPosition(0);
-                                                     } else {
-                                                       list.scrollToPosition(0);
+                                                     if (conversationList != null) {
+                                                       int firstVisibleItemPosition = conversationList.firstCompletelyVisibleItemPosition();
+                                                       conversationList.scrollToTop(firstVisibleItemPosition <= LIST_SMOOTH_SCROLL_TO_TOP_THRESHOLD);
                                                      }
                                                    }));
 
-    if (isSplitPane(getResources())) {
-      lifecycleDisposable.add(mainNavigationViewModel.getObservableActiveRecipientId()
-                                                     .subscribeOn(AndroidSchedulers.mainThread())
-                                                     .subscribe(id -> defaultAdapter.setActiveRecipientId(id.orElse(null))));
-    } else {
-      defaultAdapter.setActiveRecipientId(null);
-    }
+    // The Light row has no "currently open conversation" highlight -- it is name + time + unread
+    // marker and nothing else -- so the split-pane active-recipient tracking has nothing to drive.
 
     requireCallback().bindScrollHelper(list, getViewLifecycleOwner(), chatFolderList, color -> {
       for (int i = 0; i < chatFolderList.getChildCount(); i++) {
@@ -515,14 +484,17 @@ public class ConversationListFragment extends MainFragment implements Conversati
 
     coordinator             = null;
     list                    = null;
+    listContainer           = null;
+    contextMenuAnchor       = null;
     bottomActionBar         = null;
     voiceNotePlayerViewStub = null;
-    snapToTopDataObserver   = null;
-    itemAnimator            = null;
 
-    activeAdapter  = null;
-    defaultAdapter = null;
-    searchAdapter  = null;
+    if (conversationList != null) {
+      conversationList.setCallback(null);
+      conversationList = null;
+    }
+
+    searchAdapter = null;
 
     if (searchLoading != null) {
       searchLoading.removeCallbacks(showSearchLoadingRunnable);
@@ -542,8 +514,8 @@ public class ConversationListFragment extends MainFragment implements Conversati
     initializeFilterListener();
     SpoilerAnnotation.resetRevealedSpoilers();
 
-    if (mainToolbarViewModel.getState().getValue().getMode() != MainToolbarMode.SEARCH && list.getAdapter() != defaultAdapter) {
-      setAdapter(defaultAdapter);
+    if (mainToolbarViewModel.getState().getValue().getMode() != MainToolbarMode.SEARCH && showingSearchResults) {
+      showConversationList();
     }
 
     if (SignalStore.rateLimit().needsRecaptcha()) {
@@ -632,7 +604,7 @@ public class ConversationListFragment extends MainFragment implements Conversati
   }
 
   private boolean isSearchOpen() {
-    return isSearchVisible() || activeAdapter == searchAdapter;
+    return isSearchVisible() || showingSearchResults;
   }
 
   private boolean isSearchVisible() {
@@ -641,7 +613,7 @@ public class ConversationListFragment extends MainFragment implements Conversati
 
   private void closeSearchIfOpen() {
     if (isSearchOpen()) {
-      setAdapter(defaultAdapter);
+      showConversationList();
       mainToolbarViewModel.setToolbarMode(MainToolbarMode.FULL);
       chatListBackHandler.setEnabled(false);
     }
@@ -655,8 +627,7 @@ public class ConversationListFragment extends MainFragment implements Conversati
                                     -1);
   }
 
-  @Override
-  public void onShowArchiveClick() {
+  private void onShowArchiveClick() {
     if (viewModel.currentSelectedConversations().isEmpty()) {
       mainNavigationViewModel.goTo(MainNavigationListLocation.ARCHIVE);
     }
@@ -869,54 +840,48 @@ public class ConversationListFragment extends MainFragment implements Conversati
 
 
   private void initializeListAdapters() {
-    defaultAdapter = new ConversationListAdapter(getViewLifecycleOwner(), Glide.with(this), this, this, this);
+    conversationList.setCallback(new LightConversationListCallback());
 
-    setAdapter(defaultAdapter);
+    showConversationList();
 
-    defaultAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
-      @Override
-      public void onItemRangeInserted(int positionStart, int itemCount) {
-        startupStopwatch.split("data-set");
-        SignalLocalMetrics.ColdStart.onConversationListDataLoaded();
-        defaultAdapter.unregisterAdapterDataObserver(this);
-        if (requireActivity() instanceof MainNavigator.NavigatorProvider) {
-          ((MainNavigator.NavigatorProvider) requireActivity()).onFirstRender();
-        }
-        list.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
-          @Override
-          public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
-            list.removeOnLayoutChangeListener(this);
-            list.post(ConversationListFragment.this::onFirstRender);
-          }
-        });
+    ConversationUpdateTick conversationUpdateTick = new ConversationUpdateTick(() -> {
+      if (conversationList != null) {
+        conversationList.refreshTimestamps();
       }
     });
-
-    ConversationUpdateTick conversationUpdateTick = new ConversationUpdateTick(() -> defaultAdapter.notifyTimestampPayloadUpdate());
     getViewLifecycleOwner().getLifecycle().addObserver(conversationUpdateTick);
   }
 
-  @SuppressWarnings("rawtypes")
-  private void setAdapter(@NonNull RecyclerView.Adapter adapter) {
-    RecyclerView.Adapter oldAdapter = activeAdapter;
-
-    activeAdapter = adapter;
-
-    if (oldAdapter == activeAdapter) {
+  /** Shows the Compose conversation list and tears down whatever the search RecyclerView was showing. */
+  private void showConversationList() {
+    if (list == null || conversationList == null) {
       return;
     }
 
-    if (adapter instanceof ConversationListAdapter) {
-      ((ConversationListAdapter) adapter).setPagingController(viewModel.getController());
+    if (showingSearchResults) {
+      list.setAdapter(null);
     }
 
-    list.setAdapter(adapter);
+    showingSearchResults = false;
+    list.setVisibility(View.GONE);
+    conversationList.setVisibility(View.VISIBLE);
 
-    if (adapter == defaultAdapter) {
-      defaultAdapter.registerAdapterDataObserver(snapToTopDataObserver);
-    } else {
-      defaultAdapter.unregisterAdapterDataObserver(snapToTopDataObserver);
+    updateSearchLoadingVisibility();
+  }
+
+  /** Swaps the Compose conversation list out for the legacy search-results RecyclerView. */
+  private void showSearchResults() {
+    if (list == null || conversationList == null) {
+      return;
     }
+
+    if (!showingSearchResults) {
+      showingSearchResults = true;
+      list.setAdapter(searchAdapter);
+    }
+
+    conversationList.setVisibility(View.GONE);
+    list.setVisibility(View.VISIBLE);
 
     updateSearchLoadingVisibility();
   }
@@ -926,7 +891,7 @@ public class ConversationListFragment extends MainFragment implements Conversati
       return;
     }
 
-    boolean shouldShow = searchInProgress && activeAdapter == searchAdapter;
+    boolean shouldShow = searchInProgress && showingSearchResults;
     searchLoading.removeCallbacks(showSearchLoadingRunnable);
 
     if (shouldShow) {
@@ -936,16 +901,6 @@ public class ConversationListFragment extends MainFragment implements Conversati
     } else {
       searchLoading.setVisibility(View.GONE);
     }
-  }
-
-  private void initializeTypingObserver() {
-    AppDependencies.getTypingStatusRepository().getTypingThreads().observe(getViewLifecycleOwner(), threadIds -> {
-      if (threadIds == null) {
-        threadIds = Collections.emptySet();
-      }
-
-      defaultAdapter.setTypingThreads(threadIds);
-    });
   }
 
   protected boolean isArchived() {
@@ -977,7 +932,9 @@ public class ConversationListFragment extends MainFragment implements Conversati
 
     lifecycleDisposable.add(
         viewModel.getSelectedState().subscribe(conversations -> {
-          defaultAdapter.setSelectedConversations(conversations);
+          if (conversationList != null) {
+            conversationList.setSelectedConversations(conversations);
+          }
           if (conversations.isEmpty()) {
             endActionModeIfActive();
           } else {
@@ -1009,19 +966,31 @@ public class ConversationListFragment extends MainFragment implements Conversati
   }
 
   private void onConversationListChanged(@NonNull List<Conversation> conversations) {
-    LinearLayoutManager layoutManager    = (LinearLayoutManager) list.getLayoutManager();
-    int                 firstVisibleItem = layoutManager != null ? layoutManager.findFirstCompletelyVisibleItemPosition() : -1;
+    if (conversationList == null) {
+      return;
+    }
 
-    defaultAdapter.submitList(conversations, () -> {
-      if (list == null) {
-        return;
-      }
+    int firstVisibleItem = conversationList.firstCompletelyVisibleItemPosition();
 
-      if (firstVisibleItem == 0) {
-        list.scrollToPosition(0);
+    conversationList.submitList(conversations);
+
+    // A newly bumped conversation reorders the list. When the user was already parked at the very
+    // top, follow the reorder so the new top row stays in view.
+    if (firstVisibleItem == 0) {
+      conversationList.scrollToTop(false);
+    }
+
+    if (!reportedFirstDataSet && !conversations.isEmpty()) {
+      reportedFirstDataSet = true;
+      startupStopwatch.split("data-set");
+      SignalLocalMetrics.ColdStart.onConversationListDataLoaded();
+      if (requireActivity() instanceof MainNavigator.NavigatorProvider) {
+        ((MainNavigator.NavigatorProvider) requireActivity()).onFirstRender();
       }
-      onPostSubmitList(conversations.size());
-    });
+      conversationList.post(this::onFirstRender);
+    }
+
+    onPostSubmitList(conversations.size());
   }
 
   private void onChatFoldersChanged(List<ChatFolderMappingModel> folders) {
@@ -1324,8 +1293,7 @@ public class ConversationListFragment extends MainFragment implements Conversati
   protected void onPostSubmitList(int conversationCount) {
   }
 
-  @Override
-  public void onConversationClick(@NonNull Conversation conversation) {
+  private void onConversationClick(@NonNull Conversation conversation) {
     if (!mainToolbarViewModel.isInActionMode()) {
       handleCreateConversation(conversation.getThreadRecord().getThreadId(), conversation.getThreadRecord().getRecipient(), conversation.getThreadRecord().getDistributionType());
     } else {
@@ -1333,17 +1301,33 @@ public class ConversationListFragment extends MainFragment implements Conversati
     }
   }
 
-  @Override
-  public boolean onConversationLongClick(@NonNull Conversation conversation, @NonNull View view) {
-    return showConversationContextMenu(conversation, view, false);
-  }
-
-  private boolean showConversationContextMenu(@NonNull Conversation conversation, @NonNull View view, boolean isFromSearch) {
-    if (list == null) {
-      Log.w(TAG, "List is null, ignoring long click.");
-      return true;
+  /**
+   * Long press on a Compose row. Compose rows have no {@link View} of their own, so we park the
+   * invisible {@code @id/conversation_list_context_menu_anchor} over the row's bounds and anchor
+   * {@link SignalContextMenu} to that -- the menu then drops down from exactly where the row is,
+   * the same as it did from a RecyclerView item view.
+   */
+  private void onConversationLongClick(@NonNull Conversation conversation, @NonNull Rect bounds) {
+    if (contextMenuAnchor == null || listContainer == null) {
+      return;
     }
 
+    FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) contextMenuAnchor.getLayoutParams();
+    params.width      = Math.max(1, bounds.width());
+    params.height     = Math.max(1, bounds.height());
+    params.leftMargin = bounds.left;
+    params.topMargin  = bounds.top;
+    contextMenuAnchor.setLayoutParams(params);
+
+    // Wait for the anchor to actually be laid out at its new bounds before measuring against it.
+    contextMenuAnchor.post(() -> {
+      if (contextMenuAnchor != null && listContainer != null) {
+        showConversationContextMenu(conversation, contextMenuAnchor, listContainer, false);
+      }
+    });
+  }
+
+  private boolean showConversationContextMenu(@NonNull Conversation conversation, @NonNull View view, @NonNull ViewGroup container, boolean isFromSearch) {
     if (mainToolbarViewModel.isInActionMode()) {
       onConversationClick(conversation);
       return true;
@@ -1411,19 +1395,25 @@ public class ConversationListFragment extends MainFragment implements Conversati
 
     items.add(new ActionItem(org.signal.core.ui.R.drawable.symbol_trash_24, getResources().getString(R.string.ConversationListFragment_delete), () -> handleDelete(id)));
 
-    activeContextMenu = new SignalContextMenu.Builder(view, list)
+    // Only the search RecyclerView needs its layout frozen under the menu; the Compose list is
+    // anchored to a static overlay view instead.
+    final boolean suppressListLayout = container == list;
+
+    activeContextMenu = new SignalContextMenu.Builder(view, container)
         .offsetX(ViewUtil.dpToPx(12))
         .offsetY(ViewUtil.dpToPx(12))
         .onDismiss(() -> {
           activeContextMenu = null;
           view.setSelected(false);
-          if (list != null) {
+          if (suppressListLayout && list != null) {
             list.suppressLayout(false);
           }
         })
         .show(items);
 
-    list.suppressLayout(true);
+    if (suppressListLayout) {
+      list.suppressLayout(true);
+    }
 
     return true;
   }
@@ -1543,48 +1533,6 @@ public class ConversationListFragment extends MainFragment implements Conversati
     return R.drawable.symbol_archive_24;
   }
 
-  @SuppressLint("StaticFieldLeak")
-  protected void onItemSwiped(long threadId, int unreadCount, int unreadSelfMentionsCount) {
-    archiveDecoration.onArchiveStarted();
-    itemAnimator.enable();
-
-    lifecycleDisposable.add(
-        Single
-            .fromCallable(() -> {
-              List<Long> pinnedThreadIds = SignalDatabase.threads().getPinnedThreadIds();
-              SignalDatabase.threads().archiveConversation(threadId);
-
-              ConversationUtil.refreshRecipientShortcuts();
-
-              return pinnedThreadIds;
-            })
-            .subscribeOn(Schedulers.io())
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(pinnedThreadIds -> {
-              mainNavigationViewModel.getSnackbarRegistry().emit(new SnackbarState(
-                  getResources().getQuantityString(R.plurals.ConversationListFragment_conversations_archived, 1, 1),
-                  new SnackbarState.ActionState(
-                      getString(R.string.ConversationListFragment_undo),
-                      R.color.amber_500,
-                      () -> {
-                        SignalExecutors.BOUNDED_IO.execute(() -> {
-                          SignalDatabase.threads().unarchiveConversation(threadId);
-                          SignalDatabase.threads().restorePins(pinnedThreadIds);
-
-                          ConversationUtil.refreshRecipientShortcuts();
-                        });
-
-                        return Unit.INSTANCE;
-                      }
-                  ),
-                  Snackbars.Duration.LONG,
-                  MainSnackbarHostKey.MainChrome.INSTANCE,
-                  null
-              ));
-            })
-    );
-  }
-
   @Override
   public void onClearFilterClick() {
     pullView.toggle();
@@ -1593,7 +1541,7 @@ public class ConversationListFragment extends MainFragment implements Conversati
 
   @Override
   public boolean isScrolled() {
-    return list.canScrollVertically(-1);
+    return conversationList != null && conversationList.isScrolled();
   }
 
   @Override
@@ -1616,7 +1564,7 @@ public class ConversationListFragment extends MainFragment implements Conversati
     }
 
     if (isScrolled()) {
-      list.smoothScrollToPosition(0);
+      conversationList.scrollToTop(true);
     }
 
     if (oldIndex == newIndex) {
@@ -1633,34 +1581,8 @@ public class ConversationListFragment extends MainFragment implements Conversati
       chatFolderList.getLayoutManager().startSmoothScroll(smoothScroller);
     }
 
-    // Manage change animations so we don't animate the list when switching folders
-    itemAnimator.disableChangeAnimations();
-    defaultAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
-      @Override
-      public void onChanged() {
-        defaultAdapter.unregisterAdapterDataObserver(this);
-        itemAnimator.enableChangeAnimations();
-      }
-
-      @Override
-      public void onItemRangeInserted(int positionStart, int itemCount) {
-        defaultAdapter.unregisterAdapterDataObserver(this);
-        itemAnimator.enableChangeAnimations();
-      }
-
-      @Override
-      public void onItemRangeChanged(int positionStart, int itemCount) {
-        defaultAdapter.unregisterAdapterDataObserver(this);
-        itemAnimator.enableChangeAnimations();
-      }
-
-      @Override
-      public void onItemRangeRemoved(int positionStart, int itemCount) {
-        defaultAdapter.unregisterAdapterDataObserver(this);
-        itemAnimator.enableChangeAnimations();
-      }
-    });
-
+    // The Light list has no item animations to suppress when the folder changes -- it just swaps
+    // its contents -- so the old ItemAnimator dance is gone.
     viewModel.select(chatFolder);
   }
 
@@ -1693,11 +1615,6 @@ public class ConversationListFragment extends MainFragment implements Conversati
     startActivity(AppSettingsActivity.chatFolders(requireContext()));
   }
 
-  @Override
-  public void onFolderSettingsClick() {
-    startActivity(AppSettingsActivity.chatFolders(requireContext()));
-  }
-
   public void showSearchFilterBottomSheet() {
     SearchFilterBottomSheet.show(
         getParentFragmentManager(),
@@ -1712,9 +1629,7 @@ public class ConversationListFragment extends MainFragment implements Conversati
   }
 
   private void onSearchClose() {
-    if (list != null) {
-      setAdapter(defaultAdapter);
-    }
+    showConversationList();
 
     activeSearchFilter = SearchFilter.EMPTY;
     mainToolbarViewModel.setHasActiveSearchFilter(false);
@@ -1729,182 +1644,39 @@ public class ConversationListFragment extends MainFragment implements Conversati
     contactSearchViewModel.setQuery(trimmed);
 
     if (!trimmed.isEmpty()) {
-      if (activeAdapter != searchAdapter && list != null) {
-        setAdapter(searchAdapter);
-      }
+      showSearchResults();
     } else {
-      if (activeAdapter != defaultAdapter) {
-        if (list != null) {
-          setAdapter(defaultAdapter);
-        }
-      }
+      showConversationList();
     }
   }
 
-  private class ArchiveListenerCallback extends ItemTouchHelper.SimpleCallback {
-
-    private static final long SWIPE_ANIMATION_DURATION = 175;
-
-    private static final float MIN_ICON_SCALE = 0.85f;
-    private static final float MAX_ICON_SCALE = 1f;
-
-    private final int archiveColorStart;
-    private final int archiveColorEnd;
-
-    private final float ESCAPE_VELOCITY    = ViewUtil.dpToPx(1000);
-    private final float VELOCITY_THRESHOLD = ViewUtil.dpToPx(1000);
-
-    private WeakReference<RecyclerView.ViewHolder> lastTouched;
-
-    ArchiveListenerCallback(@ColorInt int archiveColorStart, @ColorInt int archiveColorEnd) {
-      super(0, ItemTouchHelper.END);
-      this.archiveColorStart = archiveColorStart;
-      this.archiveColorEnd   = archiveColorEnd;
+  /**
+   * Bridges the Compose conversation list back into this fragment. Replaces
+   * {@code ConversationListAdapter.OnConversationClickListener} plus the adapter's
+   * {@code setPagingController} hookup -- the paging controller is still Molly's own
+   * {@code org.signal.paging} controller, it is just driven by the last visible Compose row now
+   * instead of by {@code ConversationListAdapter.getItem}.
+   */
+  private final class LightConversationListCallback implements LightConversationListView.Callback {
+    @Override
+    public void onConversationClick(@NonNull Conversation conversation) {
+      ConversationListFragment.this.onConversationClick(conversation);
     }
 
     @Override
-    public boolean onMove(@NonNull RecyclerView recyclerView,
-                          @NonNull RecyclerView.ViewHolder viewHolder,
-                          @NonNull RecyclerView.ViewHolder target)
-    {
-      return false;
+    public void onConversationLongClick(@NonNull Conversation conversation, @NonNull Rect bounds) {
+      ConversationListFragment.this.onConversationLongClick(conversation, bounds);
     }
 
     @Override
-    public float getSwipeEscapeVelocity(float defaultValue) {
-      return Math.min(ESCAPE_VELOCITY, VELOCITY_THRESHOLD);
+    public void onShowArchiveClick() {
+      ConversationListFragment.this.onShowArchiveClick();
     }
 
     @Override
-    public float getSwipeVelocityThreshold(float defaultValue) {
-      return VELOCITY_THRESHOLD;
-    }
-
-    @Override
-    public int getSwipeDirs(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
-      if (viewHolder.itemView instanceof ConversationListItemAction ||
-          viewHolder instanceof ConversationListAdapter.HeaderViewHolder ||
-          viewHolder instanceof ClearFilterViewHolder ||
-          viewHolder instanceof ConversationListAdapter.EmptyFolderViewHolder ||
-          mainToolbarViewModel.isInActionMode() ||
-          viewHolder.itemView.isSelected() ||
-          activeAdapter == searchAdapter)
-      {
-        return 0;
-      }
-
-      lastTouched = new WeakReference<>(viewHolder);
-
-      return super.getSwipeDirs(recyclerView, viewHolder);
-    }
-
-    @Override
-    public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
-      if (lastTouched != null) {
-        Log.w(TAG, "Falling back to slower onSwiped() event.");
-        onTrueSwipe(viewHolder);
-        lastTouched = null;
-      }
-    }
-
-    @Override
-    public long getAnimationDuration(@NonNull RecyclerView recyclerView, int animationType, float animateDx, float animateDy) {
-      if (animationType == ItemTouchHelper.ANIMATION_TYPE_SWIPE_SUCCESS && lastTouched != null && lastTouched.get() != null) {
-        onTrueSwipe(lastTouched.get());
-        lastTouched = null;
-      } else if (animationType == ItemTouchHelper.ANIMATION_TYPE_SWIPE_CANCEL) {
-        lastTouched = null;
-      }
-
-      return SWIPE_ANIMATION_DURATION;
-    }
-
-    private void onTrueSwipe(RecyclerView.ViewHolder viewHolder) {
-      ThreadWithRecipient thread = ((ConversationListItem) viewHolder.itemView).getThread();
-
-      onItemSwiped(thread.getThreadId(), thread.getUnreadCount(), thread.getUnreadSelfMentionsCount());
-    }
-
-    @Override
-    public void onChildDraw(@NonNull Canvas canvas, @NonNull RecyclerView recyclerView,
-                            @NonNull RecyclerView.ViewHolder viewHolder,
-                            float dX, float dY, int actionState,
-                            boolean isCurrentlyActive)
-    {
-      float absoluteDx = Math.abs(dX);
-
-      if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE) {
-        Resources resources       = getResources();
-        View      itemView        = viewHolder.itemView;
-        float     percentDx       = absoluteDx / viewHolder.itemView.getWidth();
-        int       color           = ArgbEvaluatorCompat.getInstance().evaluate(Math.min(1f, percentDx * (1 / 0.25f)), archiveColorStart, archiveColorEnd);
-        float     scaleStartPoint = DimensionUnit.DP.toPixels(48f);
-        float     scaleEndPoint   = DimensionUnit.DP.toPixels(96f);
-
-        float scale;
-        if (absoluteDx < scaleStartPoint) {
-          scale = MIN_ICON_SCALE;
-        } else if (absoluteDx > scaleEndPoint) {
-          scale = MAX_ICON_SCALE;
-        } else {
-          scale = Math.min(MAX_ICON_SCALE, MIN_ICON_SCALE + ((absoluteDx - scaleStartPoint) / (scaleEndPoint - scaleStartPoint)) * (MAX_ICON_SCALE - MIN_ICON_SCALE));
-        }
-
-        if (absoluteDx > 0) {
-          if (archiveDrawable == null) {
-            archiveDrawable = Objects.requireNonNull(AppCompatResources.getDrawable(requireContext(), getArchiveIconRes()));
-            archiveDrawable.setColorFilter(new SimpleColorFilter(ThemeUtil.getThemedColor(requireContext(), com.google.android.material.R.attr.colorOnPrimary)));
-            archiveDrawable.setBounds(0, 0, archiveDrawable.getIntrinsicWidth(), archiveDrawable.getIntrinsicHeight());
-          }
-
-          canvas.save();
-          canvas.clipRect(itemView.getLeft(), itemView.getTop(), itemView.getRight(), itemView.getBottom());
-
-          canvas.drawColor(color);
-
-          float gutter = resources.getDimension(R.dimen.dsl_settings_gutter);
-          float extra  = resources.getDimension(R.dimen.conversation_list_fragment_archive_padding);
-
-          if (ViewUtil.isLtr(requireContext())) {
-            canvas.translate(itemView.getLeft() + gutter + extra,
-                             itemView.getTop() + (itemView.getBottom() - itemView.getTop() - archiveDrawable.getIntrinsicHeight()) / 2f);
-          } else {
-            canvas.translate(itemView.getRight() - gutter - extra - archiveDrawable.getIntrinsicWidth(),
-                             itemView.getTop() + (itemView.getBottom() - itemView.getTop() - archiveDrawable.getIntrinsicHeight()) / 2f);
-          }
-
-          canvas.scale(scale, scale, archiveDrawable.getIntrinsicWidth() / 2f, archiveDrawable.getIntrinsicHeight() / 2f);
-
-          archiveDrawable.draw(canvas);
-          canvas.restore();
-
-          ViewCompat.setElevation(viewHolder.itemView, DimensionUnit.DP.toPixels(4f));
-        } else if (absoluteDx == 0) {
-          ViewCompat.setElevation(viewHolder.itemView, DimensionUnit.DP.toPixels(0f));
-        }
-
-        viewHolder.itemView.setTranslationX(dX);
-      } else {
-        super.onChildDraw(canvas, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);
-      }
-    }
-
-    @Override
-    public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
-      super.clearView(recyclerView, viewHolder);
-
-      if (itemAnimator == null) {
-        return;
-      }
-
-      ViewCompat.setElevation(viewHolder.itemView, 0);
-      lastTouched = null;
-
-      View view = getView();
-      if (view != null) {
-        itemAnimator.postDisable(view.getHandler());
-      } else {
-        itemAnimator.disable();
+    public void onDataNeededAroundIndex(int index) {
+      if (viewModel != null) {
+        viewModel.getController().onDataNeededAroundIndex(index);
       }
     }
   }
@@ -1948,7 +1720,7 @@ public class ConversationListFragment extends MainFragment implements Conversati
 
     @Override
     public boolean onThreadLongClicked(@NonNull View view, @NonNull ContactSearchData.Thread thread) {
-      return showConversationContextMenu(new Conversation(thread.getThreadWithRecipient()), view, true);
+      return showConversationContextMenu(new Conversation(thread.getThreadWithRecipient()), view, list, true);
     }
 
     @Override
