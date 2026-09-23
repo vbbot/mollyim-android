@@ -11,15 +11,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -27,6 +26,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.toLiveData
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
 import io.reactivex.rxjava3.core.BackpressureStrategy
 import io.reactivex.rxjava3.core.Observable
 import org.signal.core.ui.compose.AllNightPreviews
@@ -37,6 +38,7 @@ import org.signal.core.ui.compose.horizontalGutters
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.AvatarImageView
 import org.thoughtcrime.securesms.events.CallParticipant
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.util.SignalE164Util
 
@@ -58,7 +60,9 @@ fun ParticipantActionsSheet(
 
   ModalBottomSheet(
     onDismissRequest = onDismiss,
-    sheetState = sheetState
+    sheetState = sheetState,
+    containerColor = Color.Black,
+    contentColor = Color.White
   ) {
     val recipient by (
       (if (LocalInspectionMode.current) Observable.just(Recipient.UNKNOWN) else Recipient.observable(callParticipant.recipient.id))
@@ -67,19 +71,21 @@ fun ParticipantActionsSheet(
         .observeAsState(initial = callParticipant.recipient)
       )
 
-    ParticipantActionsSheetContent(
-      recipient = recipient,
-      callParticipant = callParticipant,
-      isSelfAdmin = isSelfAdmin,
-      isCallLink = isCallLink,
-      canRemoteMute = canRemoteMute,
-      onDismiss = onDismiss,
-      onMuteAudio = onMuteAudio,
-      onRemoveFromCall = onRemoveFromCall,
-      onContactDetails = onContactDetails,
-      onViewSafetyNumber = onViewSafetyNumber,
-      onGoToChat = onGoToChat
-    )
+    MollyLightTheme {
+      ParticipantActionsSheetContent(
+        recipient = recipient,
+        callParticipant = callParticipant,
+        isSelfAdmin = isSelfAdmin,
+        isCallLink = isCallLink,
+        canRemoteMute = canRemoteMute,
+        onDismiss = onDismiss,
+        onMuteAudio = onMuteAudio,
+        onRemoveFromCall = onRemoveFromCall,
+        onContactDetails = onContactDetails,
+        onViewSafetyNumber = onViewSafetyNumber,
+        onGoToChat = onGoToChat
+      )
+    }
   }
 }
 
@@ -181,18 +187,19 @@ private fun ParticipantHeader(recipient: Recipient) {
 
     Spacer(modifier = Modifier.size(12.dp))
 
-    Text(
+    LightText(
       text = recipient.getDisplayName(androidx.compose.ui.platform.LocalContext.current),
-      style = MaterialTheme.typography.titleLarge,
-      textAlign = TextAlign.Center
+      variant = LightTextVariant.Heading,
+      align = TextAlign.Center
     )
 
     if (recipient.shouldShowE164) {
       Spacer(modifier = Modifier.size(2.dp))
-      Text(
+      LightText(
         text = SignalE164Util.prettyPrint(recipient.requireE164()),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        variant = LightTextVariant.Detail,
+        lighten = true,
+        align = TextAlign.Center
       )
     }
   }

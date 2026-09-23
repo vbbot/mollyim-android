@@ -7,21 +7,16 @@ package org.thoughtcrime.securesms.components.webrtc.v2
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.content.res.Configuration
-import androidx.compose.foundation.layout.Arrangement.spacedBy
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -36,6 +31,8 @@ import org.thoughtcrime.securesms.components.webrtc.CallParticipantsState
 import org.thoughtcrime.securesms.components.webrtc.ToggleButtonOutputState
 import org.thoughtcrime.securesms.components.webrtc.WebRtcAudioOutput
 import org.thoughtcrime.securesms.components.webrtc.WebRtcControls
+import org.thoughtcrime.securesms.light.MollyLightTheme
+import org.thoughtcrime.securesms.light.rememberLightTintedPainter
 import org.thoughtcrime.securesms.util.RemoteConfig
 
 /**
@@ -52,94 +49,59 @@ fun CallControls(
   audioOutputPickerController: AudioOutputPickerController,
   modifier: Modifier = Modifier
 ) {
-  val isPortrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
-
   val density = LocalDensity.current
   val padBottom = with(density) { WindowInsets.navigationBars.getBottom(density).toDp() }
-  var bottom by remember {
-    mutableStateOf(padBottom)
+  var bottom by remember { mutableStateOf(padBottom) }
+  if (padBottom != 0.dp) bottom = padBottom
+
+  val context = LocalContext.current
+  val hasCameraPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+  val hasRecordAudioPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+  val startCallText = if (callControlsState.displayStartCallButton) stringResource(callControlsState.startCallButtonText) else null
+  val presentation = remember(callControlsState, hasCameraPermission, hasRecordAudioPermission, startCallText) {
+    LightCallControlsPresentation.from(
+      state = callControlsState,
+      hasCameraPermission = hasCameraPermission,
+      hasRecordAudioPermission = hasRecordAudioPermission,
+      startCallText = startCallText
+    )
+  }
+  val callbacks = remember(callScreenControlsListener, callScreenSheetDisplayListener, audioOutputPickerController) {
+    LightCallControlCallbacks(
+      onAudioOutput = audioOutputPickerController::show,
+      onVideoChanged = callScreenControlsListener::onVideoChanged,
+      onMicrophoneChanged = callScreenControlsListener::onMicChanged,
+      onGroupRingChanged = callScreenControlsListener::onRingGroupChanged,
+      onMore = callScreenControlsListener::onOverflowClicked,
+      onEndCall = callScreenControlsListener::onEndCallPressed,
+      onStartCall = callScreenControlsListener::onStartCall,
+      onVideoTooltipDismissed = callScreenSheetDisplayListener::onVideoTooltipDismissed
+    )
   }
 
-  if (padBottom != 0.dp) {
-    bottom = padBottom
+  val currentOutput = audioOutputPickerController.outputState.currentDevice
+  val audioIconRes = remember(currentOutput, audioOutputPickerController.willDisplayPicker) {
+    if (!audioOutputPickerController.willDisplayPicker && currentOutput == WebRtcAudioOutput.HANDSET) {
+      WebRtcAudioOutput.SPEAKER.iconRes
+    } else {
+      currentOutput.iconRes
+    }
   }
 
-  Column(
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = spacedBy(30.dp),
-    modifier = modifier.padding(bottom = bottom)
-  ) {
-    Row(
-      horizontalArrangement = spacedBy(20.dp)
-    ) {
-      if (callControlsState.displayAudioOutputToggle) {
-        CallAudioToggleButton(
-          contentDescription = stringResource(id = R.string.WebRtcAudioOutputToggle__audio_output),
-          onSheetDisplayChanged = callScreenSheetDisplayListener::onAudioDeviceSheetDisplayChanged,
-          pickerController = audioOutputPickerController,
-          enabled = !callControlsState.isAudioOutputChangePending
-        )
-      }
+  MollyLightTheme {
+    LightCallControls(
+      presentation = presentation,
+      callbacks = callbacks,
+      audioOutputIcon = rememberLightTintedPainter(audioIconRes),
+      displayVideoTooltip = displayVideoTooltip,
+      moreButtonModifier = Modifier.popupTrigger(additionalActionsState.triggerAlignedPopupState),
+      modifier = modifier.padding(bottom = bottom)
+    )
+  }
 
-      val hasCameraPermission = ContextCompat.checkSelfPermission(LocalContext.current, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-      if (callControlsState.displayVideoToggle && !callControlsState.isLocalScreenSharing) {
-        CallScreenTooltipBox(
-          text = stringResource(R.string.WebRtcCallActivity__tap_here_to_turn_on_your_video),
-          displayTooltip = displayVideoTooltip,
-          onTooltipDismissed = callScreenSheetDisplayListener::onVideoTooltipDismissed
-        ) {
-          ToggleVideoButton(
-            isVideoEnabled = callControlsState.isVideoEnabled && hasCameraPermission,
-            onChange = callScreenControlsListener::onVideoChanged
-          )
-        }
-      }
-
-      val hasRecordAudioPermission = ContextCompat.checkSelfPermission(LocalContext.current, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-      if (callControlsState.displayMicToggle) {
-        ToggleMicButton(
-          isMicEnabled = callControlsState.isMicEnabled && hasRecordAudioPermission,
-          onChange = callScreenControlsListener::onMicChanged
-        )
-      }
-
-      if (callControlsState.displayGroupRingingToggle) {
-        ToggleRingButton(
-          isRingEnabled = callControlsState.isGroupRingingEnabled,
-          isRingAllowed = callControlsState.isGroupRingingAllowed,
-          onChange = callScreenControlsListener::onRingGroupChanged
-        )
-      }
-
-      if (callControlsState.displayAdditionalActions) {
-        AdditionalActionsButton(
-          onClick = callScreenControlsListener::onOverflowClicked,
-          modifier = Modifier.popupTrigger(additionalActionsState.triggerAlignedPopupState)
-        )
-      }
-
-      if (callControlsState.displayEndCallButton) {
-        HangupButton(onClick = callScreenControlsListener::onEndCallPressed)
-      }
-
-      if (callControlsState.displayStartCallButton && !isPortrait) {
-        StartCallButton(
-          text = stringResource(callControlsState.startCallButtonText),
-          onClick = {
-            callScreenControlsListener.onStartCall(callControlsState.isVideoEnabled)
-          }
-        )
-      }
-    }
-
-    if (callControlsState.displayStartCallButton && isPortrait) {
-      StartCallButton(
-        text = stringResource(callControlsState.startCallButtonText),
-        onClick = {
-          callScreenControlsListener.onStartCall(callControlsState.isVideoEnabled)
-        }
-      )
-    }
+  audioOutputPickerController.Sheet()
+  LaunchedEffect(audioOutputPickerController.displaySheet) {
+    callScreenSheetDisplayListener.onAudioDeviceSheetDisplayChanged(audioOutputPickerController.displaySheet)
   }
 }
 

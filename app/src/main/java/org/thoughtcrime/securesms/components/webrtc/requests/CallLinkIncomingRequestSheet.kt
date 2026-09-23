@@ -5,6 +5,7 @@
 
 package org.thoughtcrime.securesms.components.webrtc.requests
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,39 +13,34 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rxjava3.subscribeAsState
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalInspectionMode
-import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.os.bundleOf
 import androidx.fragment.app.FragmentManager
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightBottomBar
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.gridUnitsAsDp
 import org.signal.core.ui.BottomSheetUtil
 import org.signal.core.ui.compose.BottomSheets
 import org.signal.core.ui.compose.ComposeBottomSheetDialogFragment
 import org.signal.core.ui.compose.Dividers
 import org.signal.core.ui.compose.NightPreview
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.util.getParcelableCompat
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.avatar.AvatarImage
-import org.thoughtcrime.securesms.components.AvatarImageView
 import org.thoughtcrime.securesms.dependencies.AppDependencies
+import org.thoughtcrime.securesms.light.MollyLightTheme
+import org.thoughtcrime.securesms.light.rememberLightTintedPainter
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.util.viewModel
@@ -86,11 +82,13 @@ class CallLinkIncomingRequestSheet : ComposeBottomSheetDialogFragment() {
       return
     }
 
-    CallLinkIncomingRequestSheetContent(
-      state = state.value,
-      onApproveEntry = this::onApproveEntry,
-      onDenyEntry = this::onDenyEntry
-    )
+    MollyLightTheme {
+      CallLinkIncomingRequestSheetContent(
+        state = state.value,
+        onApproveEntry = this::onApproveEntry,
+        onDenyEntry = this::onDenyEntry
+      )
+    }
   }
 
   private fun onApproveEntry() {
@@ -108,16 +106,18 @@ class CallLinkIncomingRequestSheet : ComposeBottomSheetDialogFragment() {
 @Composable
 private fun CallLinkIncomingRequestSheetContentPreview() {
   Previews.BottomSheetContentPreview {
-    CallLinkIncomingRequestSheetContent(
-      state = CallLinkIncomingRequestState(
-        name = "Miles Morales",
-        subtitle = "+1 (555) 555-5555",
-        groupsInCommon = "Member of Webheads, Group B, Group C, Group D, and 83 others.",
-        isSystemContact = true
-      ),
-      onApproveEntry = {},
-      onDenyEntry = {}
-    )
+    MollyLightTheme {
+      CallLinkIncomingRequestSheetContent(
+        state = CallLinkIncomingRequestState(
+          name = "Miles Morales",
+          subtitle = "+1 (555) 555-5555",
+          groupsInCommon = "Member of Webheads, Group B, Group C, Group D, and 83 others.",
+          isSystemContact = true
+        ),
+        onApproveEntry = {},
+        onDenyEntry = {}
+      )
+    }
   }
 }
 
@@ -128,11 +128,20 @@ private fun CallLinkIncomingRequestSheetContent(
   onDenyEntry: () -> Unit
 ) {
   LazyColumn(
-    modifier = Modifier.fillMaxWidth(),
+    modifier = Modifier
+      .fillMaxWidth()
+      .background(LightThemeTokens.colors.background),
     horizontalAlignment = Alignment.CenterHorizontally
   ) {
     item { BottomSheets.Handle() }
-    item { AvatarImage(recipient = state.recipient, modifier = Modifier.size(80.dp)) }
+    item {
+      AvatarImage(
+        recipient = state.recipient,
+        modifier = Modifier
+          .padding(top = 1f.gridUnitsAsDp())
+          .size(6f.gridUnitsAsDp())
+      )
+    }
     item {
       Title(
         recipientName = state.name,
@@ -142,70 +151,45 @@ private fun CallLinkIncomingRequestSheetContent(
 
     if (state.subtitle.isNotEmpty()) {
       item {
-        Text(
+        LightText(
           text = state.subtitle,
-          modifier = Modifier.padding(4.dp)
+          variant = LightTextVariant.Detail,
+          lighten = true,
+          align = TextAlign.Center,
+          modifier = Modifier.padding(horizontal = 2f.gridUnitsAsDp(), vertical = 0.5f.gridUnitsAsDp())
         )
       }
     }
 
     if (state.groupsInCommon.isNotEmpty()) {
       item {
-        Text(
+        LightText(
           text = state.groupsInCommon,
-          textAlign = TextAlign.Center,
-          style = MaterialTheme.typography.bodyMedium,
-          modifier = Modifier.padding(vertical = 6.dp, horizontal = dimensionResource(CoreUiR.dimen.gutter))
+          variant = LightTextVariant.Paragraph,
+          lighten = true,
+          align = TextAlign.Center,
+          modifier = Modifier.padding(horizontal = 2f.gridUnitsAsDp(), vertical = 0.5f.gridUnitsAsDp())
         )
       }
     }
 
+    item { Dividers.Default() }
     item {
-      Dividers.Default()
-    }
-
-    item {
-      Rows.TextRow(
-        text = stringResource(id = R.string.CallLinkIncomingRequestSheet__approve_entry),
-        icon = SignalIcons.CheckCircle.painter,
-        onClick = onApproveEntry
+      LightBottomBar(
+        items = listOf(
+          LightBarButton.Text(
+            text = stringResource(R.string.CallLinkIncomingRequestSheet__approve_entry),
+            onClick = onApproveEntry
+          ),
+          LightBarButton.Text(
+            text = stringResource(R.string.CallLinkIncomingRequestSheet__deny_entry),
+            onClick = onDenyEntry
+          )
+        )
       )
     }
 
-    item {
-      Rows.TextRow(
-        text = stringResource(id = R.string.CallLinkIncomingRequestSheet__deny_entry),
-        icon = painterResource(R.drawable.symbol_x_circle_24),
-        onClick = onDenyEntry
-      )
-    }
-
-    item {
-      Spacer(modifier = Modifier.size(32.dp))
-    }
-  }
-}
-
-@Composable
-private fun Avatar(
-  recipient: Recipient
-) {
-  if (LocalInspectionMode.current) {
-    Spacer(
-      modifier = Modifier
-        .padding(top = 13.dp)
-        .size(80.dp)
-        .background(color = Color.Red, shape = CircleShape)
-    )
-  } else {
-    AndroidView(
-      factory = ::AvatarImageView,
-      modifier = Modifier
-        .size(80.dp)
-        .padding(top = 13.dp)
-    ) {
-      it.setAvatarUsingProfile(recipient)
-    }
+    item { Spacer(modifier = Modifier.size(1f.gridUnitsAsDp())) }
   }
 }
 
@@ -214,24 +198,28 @@ private fun Title(
   recipientName: String,
   isSystemContact: Boolean
 ) {
-  if (isSystemContact) {
-    Row(modifier = Modifier.padding(top = 12.dp)) {
-      Text(
-        text = recipientName,
-        style = MaterialTheme.typography.headlineMedium
-      )
-      Icon(
-        painter = painterResource(id = CoreUiR.drawable.symbol_person_circle_24),
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(top = 0.75f.gridUnitsAsDp(), start = 2f.gridUnitsAsDp(), end = 2f.gridUnitsAsDp()),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    LightText(
+      text = recipientName,
+      variant = LightTextVariant.Heading,
+      align = TextAlign.Center,
+      maxLines = 2,
+      overflow = TextOverflow.Ellipsis,
+      modifier = Modifier.weight(1f)
+    )
+    if (isSystemContact) {
+      Image(
+        painter = rememberLightTintedPainter(CoreUiR.drawable.symbol_person_circle_24),
         contentDescription = null,
         modifier = Modifier
-          .padding(start = 6.dp)
-          .align(CenterVertically)
+          .padding(start = 0.5f.gridUnitsAsDp())
+          .size(1.5f.gridUnitsAsDp())
       )
     }
-  } else {
-    Text(
-      text = recipientName,
-      style = MaterialTheme.typography.headlineMedium
-    )
   }
 }

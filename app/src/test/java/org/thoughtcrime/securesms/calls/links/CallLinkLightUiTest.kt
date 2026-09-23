@@ -6,7 +6,6 @@
 package org.thoughtcrime.securesms.calls.links
 
 import android.app.Application
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -216,7 +215,7 @@ class CallLinkLightUiTest {
     approvalRequired = true
   )
 
-  private fun string(id: Int): String = RuntimeEnvironment.getApplication<Application>().getString(id)
+  private fun string(id: Int): String = RuntimeEnvironment.getApplication().getString(id)
 
   private class RecordingCreateCallbacks : CreateCallLinkCallbacks {
     val events = mutableListOf<String>()

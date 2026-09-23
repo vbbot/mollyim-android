@@ -34,12 +34,14 @@ fun CallScreenTooltipBox(
   text: String,
   displayTooltip: Boolean,
   onTooltipDismissed: () -> Unit = {},
+  modifier: Modifier = Modifier,
   content: @Composable () -> Unit
 ) {
   val state = rememberTooltipState()
 
   TooltipBox(
     positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+    modifier = modifier,
     state = state,
     tooltip = {
       PlainTooltip(

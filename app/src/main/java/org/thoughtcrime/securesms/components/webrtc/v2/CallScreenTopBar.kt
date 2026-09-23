@@ -5,18 +5,16 @@
 
 package org.thoughtcrime.securesms.components.webrtc.v2
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import org.thoughtcrime.securesms.recipients.Recipient
 
 /**
- * Post pre-join app bar that displays call information and status.
+ * Post-prejoin Light top chrome.
+ *
+ * This intentionally measures to the three-grid-unit bar rather than drawing the former 240dp
+ * gradient. The participant pager remains exposed directly below the actual chrome, so the overlay
+ * cannot become a hidden tap/swipe interceptor over video.
  */
 @Composable
 fun CallScreenTopBar(
@@ -26,21 +24,11 @@ fun CallScreenTopBar(
   onNavigationClick: () -> Unit = {},
   onCallInfoClick: () -> Unit = {}
 ) {
-  Box(
+  CallScreenTopAppBar(
+    callRecipient = callRecipient,
+    callStatus = callStatus,
+    onNavigationClick = onNavigationClick,
+    onCallInfoClick = onCallInfoClick,
     modifier = modifier
-      .height(240.dp)
-      .background(
-        brush = Brush.verticalGradient(
-          0.0f to Color(0f, 0f, 0f, 0.7f),
-          1.0f to Color.Transparent
-        )
-      )
-  ) {
-    CallScreenTopAppBar(
-      callRecipient = callRecipient,
-      callStatus = callStatus,
-      onNavigationClick = onNavigationClick,
-      onCallInfoClick = onCallInfoClick
-    )
-  }
+  )
 }

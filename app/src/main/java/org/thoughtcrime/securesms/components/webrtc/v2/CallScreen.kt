@@ -211,7 +211,7 @@ fun CallScreen(
       scaffoldState = callScreenController.scaffoldState,
       sheetDragHandle = null,
       sheetPeekHeight = effectivePeekHeight.dp,
-      sheetContainerColor = SignalTheme.colors.colorSurface1,
+      sheetContainerColor = Color.Black,
       containerColor = Color.Black,
       sheetMaxWidth = CallScreenMetrics.SheetMaxWidth,
       sheetContent = {

@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.toLiveData
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
 import io.reactivex.rxjava3.core.BackpressureStrategy
 import io.reactivex.rxjava3.core.Observable
 import kotlinx.coroutines.flow.map
@@ -68,6 +70,7 @@ import org.thoughtcrime.securesms.events.CallParticipant
 import org.thoughtcrime.securesms.events.GroupCallRaiseHandEvent
 import org.thoughtcrime.securesms.events.WebRtcViewModel
 import org.thoughtcrime.securesms.groups.ui.GroupMemberEntry
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.recipients.Recipient
 
 /**
@@ -109,19 +112,21 @@ object CallInfoView {
       }
     }
 
-    CallInfo(
-      participantsState = participantsState,
-      controlAndInfoState = controlAndInfoState,
-      onShareLinkClicked = callbacks::onShareLinkClicked,
-      onEditNameClicked = onEditNameClicked,
-      onBlock = callbacks::onBlock,
-      onMuteAudio = callbacks::onMuteAudio,
-      onRemoveFromCall = callbacks::onRemoveFromCall,
-      onContactDetails = callbacks::onContactDetails,
-      onViewSafetyNumber = callbacks::onViewSafetyNumber,
-      onGoToChat = callbacks::onGoToChat,
-      modifier = modifier
-    )
+    MollyLightTheme {
+      CallInfo(
+        participantsState = participantsState,
+        controlAndInfoState = controlAndInfoState,
+        onShareLinkClicked = callbacks::onShareLinkClicked,
+        onEditNameClicked = onEditNameClicked,
+        onBlock = callbacks::onBlock,
+        onMuteAudio = callbacks::onMuteAudio,
+        onRemoveFromCall = callbacks::onRemoveFromCall,
+        onContactDetails = callbacks::onContactDetails,
+        onViewSafetyNumber = callbacks::onViewSafetyNumber,
+        onGoToChat = callbacks::onGoToChat,
+        modifier = modifier
+      )
+    }
   }
 
   interface Callbacks {
@@ -189,9 +194,9 @@ private fun CallInfo(
         stringResource(id = R.string.Recipient_signal_call)
       }
 
-      Text(
+      LightText(
         text = text,
-        style = MaterialTheme.typography.titleLarge,
+        variant = LightTextVariant.Heading,
         modifier = Modifier.padding(bottom = 24.dp)
       )
     }
@@ -226,9 +231,9 @@ private fun CallInfo(
             .fillMaxWidth(),
           contentAlignment = Alignment.CenterStart
         ) {
-          Text(
+          LightText(
             text = pluralStringResource(id = R.plurals.CallParticipantsListDialog__raised_hands, count = participantsState.raisedHands.size, participantsState.raisedHands.size),
-            style = MaterialTheme.typography.titleSmall
+            variant = LightTextVariant.Subheading
           )
         }
       }
@@ -257,9 +262,9 @@ private fun CallInfo(
             .fillMaxWidth(),
           contentAlignment = Alignment.CenterStart
         ) {
-          Text(
+          LightText(
             text = getCallSheetLabel(participantsState),
-            style = MaterialTheme.typography.titleSmall
+            variant = LightTextVariant.Subheading
           )
         }
       }

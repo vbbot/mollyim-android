@@ -20,9 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,9 +41,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.signal.ringrtc.GroupCall
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.webrtc.v2.WebRtcCallViewModel
@@ -53,6 +53,7 @@ import org.thoughtcrime.securesms.dependencies.AppDependencies
 import org.thoughtcrime.securesms.events.CallParticipant
 import org.thoughtcrime.securesms.events.GroupCallRaiseHandEvent
 import org.thoughtcrime.securesms.events.GroupCallSpeechEvent
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.recipients.Recipient
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
@@ -139,14 +140,12 @@ private fun RaiseHand(
     exit = shrinkOut(shrinkTowards = Alignment.CenterEnd) + fadeOut(),
     modifier = modifier
   ) {
-    SignalTheme(
-      isDarkMode = true
-    ) {
+    MollyLightTheme {
       Surface(
         modifier = Modifier
           .padding(horizontal = 16.dp)
           .clip(shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 16.dp))
-          .background(SignalTheme.colors.colorSurface1)
+          .background(LightThemeTokens.colors.background)
           .animateContentSize()
       ) {
         val boxModifier = Modifier
@@ -174,9 +173,9 @@ private fun RaiseHand(
                 .padding(vertical = 8.dp)
             )
 
-            Text(
+            LightText(
               text = getSnackbarText(state),
-              color = MaterialTheme.colorScheme.onSurface,
+              variant = LightTextVariant.Detail,
               modifier = Modifier
                 .padding(start = 16.dp)
                 .weight(1f, fill = state.isExpanded)
@@ -191,14 +190,22 @@ private fun RaiseHand(
                   },
                   modifier = Modifier.wrapContentWidth(Alignment.End)
                 ) {
-                  Text(text = stringResource(id = R.string.CallOverflowPopupWindow__lower_hand), maxLines = 1)
+                  LightText(
+                    text = stringResource(id = R.string.CallOverflowPopupWindow__lower_hand),
+                    variant = LightTextVariant.Button,
+                    maxLines = 1
+                  )
                 }
               } else {
                 TextButton(
                   onClick = showCallInfoListener,
                   modifier = Modifier.wrapContentWidth(Alignment.End)
                 ) {
-                  Text(text = stringResource(id = R.string.CallOverflowPopupWindow__view), maxLines = 1)
+                  LightText(
+                    text = stringResource(id = R.string.CallOverflowPopupWindow__view),
+                    variant = LightTextVariant.Button,
+                    maxLines = 1
+                  )
                 }
               }
             }

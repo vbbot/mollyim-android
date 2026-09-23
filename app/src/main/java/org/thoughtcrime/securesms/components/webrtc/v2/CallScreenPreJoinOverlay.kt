@@ -15,15 +15,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
@@ -47,12 +44,12 @@ import androidx.compose.ui.unit.dp
 import org.signal.core.ui.compose.AllNightPreviews
 import org.signal.core.ui.compose.NightPreview
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.ui.compose.theme.SignalTheme
 import org.signal.core.ui.isWidthCompact
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.avatar.AvatarImage
 import org.thoughtcrime.securesms.events.CallParticipant
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.rememberRecipientField
 import org.thoughtcrime.securesms.service.webrtc.links.CallLinkRoomId
@@ -352,7 +349,6 @@ internal fun CallCameraDirectionToggle(
   }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CallScreenTopAppBar(
   callRecipient: Recipient? = null,
@@ -361,60 +357,16 @@ fun CallScreenTopAppBar(
   onCallInfoClick: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
-  val textShadow = remember {
-    Shadow(
-      color = Color(0f, 0f, 0f, 0.25f),
-      blurRadius = 4f
+  val context = LocalContext.current
+  MollyLightTheme {
+    LightCallTopBar(
+      title = callRecipient?.getDisplayName(context),
+      status = callStatus,
+      onNavigationClick = onNavigationClick,
+      onCallInfoClick = onCallInfoClick,
+      modifier = modifier.statusBarsPadding()
     )
   }
-
-  TopAppBar(
-    modifier = modifier,
-    colors = TopAppBarDefaults.topAppBarColors().copy(
-      containerColor = Color.Transparent
-    ),
-    title = {
-      Column {
-        if (callRecipient != null) {
-          Text(
-            text = callRecipient.getDisplayName(LocalContext.current),
-            style = MaterialTheme.typography.titleMedium.copy(shadow = textShadow)
-          )
-        }
-
-        if (callStatus != null) {
-          Text(
-            text = callStatus,
-            style = MaterialTheme.typography.bodyMedium.copy(shadow = textShadow),
-            modifier = Modifier.padding(top = 2.dp)
-          )
-        }
-      }
-    },
-    navigationIcon = {
-      IconButton(
-        onClick = onNavigationClick
-      ) {
-        Icon(
-          painter = SignalIcons.ArrowStart.painter,
-          contentDescription = stringResource(id = R.string.CallScreenTopBar__go_back),
-          tint = Color.White
-        )
-      }
-    },
-    actions = {
-      IconButton(
-        onClick = onCallInfoClick,
-        modifier = Modifier.padding(16.dp)
-      ) {
-        Icon(
-          painter = SignalIcons.Info.painter,
-          contentDescription = stringResource(id = R.string.CallScreenTopBar__call_information),
-          tint = Color.White
-        )
-      }
-    }
-  )
 }
 
 @NightPreview
