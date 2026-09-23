@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -29,15 +31,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightIcons
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.LightTopBar
+import com.thelightphone.sdk.ui.LightTopBarCenter
 import org.signal.core.ui.compose.AllDevicePreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.ui.detailPaneMaxContentWidth
 import org.signal.core.ui.isSplitPane
 import org.signal.core.ui.rememberIsSplitPane
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.compose.ScreenTitlePane
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.window.AppScaffold
 import org.thoughtcrime.securesms.window.rememberAppScaffoldNavigator
 
@@ -60,14 +66,41 @@ fun RecipientPickerScaffold(
 
   AppScaffold(
     topBarContent = {
-      Scaffolds.DefaultTopAppBar(
-        title = if (!isSplitPane) title else "",
-        titleContent = { _, titleText -> Text(text = titleText, style = MaterialTheme.typography.titleLarge) },
-        navigationIcon = SignalIcons.ArrowStart.imageVector,
-        navigationContentDescription = stringResource(R.string.DefaultTopAppBar__navigate_up_content_description),
-        onNavigationClick = onNavigateUpClick,
-        actions = { topAppBarActions() }
-      )
+      // LIGHT PHONE: the recipient pickers' top bar, in the Light design language rather than
+      // Material's. This is shared chrome -- new message, new call, and the three group pickers all
+      // come through here -- so converting it is what stops a Material toolbar sitting directly on
+      // top of the Light search rule and the Light rows below it.
+      MollyLightTheme {
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            // Material's `TopAppBar` consumes the status bar inset itself, and `Scaffold` does not
+            // do it for the slot. `LightTopBar` knows nothing about insets, so without this the
+            // title and the back chevron are drawn behind the status bar on an edge-to-edge screen
+            // -- which every one of these activities is.
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .background(LightThemeTokens.colors.background)
+        ) {
+          LightTopBar(
+            leftButton = LightBarButton.LightIcon(
+              icon = LightIcons.BACK,
+              onClick = onNavigateUpClick,
+              contentDescription = stringResource(R.string.DefaultTopAppBar__navigate_up_content_description)
+            ),
+            // In split pane the title moves to the `ScreenTitlePane` below, as it always did.
+            center = if (!isSplitPane) LightTopBarCenter.Text(text = title) else null
+          )
+
+          // The host's overflow, still Molly's own dropdown, parked in the slot a Light right-hand
+          // button would occupy. Only the two message/call pickers supply one -- the three group
+          // pickers pass an empty slot and put their action on a floating button instead -- and
+          // everything in it (refresh, new group, invite) is also a row in the list below, so the
+          // bar stays honest even where the dropdown is empty.
+          Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+            topAppBarActions()
+          }
+        }
+      }
     },
 
     secondaryContent = {

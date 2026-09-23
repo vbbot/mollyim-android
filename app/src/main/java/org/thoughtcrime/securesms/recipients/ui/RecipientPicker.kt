@@ -5,8 +5,6 @@
 
 package org.thoughtcrime.securesms.recipients.ui
 
-import android.view.View
-import android.view.ViewGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
@@ -24,7 +22,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -38,24 +35,21 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Fragments
-import org.signal.core.util.DimensionUnit
 import org.signal.core.util.orNull
 import org.thoughtcrime.securesms.ContactSelectionListFragment
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.menu.ActionItem
-import org.thoughtcrime.securesms.components.menu.SignalContextMenu
 import org.thoughtcrime.securesms.contacts.ContactSelectionDisplayMode
 import org.thoughtcrime.securesms.contacts.SelectedContact
 import org.thoughtcrime.securesms.contacts.paged.ChatType
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchKey
 import org.thoughtcrime.securesms.contacts.selection.ContactSelectionArguments
-import org.thoughtcrime.securesms.conversation.RecipientSearchBar
 import org.thoughtcrime.securesms.groups.SelectionLimits
 import org.thoughtcrime.securesms.recipients.PhoneNumber
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.recipients.ui.RecipientPicker.DisplayMode.Companion.flag
-import org.thoughtcrime.securesms.recipients.ui.RecipientPicker.KeyboardType
+import org.thoughtcrime.securesms.recipients.ui.light.LightRecipientSearchBar
 import java.util.Optional
 import java.util.function.Consumer
 
@@ -70,7 +64,6 @@ private typealias AndroidKeyboardType = androidx.compose.ui.text.input.KeyboardT
 fun RecipientPicker(
   searchBarHint: String = stringResource(R.string.RecipientSearchBar__search_name_or_number),
   searchQuery: String,
-  enabledKeyboardTypes: List<KeyboardType> = listOf(KeyboardType.Text, KeyboardType.Phone),
   displayModes: Set<RecipientPicker.DisplayMode> = setOf(RecipientPicker.DisplayMode.ALL),
   selectionLimits: SelectionLimits? = ContactSelectionArguments.Defaults.SELECTION_LIMITS,
   includeRecents: Boolean = ContactSelectionArguments.Defaults.INCLUDE_RECENTS,
@@ -101,16 +94,17 @@ fun RecipientPicker(
       shouldRequestFocus = isImeVisible
     }
 
-    RecipientSearchBar(
+    // LIGHT PHONE: the Light field rather than Material's `SearchBar`. The focus requester is handed
+    // over as a parameter instead of through the modifier because it has to land on the text field
+    // itself -- the Light bar is a column with a rule under it, and requesting focus on that column
+    // would do nothing. Un-padded, because the field carries the list's own 0.5-grid-unit margin so
+    // that what you type sits in the same column as the names it filters.
+    LightRecipientSearchBar(
       hint = searchBarHint,
       query = searchQuery,
       onQueryChange = { filter -> callbacks.listActions.onSearchQueryChanged(query = filter) },
-      onSearch = {},
-      enabledKeyboardTypes = enabledKeyboardTypes,
-      modifier = Modifier
-        .focusRequester(focusRequester)
-        .fillMaxWidth()
-        .padding(horizontal = 16.dp)
+      focusRequester = focusRequester,
+      modifier = Modifier.fillMaxWidth()
     )
 
     RecipientSearchResultsList(
@@ -293,10 +287,10 @@ private fun ContactSelectionListFragment.setUpCallbacks(
     }
   })
 
-  fragment.setOnItemLongClickListener { anchorView, contactSearchKey, setIsDisplayingContextMenu ->
+  fragment.setOnItemLongClickListener { _, contactSearchKey, setIsDisplayingContextMenu ->
     if (callbacks.contextMenu != null) {
-      coroutineScope.launch { showItemContextMenu(anchorView, contactSearchKey, setIsDisplayingContextMenu, callbacks.contextMenu) }
-      true
+      coroutineScope.launch { showItemContextMenu(fragment, contactSearchKey, setIsDisplayingContextMenu, callbacks.contextMenu) }
+      return@setOnItemLongClickListener true
     }
     return@setOnItemLongClickListener false
   }
@@ -305,12 +299,12 @@ private fun ContactSelectionListFragment.setUpCallbacks(
 }
 
 private suspend fun showItemContextMenu(
-  anchorView: View,
+  fragment: ContactSelectionListFragment,
   contactSearchKey: ContactSearchKey,
   setIsDisplayingContextMenu: Consumer<Boolean>,
   callbacks: RecipientPickerCallbacks.ContextMenu
 ) {
-  val context = anchorView.context
+  val context = fragment.requireContext()
   val recipient = withContext(Dispatchers.Default) {
     Recipient.resolved(contactSearchKey.requireRecipientSearchKey().recipientId)
   }
@@ -365,15 +359,12 @@ private suspend fun showItemContextMenu(
     }
   }
 
-  SignalContextMenu.Builder(anchorView, anchorView.getRootView() as ViewGroup)
-    .preferredVerticalPosition(SignalContextMenu.VerticalPosition.BELOW)
-    .preferredHorizontalPosition(SignalContextMenu.HorizontalPosition.START)
-    .offsetX(DimensionUnit.DP.toPixels(12f).toInt())
-    .offsetY(DimensionUnit.DP.toPixels(12f).toInt())
-    .onDismiss { setIsDisplayingContextMenu.accept(false) }
-    .show(actions)
-
-  setIsDisplayingContextMenu.accept(true)
+  // LIGHT PHONE: the shared bottom action panel rather than a `SignalContextMenu` popup anchored
+  // over the row. The actions above are untouched -- the panel takes Molly's own gated ActionItem
+  // list through `LightPanelActions`, the same seam the message menu and the call menu go through --
+  // and the fragment owns the panel because it owns the view it is drawn in. It also takes over
+  // telling `setIsDisplayingContextMenu` when the panel opens and closes.
+  fragment.showActionPanel(actions, setIsDisplayingContextMenu)
 }
 
 @DayNightPreviews

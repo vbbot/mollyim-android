@@ -17,7 +17,11 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/chipRecycler">
 
-        <org.thoughtcrime.securesms.contacts.paged.ContactSearchView
+        <!--
+            LIGHT PHONE: the picker's rows, drawn with the Light SDK's Compose components. Keeps the
+            id the fragment and the SwipeRefreshLayout already know it by.
+        -->
+        <org.thoughtcrime.securesms.contacts.paged.light.LightContactSearchView
             android:id="@+id/recycler_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
@@ -50,5 +54,22 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:listitem="@layout/contact_selection_list_chip"
         tools:visibility="visible" />
+
+    <!--
+        LIGHT PHONE: the bottom action panel a long press on a contact opens. Full-screen because the
+        panel covers the bottom of the screen while it is open and a tap in the band above it
+        dismisses. Last in the file and elevated so that it draws over the selection chip strip,
+        which can be up at the same time.
+    -->
+    <org.thoughtcrime.securesms.light.LightActionPanelView
+        android:id="@+id/light_action_panel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:elevation="13dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

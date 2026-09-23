@@ -30,6 +30,7 @@ import android.view.WindowManager;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
@@ -51,6 +52,7 @@ import org.signal.core.util.concurrent.LifecycleDisposable;
 import org.signal.core.util.concurrent.SimpleTask;
 import org.signal.core.util.logging.Log;
 import org.thoughtcrime.securesms.calls.YouAreAlreadyInACallSnackbar;
+import org.thoughtcrime.securesms.components.menu.ActionItem;
 import org.thoughtcrime.securesms.contacts.ContactChipViewModel;
 import org.thoughtcrime.securesms.contacts.ContactSelectionDisplayMode;
 import org.thoughtcrime.securesms.contacts.HeaderAction;
@@ -66,14 +68,16 @@ import org.thoughtcrime.securesms.contacts.paged.ContactSearchPagedDataSourceRep
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchRepository;
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchSortOrder;
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchState;
-import org.thoughtcrime.securesms.contacts.paged.ContactSearchView;
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchViewModel;
+import org.thoughtcrime.securesms.contacts.paged.light.LightContactSearchView;
 import org.thoughtcrime.securesms.contacts.selection.ContactSelectionArguments;
 import org.thoughtcrime.securesms.contacts.sync.ContactDiscovery;
 import org.thoughtcrime.securesms.database.RecipientTable;
 import org.thoughtcrime.securesms.groups.SelectionLimits;
 import org.thoughtcrime.securesms.groups.ui.GroupLimitDialog;
 import org.thoughtcrime.securesms.keyvalue.SignalStore;
+import org.thoughtcrime.securesms.light.LightActionPanelView;
+import org.thoughtcrime.securesms.light.LightPanelActions;
 import org.thoughtcrime.securesms.profiles.manage.UsernameRepository;
 import org.thoughtcrime.securesms.profiles.manage.UsernameRepository.UsernameAciFetchResult;
 import org.thoughtcrime.securesms.recipients.Recipient;
@@ -88,6 +92,7 @@ import org.thoughtcrime.securesms.util.adapter.mapping.MappingModelList;
 import org.thoughtcrime.securesms.util.views.SimpleProgressDialog;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -120,7 +125,8 @@ public final class ContactSelectionListFragment extends LoggingFragment {
   private OnContactSelectedListener       onContactSelectedListener;
   private SwipeRefreshLayout              swipeRefresh;
   private String                          cursorFilter;
-  private ContactSearchView               contactSearchView;
+  private LightContactSearchView          contactSearchView;
+  private LightActionPanelView            lightActionPanel;
   private RecyclerView                    chipRecycler;
   private OnSelectionLimitReachedListener onSelectionLimitReachedListener;
   private MappingAdapter                  contactChipAdapter;
@@ -140,6 +146,11 @@ public final class ContactSelectionListFragment extends LoggingFragment {
   private           boolean                 resetPositionOnCommit = false;
 
   private           ListClickListener                    listClickListener = new ListClickListener();
+  private final     CallButtonClickCallbacks             callButtonClickCallbacks = new CallButtonClickCallbacks();
+  private final     OnBackPressed                        onBackPressed = new OnBackPressed();
+
+  /** Told when the Light action panel closes, so the list can start scrolling again. */
+  @Nullable private Consumer<Boolean>                    onActionPanelDismissed;
   @Nullable private SwipeRefreshLayout.OnRefreshListener onRefreshListener;
 
   @Override
@@ -236,6 +247,7 @@ public final class ContactSelectionListFragment extends LoggingFragment {
 
     emptyText         = view.findViewById(android.R.id.empty);
     contactSearchView = view.findViewById(R.id.recycler_view);
+    lightActionPanel  = view.findViewById(R.id.light_action_panel);
     swipeRefresh      = view.findViewById(R.id.swipe_refresh);
     chipRecycler     = view.findViewById(R.id.chipRecycler);
     constraintLayout = view.findViewById(R.id.container);
@@ -286,9 +298,15 @@ public final class ContactSelectionListFragment extends LoggingFragment {
         )
     ).get(ContactSearchViewModel.class);
 
+    lightActionPanel.setOnDismiss(() -> {
+      dismissActionPanel();
+      return Unit.INSTANCE;
+    });
+
+    requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), onBackPressed);
+
     contactSearchView.bind(
         contactSearchViewModel,
-        getChildFragmentManager(),
         new ContactSearchAdapter.DisplayOptions(
             isMulti,
             ContactSearchAdapter.DisplaySecondaryInformation.ALWAYS,
@@ -302,54 +320,52 @@ public final class ContactSelectionListFragment extends LoggingFragment {
             onLoadFinished(size);
           }
         },
-        ContactSelectionListModels.composeEntries(
-            new ContactSelectionListModels.Callback() {
-              @Override
-              public void onNewGroupClicked() {
-                newConversationCallback.onNewGroup(false);
-              }
+        new ContactSelectionListModels.Callback() {
+          @Override
+          public void onNewGroupClicked() {
+            newConversationCallback.onNewGroup(false);
+          }
 
-              @Override
-              public void onInviteToSignalClicked() {
-                if (newConversationCallback != null) {
-                  newConversationCallback.onInvite();
-                }
-
-                if (newCallCallback != null) {
-                  newCallCallback.onInvite();
-                }
-              }
-
-              @Override
-              public void onFindContactsClicked() {
-                requestContactPermissions();
-              }
-
-              @Override
-              public void onDismissFindContactsBannerClicked() {
-                SignalStore.uiHints().markDismissedContactsPermissionBanner();
-                contactSearchViewModel.refresh();
-              }
-
-              @Override
-              public void onRefreshContactsClicked() {
-                if (onRefreshListener != null && !isRefreshing()) {
-                  setRefreshing(true);
-                  onRefreshListener.onRefresh();
-                }
-              }
-
-              @Override
-              public void onFindByUsernameClicked() {
-                findByCallback.onFindByUsername();
-              }
-
-              @Override
-              public void onFindByPhoneNumberClicked() {
-                findByCallback.onFindByPhoneNumber();
-              }
+          @Override
+          public void onInviteToSignalClicked() {
+            if (newConversationCallback != null) {
+              newConversationCallback.onInvite();
             }
-        ),
+
+            if (newCallCallback != null) {
+              newCallCallback.onInvite();
+            }
+          }
+
+          @Override
+          public void onFindContactsClicked() {
+            requestContactPermissions();
+          }
+
+          @Override
+          public void onDismissFindContactsBannerClicked() {
+            SignalStore.uiHints().markDismissedContactsPermissionBanner();
+            contactSearchViewModel.refresh();
+          }
+
+          @Override
+          public void onRefreshContactsClicked() {
+            if (onRefreshListener != null && !isRefreshing()) {
+              setRefreshing(true);
+              onRefreshListener.onRefresh();
+            }
+          }
+
+          @Override
+          public void onFindByUsernameClicked() {
+            findByCallback.onFindByUsername();
+          }
+
+          @Override
+          public void onFindByPhoneNumberClicked() {
+            findByCallback.onFindByPhoneNumber();
+          }
+        },
         new ContactSearchAdapter.ClickCallbacks() {
           @Override
           public void onStoryClicked(@NotNull View view, ContactSearchData.@NotNull Story story, boolean isSelected) {
@@ -376,9 +392,7 @@ public final class ContactSelectionListFragment extends LoggingFragment {
             listClickListener.onItemClick(unknownRecipient.getContactSearchKey());
           }
         },
-        (anchorView, data) -> listClickListener.onItemLongClick(anchorView, data.getContactSearchKey()),
-        null,
-        new CallButtonClickCallbacks()
+        (anchorView, data) -> onItemLongClicked(anchorView, data)
     );
 
     return view;
@@ -387,8 +401,10 @@ public final class ContactSelectionListFragment extends LoggingFragment {
   @Override
   public void onDestroyView() {
     super.onDestroyView();
-    constraintLayout  = null;
-    onRefreshListener = null;
+    constraintLayout       = null;
+    onRefreshListener      = null;
+    lightActionPanel       = null;
+    onActionPanelDismissed = null;
   }
 
   private @NonNull Bundle safeArguments() {
@@ -515,11 +531,121 @@ public final class ContactSelectionListFragment extends LoggingFragment {
     swipeRefresh.setVisibility(View.VISIBLE);
 
     emptyText.setText(R.string.contact_selection_group_activity__no_contacts);
+    // The Light list's own whole-screen state. Until the first list is committed it reads "Finding
+    // contacts", which is what the (never laid out) empty TextView above was for.
+    contactSearchView.setStatusText(getString(R.string.contact_selection_group_activity__no_contacts));
     boolean useFastScroller = count > 20;
     if (useFastScroller) {
       contactSearchViewModel.setFastScrollEnabled(true);
     } else {
       contactSearchViewModel.setFastScrollEnabled(false);
+    }
+  }
+
+  /**
+   * Routes a long press on a contact row.
+   *
+   * Two different menus can answer it, and which one does is decided by what the host screen
+   * supplied -- exactly as it was when the row drew its own buttons:
+   *
+   * - A host with a context menu ({@code NewConversationActivity}) gets its own actions: message,
+   *   call, remove, block. It builds them and calls {@link #showActionPanel} back.
+   * - A host with per-row call buttons ({@code NewCallActivity}) has no context menu, and its two
+   *   buttons have nowhere to live on a Light row. They become the panel's two rows instead, so
+   *   that starting a *video* call to an individual -- which tapping the row never did, because
+   *   {@code NewCallViewModel} starts voice calls for individuals -- is still possible.
+   *
+   * @return whether the long press was consumed, which is what suppresses the row's ripple.
+   */
+  private boolean onItemLongClicked(@NonNull View anchorView, @NonNull ContactSearchData.KnownRecipient data) {
+    if (listClickListener.onItemLongClick(anchorView, data.getContactSearchKey())) {
+      return true;
+    }
+
+    return showCallActionPanel(data.getRecipient());
+  }
+
+  /**
+   * The Light panel's stand-in for the audio and video call buttons the Material row carried.
+   *
+   * Gated exactly as {@code ContactSearchModels.BaseRecipientViewHolder.bindCallButtons} gated the
+   * buttons: only when the host asked for them, only for a recipient that can actually be called,
+   * and no audio row for a group call.
+   */
+  private boolean showCallActionPanel(@NonNull Recipient recipient) {
+    if (!fragmentArgs.getShowCallButtons() || !(recipient.isPushGroup() || recipient.isRegistered())) {
+      return false;
+    }
+
+    List<ActionItem> actions = new ArrayList<>(2);
+
+    if (!recipient.isPushGroup()) {
+      actions.add(new ActionItem(R.drawable.ic_phone_right_24,
+                                 getString(R.string.NewConversationActivity__audio_call),
+                                 com.google.android.material.R.attr.colorOnSurface,
+                                 () -> callButtonClickCallbacks.onAudioCallButtonClicked(recipient)));
+    }
+
+    actions.add(new ActionItem(R.drawable.ic_video_call_24,
+                               getString(R.string.NewConversationActivity__video_call),
+                               com.google.android.material.R.attr.colorOnSurface,
+                               () -> callButtonClickCallbacks.onVideoCallButtonClicked(recipient)));
+
+    showActionPanel(actions, isDisplaying -> contactSearchViewModel.setDisplayingContextMenu(isDisplaying));
+    return true;
+  }
+
+  /**
+   * Opens the Light action panel on a host's menu.
+   *
+   * This is what replaces the {@code SignalContextMenu} popup the picker used to anchor over the
+   * long-pressed row. The actions arrive as Molly's own gated {@code List<ActionItem>} and are
+   * mapped onto panel rows by {@link LightPanelActions}, which is the single seam every Light menu
+   * in the app goes through -- so an action added upstream turns up here without this file changing.
+   *
+   * @param setIsDisplayingContextMenu told true while the panel is up, as the popup used to be, so
+   *                                   that the list stops handling scrolls underneath it.
+   */
+  public void showActionPanel(@NonNull List<ActionItem> actions, @NonNull Consumer<Boolean> setIsDisplayingContextMenu) {
+    if (actions.isEmpty() || lightActionPanel == null) {
+      return;
+    }
+
+    onActionPanelDismissed = setIsDisplayingContextMenu;
+    lightActionPanel.show(LightPanelActions.from(actions, () -> {
+      dismissActionPanel();
+      return Unit.INSTANCE;
+    }), null);
+
+    setIsDisplayingContextMenu.accept(true);
+    onBackPressed.setEnabled(true);
+  }
+
+  private void dismissActionPanel() {
+    if (lightActionPanel != null) {
+      lightActionPanel.close();
+    }
+
+    if (onActionPanelDismissed != null) {
+      onActionPanelDismissed.accept(false);
+      onActionPanelDismissed = null;
+    }
+
+    onBackPressed.setEnabled(false);
+  }
+
+  /**
+   * Back closes the panel before it closes the screen. Disabled whenever the panel is shut, so that
+   * back behaves normally the rest of the time.
+   */
+  private class OnBackPressed extends OnBackPressedCallback {
+    OnBackPressed() {
+      super(false);
+    }
+
+    @Override
+    public void handleOnBackPressed() {
+      dismissActionPanel();
     }
   }
 
