@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2023 Signal Messenger, LLC
  * SPDX-License-Identifier: AGPL-3.0-only
  */
@@ -10,62 +10,76 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.ShareCompat
 import androidx.core.os.bundleOf
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightScrollBarPosition
+import com.thelightphone.sdk.ui.LightScrollView
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.LightTopBar
+import com.thelightphone.sdk.ui.LightTopBarCenter
 import io.reactivex.rxjava3.kotlin.subscribeBy
-import org.signal.core.ui.compose.BottomSheets
-import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.ComposeBottomSheetDialogFragment
-import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dividers
-import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.util.Util
 import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.core.util.logging.Log
-import org.signal.ringrtc.CallLinkState
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.calls.YouAreAlreadyInACallSnackbar.YouAreAlreadyInACallSnackbar
+import org.thoughtcrime.securesms.calls.links.CallLinkActionRow
+import org.thoughtcrime.securesms.calls.links.CallLinkApprovalRow
+import org.thoughtcrime.securesms.calls.links.CallLinkFeedbackBanner
 import org.thoughtcrime.securesms.calls.links.CallLinks
 import org.thoughtcrime.securesms.calls.links.EditCallLinkNameDialogFragment
 import org.thoughtcrime.securesms.calls.links.SignalCallRow
-import org.thoughtcrime.securesms.database.CallLinkTable
-import org.thoughtcrime.securesms.recipients.RecipientId
-import org.thoughtcrime.securesms.service.webrtc.links.CallLinkRoomId
+import org.thoughtcrime.securesms.calls.links.SignalCallRowState
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.service.webrtc.links.CreateCallLinkResult
-import org.thoughtcrime.securesms.service.webrtc.links.SignalCallLinkState
 import org.thoughtcrime.securesms.service.webrtc.links.UpdateCallLinkResult
 import org.thoughtcrime.securesms.sharing.v2.ShareActivity
 import org.thoughtcrime.securesms.util.CommunicationActions
-import java.time.Instant
-import org.signal.core.ui.R as CoreUiR
 
-/**
- * Bottom sheet for creating call links
- */
+internal const val CREATE_CALL_LINK_SCREEN_TAG = "call-link:create"
+internal const val CREATE_CALL_LINK_NAME_TAG = "call-link:create:name"
+internal const val CREATE_CALL_LINK_APPROVAL_TAG = "call-link:create:approval"
+internal const val CREATE_CALL_LINK_SHARE_SIGNAL_TAG = "call-link:create:share-signal"
+internal const val CREATE_CALL_LINK_COPY_TAG = "call-link:create:copy"
+internal const val CREATE_CALL_LINK_SHARE_TAG = "call-link:create:share"
+
+/** Pure presentation state; constructing it never creates credentials or touches RingRTC. */
+@Immutable
+data class CreateCallLinkLightState(
+  val call: SignalCallRowState,
+  val approvalRequired: Boolean,
+  val approvalChangeInFlight: Boolean = false,
+  val alreadyInCall: Boolean = false
+)
+
+interface CreateCallLinkCallbacks {
+  fun onJoinClicked() = Unit
+  fun onNameClicked() = Unit
+  fun onApprovalChanged(required: Boolean) = Unit
+  fun onShareViaSignalClicked() = Unit
+  fun onCopyClicked() = Unit
+  fun onShareClicked() = Unit
+  fun onDoneClicked() = Unit
+
+  object Empty : CreateCallLinkCallbacks
+}
+
+/** Bottom sheet for creating call links. */
 class CreateCallLinkBottomSheetDialogFragment : ComposeBottomSheetDialogFragment() {
 
   companion object {
@@ -74,6 +88,16 @@ class CreateCallLinkBottomSheetDialogFragment : ComposeBottomSheetDialogFragment
 
   private val viewModel: CreateCallLinkViewModel by viewModels()
   private val lifecycleDisposable = LifecycleDisposable()
+
+  private val callbacks = object : CreateCallLinkCallbacks {
+    override fun onJoinClicked() = this@CreateCallLinkBottomSheetDialogFragment.onJoinClicked()
+    override fun onNameClicked() = onAddACallNameClicked()
+    override fun onApprovalChanged(required: Boolean) = setApproveAllMembers(required)
+    override fun onShareViaSignalClicked() = this@CreateCallLinkBottomSheetDialogFragment.onShareViaSignalClicked()
+    override fun onCopyClicked() = onCopyLinkClicked()
+    override fun onShareClicked() = onShareLinkClicked()
+    override fun onDoneClicked() = this@CreateCallLinkBottomSheetDialogFragment.onDoneClicked()
+  }
 
   override val peekHeightPercentage: Float = 1f
 
@@ -88,40 +112,49 @@ class CreateCallLinkBottomSheetDialogFragment : ComposeBottomSheetDialogFragment
 
   @Composable
   override fun SheetContent() {
-    val callLink: CallLinkTable.CallLink by viewModel.callLink
-    val displayAlreadyInACallSnackbar: Boolean by viewModel.showAlreadyInACall.collectAsStateWithLifecycle(false)
-    val isLoadingAdminApprovalChange: Boolean by viewModel.isLoadingAdminApprovalChange.collectAsStateWithLifecycle(false)
+    val callLink by viewModel.callLink
+    val alreadyInCall by viewModel.showAlreadyInACall.collectAsStateWithLifecycle(false)
+    val approvalChangeInFlight by viewModel.isLoadingAdminApprovalChange.collectAsStateWithLifecycle(false)
 
-    CreateCallLinkBottomSheetContent(
-      callLink = callLink,
-      onJoinClicked = this@CreateCallLinkBottomSheetDialogFragment::onJoinClicked,
-      onAddACallNameClicked = this@CreateCallLinkBottomSheetDialogFragment::onAddACallNameClicked,
-      onApproveAllMembersChanged = this@CreateCallLinkBottomSheetDialogFragment::setApproveAllMembers,
-      onShareViaSignalClicked = this@CreateCallLinkBottomSheetDialogFragment::onShareViaSignalClicked,
-      onCopyLinkClicked = this@CreateCallLinkBottomSheetDialogFragment::onCopyLinkClicked,
-      onShareLinkClicked = this@CreateCallLinkBottomSheetDialogFragment::onShareLinkClicked,
-      onDoneClicked = this@CreateCallLinkBottomSheetDialogFragment::onDoneClicked,
-      displayAlreadyInACallSnackbar = displayAlreadyInACallSnackbar,
-      isLoadingAdminApprovalChange = isLoadingAdminApprovalChange
+    val state = CreateCallLinkLightState(
+      call = SignalCallRowState(
+        name = callLink.state.name,
+        url = CallLinks.url(viewModel.linkKeyBytes)
+      ),
+      approvalRequired = callLink.state.restrictions == org.signal.ringrtc.CallLinkState.Restrictions.ADMIN_APPROVAL,
+      approvalChangeInFlight = approvalChangeInFlight,
+      alreadyInCall = alreadyInCall
     )
+
+    MollyLightTheme {
+      CreateCallLinkBottomSheetContent(state = state, callbacks = callbacks)
+    }
   }
 
   private fun setCallName(callName: String) {
-    lifecycleDisposable += viewModel.setCallName(callName).subscribeBy(onSuccess = {
-      if (it !is UpdateCallLinkResult.Update) {
-        Log.w(TAG, "Failed to update call link name")
-        toastFailure()
-      }
-    }, onError = this::handleError)
+    // CreateCallLinkViewModel commits the draft before applying this mutation.
+    lifecycleDisposable += viewModel.setCallName(callName).subscribeBy(
+      onSuccess = {
+        if (it !is UpdateCallLinkResult.Update) {
+          Log.w(TAG, "Failed to update call link name")
+          toastFailure()
+        }
+      },
+      onError = this::handleError
+    )
   }
 
   private fun setApproveAllMembers(approveAllMembers: Boolean) {
-    lifecycleDisposable += viewModel.setApproveAllMembers(approveAllMembers).subscribeBy(onSuccess = {
-      if (it !is UpdateCallLinkResult.Update) {
-        Log.w(TAG, "Failed to update call link restrictions")
-        toastFailure()
-      }
-    }, onError = this::handleError)
+    // CreateCallLinkViewModel commits the draft before applying this mutation and owns loading state.
+    lifecycleDisposable += viewModel.setApproveAllMembers(approveAllMembers).subscribeBy(
+      onSuccess = {
+        if (it !is UpdateCallLinkResult.Update) {
+          Log.w(TAG, "Failed to update call link restrictions")
+          toastFailure()
+        }
+      },
+      onError = this::handleError
+    )
   }
 
   private fun onAddACallNameClicked() {
@@ -132,82 +165,94 @@ class CreateCallLinkBottomSheetDialogFragment : ComposeBottomSheetDialogFragment
   }
 
   private fun onJoinClicked() {
-    lifecycleDisposable += viewModel.commitCallLink().subscribeBy(onSuccess = {
-      when (it) {
-        is EnsureCallLinkCreatedResult.Success -> {
-          CommunicationActions.startVideoCall(requireActivity(), it.recipient) {
-            viewModel.setShowAlreadyInACall(true)
+    lifecycleDisposable += viewModel.commitCallLink().subscribeBy(
+      onSuccess = {
+        when (it) {
+          is EnsureCallLinkCreatedResult.Success -> {
+            CommunicationActions.startVideoCall(requireActivity(), it.recipient) {
+              viewModel.setShowAlreadyInACall(true)
+            }
+            dismissAllowingStateLoss()
           }
-          dismissAllowingStateLoss()
-        }
 
-        is EnsureCallLinkCreatedResult.Failure -> handleCreateCallLinkFailure(it.failure)
-      }
-    }, onError = this::handleError)
+          is EnsureCallLinkCreatedResult.Failure -> handleCreateCallLinkFailure(it.failure)
+        }
+      },
+      onError = this::handleError
+    )
   }
 
   private fun onDoneClicked() {
-    lifecycleDisposable += viewModel.commitCallLink().subscribeBy(onSuccess = {
-      when (it) {
-        is EnsureCallLinkCreatedResult.Success -> dismissAllowingStateLoss()
-        is EnsureCallLinkCreatedResult.Failure -> handleCreateCallLinkFailure(it.failure)
-      }
-    }, onError = this::handleError)
+    lifecycleDisposable += viewModel.commitCallLink().subscribeBy(
+      onSuccess = {
+        when (it) {
+          is EnsureCallLinkCreatedResult.Success -> dismissAllowingStateLoss()
+          is EnsureCallLinkCreatedResult.Failure -> handleCreateCallLinkFailure(it.failure)
+        }
+      },
+      onError = this::handleError
+    )
   }
 
   private fun onShareViaSignalClicked() {
-    lifecycleDisposable += viewModel.commitCallLink().subscribeBy(onSuccess = {
-      when (it) {
-        is EnsureCallLinkCreatedResult.Success -> {
-          startActivity(
-            ShareActivity.sendSimpleText(
-              requireContext(),
-              getString(R.string.CreateCallLink__use_this_link_to_join_a_signal_call, CallLinks.url(viewModel.linkKeyBytes))
+    lifecycleDisposable += viewModel.commitCallLink().subscribeBy(
+      onSuccess = {
+        when (it) {
+          is EnsureCallLinkCreatedResult.Success -> {
+            startActivity(
+              ShareActivity.sendSimpleText(
+                requireContext(),
+                getString(R.string.CreateCallLink__use_this_link_to_join_a_signal_call, CallLinks.url(viewModel.linkKeyBytes))
+              )
             )
-          )
-        }
+          }
 
-        is EnsureCallLinkCreatedResult.Failure -> handleCreateCallLinkFailure(it.failure)
-      }
-    }, onError = this::handleError)
+          is EnsureCallLinkCreatedResult.Failure -> handleCreateCallLinkFailure(it.failure)
+        }
+      },
+      onError = this::handleError
+    )
   }
 
   private fun onCopyLinkClicked() {
-    lifecycleDisposable += viewModel.commitCallLink().subscribeBy(onSuccess = {
-      when (it) {
-        is EnsureCallLinkCreatedResult.Success -> {
-          Util.copyToClipboard(requireContext(), CallLinks.url(viewModel.linkKeyBytes))
-          Toast.makeText(requireContext(), R.string.CreateCallLinkBottomSheetDialogFragment__copied_to_clipboard, Toast.LENGTH_LONG).show()
-        }
+    lifecycleDisposable += viewModel.commitCallLink().subscribeBy(
+      onSuccess = {
+        when (it) {
+          is EnsureCallLinkCreatedResult.Success -> {
+            Util.copyToClipboard(requireContext(), CallLinks.url(viewModel.linkKeyBytes))
+            Toast.makeText(requireContext(), R.string.CreateCallLinkBottomSheetDialogFragment__copied_to_clipboard, Toast.LENGTH_LONG).show()
+          }
 
-        is EnsureCallLinkCreatedResult.Failure -> handleCreateCallLinkFailure(it.failure)
-      }
-    }, onError = this::handleError)
+          is EnsureCallLinkCreatedResult.Failure -> handleCreateCallLinkFailure(it.failure)
+        }
+      },
+      onError = this::handleError
+    )
   }
 
   private fun onShareLinkClicked() {
-    lifecycleDisposable += viewModel.commitCallLink().subscribeBy {
-      when (it) {
-        is EnsureCallLinkCreatedResult.Success -> {
-          val mimeType = Intent.normalizeMimeType("text/plain")
-          val shareIntent = ShareCompat.IntentBuilder(requireContext())
-            .setText(CallLinks.url(viewModel.linkKeyBytes))
-            .setType(mimeType)
-            .createChooserIntent()
+    lifecycleDisposable += viewModel.commitCallLink().subscribeBy(
+      onSuccess = {
+        when (it) {
+          is EnsureCallLinkCreatedResult.Success -> {
+            val mimeType = Intent.normalizeMimeType("text/plain")
+            val shareIntent = ShareCompat.IntentBuilder(requireContext())
+              .setText(CallLinks.url(viewModel.linkKeyBytes))
+              .setType(mimeType)
+              .createChooserIntent()
 
-          try {
-            startActivity(shareIntent)
-          } catch (e: ActivityNotFoundException) {
-            Toast.makeText(requireContext(), R.string.CreateCallLinkBottomSheetDialogFragment__failed_to_open_share_sheet, Toast.LENGTH_LONG).show()
+            try {
+              startActivity(shareIntent)
+            } catch (_: ActivityNotFoundException) {
+              Toast.makeText(requireContext(), R.string.CreateCallLinkBottomSheetDialogFragment__failed_to_open_share_sheet, Toast.LENGTH_LONG).show()
+            }
           }
-        }
 
-        is EnsureCallLinkCreatedResult.Failure -> {
-          Log.w(TAG, "Failed to create link: $it")
-          toastFailure()
+          is EnsureCallLinkCreatedResult.Failure -> handleCreateCallLinkFailure(it.failure)
         }
-      }
-    }
+      },
+      onError = this::handleError
+    )
   }
 
   private fun handleCreateCallLinkFailure(failure: CreateCallLinkResult.Failure) {
@@ -225,124 +270,101 @@ class CreateCallLinkBottomSheetDialogFragment : ComposeBottomSheetDialogFragment
   }
 }
 
+/** Pure Light create surface. Side effects are represented only by [callbacks]. */
 @Composable
-private fun CreateCallLinkBottomSheetContent(
-  callLink: CallLinkTable.CallLink,
-  displayAlreadyInACallSnackbar: Boolean,
-  isLoadingAdminApprovalChange: Boolean,
-  onJoinClicked: () -> Unit = {},
-  onAddACallNameClicked: () -> Unit = {},
-  onApproveAllMembersChanged: (Boolean) -> Unit = {},
-  onShareViaSignalClicked: () -> Unit = {},
-  onCopyLinkClicked: () -> Unit = {},
-  onShareLinkClicked: () -> Unit = {},
-  onDoneClicked: () -> Unit = {}
+fun CreateCallLinkBottomSheetContent(
+  state: CreateCallLinkLightState,
+  callbacks: CreateCallLinkCallbacks,
+  modifier: Modifier = Modifier
 ) {
-  Box {
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .wrapContentSize(Alignment.Center)
-        .verticalScroll(rememberScrollState())
-    ) {
-      BottomSheets.Handle(modifier = Modifier.align(Alignment.CenterHorizontally))
-
-      Spacer(modifier = Modifier.height(20.dp))
-
-      Text(
-        text = stringResource(id = R.string.CreateCallLinkBottomSheetDialogFragment__create_call_link),
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth()
-      )
-
-      Spacer(modifier = Modifier.height(24.dp))
-
-      SignalCallRow(
-        callLink = callLink,
-        callLinkPeekInfo = null,
-        onJoinClicked = onJoinClicked
-      )
-
-      Spacer(modifier = Modifier.height(12.dp))
-
-      Rows.TextRow(
-        text = stringResource(
-          id = if (callLink.state.name.isEmpty()) {
-            R.string.CreateCallLinkBottomSheetDialogFragment__add_call_name
-          } else {
-            R.string.CreateCallLinkBottomSheetDialogFragment__edit_call_name
-          }
+  Box(
+    modifier = modifier
+      .fillMaxSize()
+      .background(LightThemeTokens.colors.background)
+      .testTag(CREATE_CALL_LINK_SCREEN_TAG)
+  ) {
+    Column(modifier = Modifier.fillMaxSize()) {
+      LightTopBar(
+        center = LightTopBarCenter.Text(
+          stringResource(R.string.CreateCallLinkBottomSheetDialogFragment__create_call_link)
         ),
-        onClick = onAddACallNameClicked
+        rightButton = LightBarButton.Text(
+          text = stringResource(R.string.CreateCallLinkBottomSheetDialogFragment__done),
+          onClick = callbacks::onDoneClicked
+        )
       )
 
-      Rows.ToggleRow(
-        checked = callLink.state.restrictions == CallLinkState.Restrictions.ADMIN_APPROVAL,
-        text = stringResource(id = R.string.CreateCallLinkBottomSheetDialogFragment__require_admin_approval),
-        onCheckChanged = onApproveAllMembersChanged,
-        isLoading = isLoadingAdminApprovalChange
-      )
-
-      Dividers.Default()
-
-      Rows.TextRow(
-        text = stringResource(id = R.string.CreateCallLinkBottomSheetDialogFragment__share_link_via_signal),
-        icon = SignalIcons.Forward.imageVector,
-        onClick = onShareViaSignalClicked
-      )
-
-      Rows.TextRow(
-        text = stringResource(id = R.string.CreateCallLinkBottomSheetDialogFragment__copy_link),
-        icon = SignalIcons.Copy.imageVector,
-        onClick = onCopyLinkClicked
-      )
-
-      Rows.TextRow(
-        text = stringResource(id = R.string.CreateCallLinkBottomSheetDialogFragment__share_link),
-        icon = SignalIcons.Share.imageVector,
-        onClick = onShareLinkClicked
-      )
-
-      Buttons.MediumTonal(
-        onClick = onDoneClicked,
-        modifier = Modifier
-          .padding(end = dimensionResource(id = CoreUiR.dimen.gutter))
-          .align(Alignment.End)
+      LightScrollView(
+        modifier = Modifier.weight(1f),
+        scrollBarPosition = LightScrollBarPosition.Inside
       ) {
-        Text(text = stringResource(id = R.string.CreateCallLinkBottomSheetDialogFragment__done))
-      }
+        SignalCallRow(
+          state = state.call,
+          onJoinClicked = callbacks::onJoinClicked
+        )
 
-      Spacer(modifier = Modifier.size(16.dp))
+        CallLinkActionRow(
+          label = stringResource(
+            if (state.call.name.isEmpty()) {
+              R.string.CreateCallLinkBottomSheetDialogFragment__add_call_name
+            } else {
+              R.string.CreateCallLinkBottomSheetDialogFragment__edit_call_name
+            }
+          ),
+          onClick = callbacks::onNameClicked,
+          modifier = Modifier.testTag(CREATE_CALL_LINK_NAME_TAG)
+        )
+
+        CallLinkApprovalRow(
+          label = stringResource(R.string.CreateCallLinkBottomSheetDialogFragment__require_admin_approval),
+          checked = state.approvalRequired,
+          loading = state.approvalChangeInFlight,
+          onCheckedChange = callbacks::onApprovalChanged,
+          modifier = Modifier.testTag(CREATE_CALL_LINK_APPROVAL_TAG)
+        )
+
+        CallLinkActionRow(
+          label = stringResource(R.string.CreateCallLinkBottomSheetDialogFragment__share_link_via_signal),
+          onClick = callbacks::onShareViaSignalClicked,
+          modifier = Modifier.testTag(CREATE_CALL_LINK_SHARE_SIGNAL_TAG)
+        )
+        CallLinkActionRow(
+          label = stringResource(R.string.CreateCallLinkBottomSheetDialogFragment__copy_link),
+          onClick = callbacks::onCopyClicked,
+          modifier = Modifier.testTag(CREATE_CALL_LINK_COPY_TAG)
+        )
+        CallLinkActionRow(
+          label = stringResource(R.string.CreateCallLinkBottomSheetDialogFragment__share_link),
+          onClick = callbacks::onShareClicked,
+          modifier = Modifier.testTag(CREATE_CALL_LINK_SHARE_TAG)
+        )
+      }
     }
 
-    YouAreAlreadyInACallSnackbar(
-      displaySnackbar = displayAlreadyInACallSnackbar,
+    CallLinkFeedbackBanner(
+      message = if (state.alreadyInCall) {
+        stringResource(R.string.CommunicationActions__you_are_already_in_a_call)
+      } else {
+        null
+      },
       modifier = Modifier.align(Alignment.BottomCenter)
     )
   }
 }
 
-@DayNightPreviews
+@Preview(widthDp = 360, heightDp = 413, showBackground = true)
 @Composable
 private fun CreateCallLinkBottomSheetContentPreview() {
-  Previews.BottomSheetContentPreview {
+  MollyLightTheme {
     CreateCallLinkBottomSheetContent(
-      callLink = CallLinkTable.CallLink(
-        recipientId = RecipientId.UNKNOWN,
-        roomId = CallLinkRoomId.fromBytes(byteArrayOf(1, 2, 3, 4)),
-        credentials = null,
-        state = SignalCallLinkState(
+      state = CreateCallLinkLightState(
+        call = SignalCallRowState(
           name = "Test Call",
-          restrictions = CallLinkState.Restrictions.ADMIN_APPROVAL,
-          revoked = false,
-          expiration = Instant.MAX
+          url = "https://signal.link/call/#key=example"
         ),
-        deletionTimestamp = 0L
+        approvalRequired = true
       ),
-      displayAlreadyInACallSnackbar = true,
-      isLoadingAdminApprovalChange = false
+      callbacks = CreateCallLinkCallbacks.Empty
     )
   }
 }

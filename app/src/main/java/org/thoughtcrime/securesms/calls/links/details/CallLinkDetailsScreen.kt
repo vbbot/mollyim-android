@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2023 Signal Messenger, LLC
  * SPDX-License-Identifier: AGPL-3.0-only
  */
@@ -9,53 +9,85 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.ShareCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightBottomBar
+import com.thelightphone.sdk.ui.LightIcons
+import com.thelightphone.sdk.ui.LightScrollBarPosition
+import com.thelightphone.sdk.ui.LightScrollView
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.LightTopBar
+import com.thelightphone.sdk.ui.LightTopBarCenter
+import com.thelightphone.sdk.ui.gridUnitsAsDp
 import kotlinx.coroutines.launch
-import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dialogs
-import org.signal.core.ui.compose.Dividers
-import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.Snackbars
 import org.signal.core.ui.rememberIsSplitPane
 import org.signal.core.util.Util
-import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.ringrtc.CallLinkState.Restrictions
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.calls.YouAreAlreadyInACallSnackbar.YouAreAlreadyInACallSnackbar
+import org.thoughtcrime.securesms.calls.links.CallLinkActionRow
+import org.thoughtcrime.securesms.calls.links.CallLinkApprovalRow
+import org.thoughtcrime.securesms.calls.links.CallLinkFeedbackBanner
 import org.thoughtcrime.securesms.calls.links.CallLinks
 import org.thoughtcrime.securesms.calls.links.SignalCallRow
-import org.thoughtcrime.securesms.database.CallLinkTable
+import org.thoughtcrime.securesms.calls.links.SignalCallRowState
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.main.MainNavigationCallDetailRouter
 import org.thoughtcrime.securesms.main.MainNavigationDetailLocation
 import org.thoughtcrime.securesms.main.MainNavigationViewModel
-import org.thoughtcrime.securesms.recipients.RecipientId
-import org.thoughtcrime.securesms.service.webrtc.links.CallLinkCredentials
 import org.thoughtcrime.securesms.service.webrtc.links.CallLinkRoomId
-import org.thoughtcrime.securesms.service.webrtc.links.SignalCallLinkState
 import org.thoughtcrime.securesms.sharing.v2.ShareActivity
 import org.thoughtcrime.securesms.util.CommunicationActions
-import java.time.Instant
+
+internal const val CALL_LINK_DETAILS_SCREEN_TAG = "call-link:details"
+internal const val CALL_LINK_DETAILS_NAME_TAG = "call-link:details:name"
+internal const val CALL_LINK_DETAILS_APPROVAL_TAG = "call-link:details:approval"
+internal const val CALL_LINK_DETAILS_SHARE_SIGNAL_TAG = "call-link:details:share-signal"
+internal const val CALL_LINK_DETAILS_COPY_TAG = "call-link:details:copy"
+internal const val CALL_LINK_DETAILS_SHARE_TAG = "call-link:details:share"
+internal const val CALL_LINK_DETAILS_DELETE_TAG = "call-link:details:delete"
+internal const val CALL_LINK_DETAILS_CONFIRMATION_TAG = "call-link:details:delete-confirmation"
+
+@Immutable
+data class CallLinkDetailsLightState(
+  val call: SignalCallRowState? = null,
+  val canModify: Boolean = false,
+  val approvalRequired: Boolean = false,
+  val approvalChangeInFlight: Boolean = false,
+  val showRevocationConfirmation: Boolean = false,
+  val alreadyInCall: Boolean = false,
+  val failure: CallLinkDetailsFailure? = null
+)
+
+enum class CallLinkDetailsFailure {
+  COULD_NOT_DELETE,
+  COULD_NOT_SAVE,
+  COULD_NOT_UPDATE_APPROVAL
+}
 
 @Composable
 fun CallLinkDetailsScreen(
@@ -68,7 +100,7 @@ fun CallLinkDetailsScreen(
   }
 ) {
   val activity = LocalActivity.current as FragmentActivity
-  val callback = remember {
+  val callback = remember(activity, viewModel, router) {
     DefaultCallLinkDetailsCallback(
       activity = activity,
       viewModel = viewModel,
@@ -77,14 +109,37 @@ fun CallLinkDetailsScreen(
   }
 
   val state by viewModel.state.collectAsStateWithLifecycle(activity)
-  val showAlreadyInACall by viewModel.showAlreadyInACall.collectAsStateWithLifecycle(initialValue = false, lifecycleOwner = activity)
+  val alreadyInCall by viewModel.showAlreadyInACall.collectAsStateWithLifecycle(initialValue = false, lifecycleOwner = activity)
+  val callLink = state.callLink
 
-  CallLinkDetailsScreen(
-    state = state,
-    showAlreadyInACall = showAlreadyInACall,
-    callback = callback,
-    showNavigationIcon = !LocalResources.current.rememberIsSplitPane()
+  val lightState = CallLinkDetailsLightState(
+    call = callLink?.let {
+      SignalCallRowState(
+        name = it.state.name,
+        url = it.credentials?.let { credentials -> CallLinks.url(credentials.linkKeyBytes) }.orEmpty(),
+        isJoined = state.peekInfo?.isJoined == true
+      )
+    },
+    canModify = callLink?.canModify == true,
+    approvalRequired = callLink?.state?.restrictions == Restrictions.ADMIN_APPROVAL,
+    approvalChangeInFlight = state.isLoadingAdminApprovalChange,
+    showRevocationConfirmation = state.displayRevocationDialog,
+    alreadyInCall = alreadyInCall,
+    failure = when (state.failureSnackbar) {
+      CallLinkDetailsState.FailureSnackbar.COULD_NOT_DELETE_CALL_LINK -> CallLinkDetailsFailure.COULD_NOT_DELETE
+      CallLinkDetailsState.FailureSnackbar.COULD_NOT_SAVE_CHANGES -> CallLinkDetailsFailure.COULD_NOT_SAVE
+      CallLinkDetailsState.FailureSnackbar.COULD_NOT_UPDATE_ADMIN_APPROVAL -> CallLinkDetailsFailure.COULD_NOT_UPDATE_APPROVAL
+      null -> null
+    }
   )
+
+  MollyLightTheme {
+    CallLinkDetailsScreen(
+      state = lightState,
+      callback = callback,
+      showNavigationIcon = !LocalResources.current.rememberIsSplitPane()
+    )
+  }
 }
 
 class DefaultCallLinkDetailsCallback(
@@ -92,12 +147,6 @@ class DefaultCallLinkDetailsCallback(
   private val viewModel: CallLinkDetailsViewModel,
   private val router: MainNavigationCallDetailRouter
 ) : CallLinkDetailsCallback {
-
-  private val lifecycleDisposable = LifecycleDisposable()
-
-  init {
-    lifecycleDisposable.bindTo(activity)
-  }
 
   override fun onNavigationClicked() {
     activity.onBackPressedDispatcher.onBackPressed()
@@ -130,7 +179,7 @@ class DefaultCallLinkDetailsCallback(
 
     try {
       activity.startActivity(shareIntent)
-    } catch (e: ActivityNotFoundException) {
+    } catch (_: ActivityNotFoundException) {
       Toast.makeText(activity, R.string.CreateCallLinkBottomSheetDialogFragment__failed_to_open_share_sheet, Toast.LENGTH_LONG).show()
     }
   }
@@ -156,6 +205,7 @@ class DefaultCallLinkDetailsCallback(
   override fun onDeleteConfirmed() {
     viewModel.setDisplayRevocationDialog(false)
     activity.lifecycleScope.launch {
+      // The detail route exits only after an acknowledged delete. In-use and generic failures stay.
       if (viewModel.delete()) {
         router.exitDetailLocation()
       }
@@ -188,174 +238,184 @@ interface CallLinkDetailsCallback {
   object Empty : CallLinkDetailsCallback
 }
 
+/** Pure Light details surface. Every interaction leaves through [callback]. */
 @Composable
 fun CallLinkDetailsScreen(
-  state: CallLinkDetailsState,
-  showAlreadyInACall: Boolean,
+  state: CallLinkDetailsLightState,
   callback: CallLinkDetailsCallback,
-  showNavigationIcon: Boolean = true
+  showNavigationIcon: Boolean = true,
+  modifier: Modifier = Modifier
 ) {
-  Scaffolds.Settings(
-    title = stringResource(id = R.string.CallLinkDetailsFragment__call_details),
-    snackbarHost = {
-      YouAreAlreadyInACallSnackbar(showAlreadyInACall)
-      FailureSnackbar(failureSnackbar = state.failureSnackbar)
-    },
-    onNavigationClick = callback::onNavigationClicked,
-    navigationIcon = if (showNavigationIcon) {
-      SignalIcons.ArrowStart.imageVector
-    } else {
-      null
-    }
-  ) { paddingValues ->
-    if (state.callLink == null) {
-      return@Settings
-    }
-
-    LazyColumn(
-      modifier = Modifier
-        .padding(paddingValues)
-        .fillMaxHeight()
-    ) {
-      item {
-        SignalCallRow(
-          callLink = state.callLink,
-          callLinkPeekInfo = state.peekInfo,
-          onJoinClicked = callback::onJoinClicked,
-          modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
-        )
-      }
-
-      if (state.callLink.canModify) {
-        item {
-          Rows.TextRow(
-            text = stringResource(
-              id = if (state.callLink.state.name.isEmpty()) {
-                R.string.CreateCallLinkBottomSheetDialogFragment__add_call_name
-              } else {
-                R.string.CreateCallLinkBottomSheetDialogFragment__edit_call_name
-              }
-            ),
-            onClick = callback::onEditNameClicked
+  Box(
+    modifier = modifier
+      .fillMaxSize()
+      .background(LightThemeTokens.colors.background)
+      .testTag(CALL_LINK_DETAILS_SCREEN_TAG)
+  ) {
+    Column(modifier = Modifier.fillMaxSize()) {
+      LightTopBar(
+        leftButton = if (showNavigationIcon) {
+          LightBarButton.LightIcon(
+            icon = LightIcons.BACK,
+            onClick = callback::onNavigationClicked,
+            contentDescription = stringResource(R.string.ConversationFragment__content_description_back_button)
           )
-        }
+        } else {
+          null
+        },
+        center = LightTopBarCenter.Text(
+          stringResource(R.string.CallLinkDetailsFragment__call_details)
+        )
+      )
 
-        item {
-          Rows.ToggleRow(
-            checked = state.callLink.state.restrictions == Restrictions.ADMIN_APPROVAL,
-            text = stringResource(id = R.string.CallLinkDetailsFragment__require_admin_approval),
-            onCheckChanged = callback::onApproveAllMembersChanged,
-            isLoading = state.isLoadingAdminApprovalChange
+      LightScrollView(
+        modifier = Modifier.weight(1f),
+        scrollBarPosition = LightScrollBarPosition.Inside
+      ) {
+        state.call?.let { call ->
+          SignalCallRow(
+            state = call,
+            onJoinClicked = callback::onJoinClicked
           )
-        }
 
-        item {
-          Dividers.Default()
-        }
-      }
+          if (state.canModify) {
+            CallLinkActionRow(
+              label = stringResource(
+                if (call.name.isEmpty()) {
+                  R.string.CreateCallLinkBottomSheetDialogFragment__add_call_name
+                } else {
+                  R.string.CreateCallLinkBottomSheetDialogFragment__edit_call_name
+                }
+              ),
+              onClick = callback::onEditNameClicked,
+              modifier = Modifier.testTag(CALL_LINK_DETAILS_NAME_TAG)
+            )
 
-      item {
-        Rows.TextRow(
-          text = stringResource(id = R.string.CreateCallLinkBottomSheetDialogFragment__share_link_via_signal),
-          icon = SignalIcons.Forward.imageVector,
-          onClick = callback::onShareLinkViaSignalClicked
-        )
-      }
+            CallLinkApprovalRow(
+              label = stringResource(R.string.CallLinkDetailsFragment__require_admin_approval),
+              checked = state.approvalRequired,
+              loading = state.approvalChangeInFlight,
+              onCheckedChange = callback::onApproveAllMembersChanged,
+              modifier = Modifier.testTag(CALL_LINK_DETAILS_APPROVAL_TAG)
+            )
+          }
 
-      item {
-        Rows.TextRow(
-          text = stringResource(id = R.string.CreateCallLinkBottomSheetDialogFragment__copy_link),
-          icon = SignalIcons.Copy.imageVector,
-          onClick = callback::onCopyClicked
-        )
-      }
-
-      item {
-        Rows.TextRow(
-          text = stringResource(id = R.string.CallLinkDetailsFragment__share_link),
-          icon = SignalIcons.Link.imageVector,
-          onClick = callback::onShareClicked
-        )
-      }
-
-      if (state.callLink.canModify) {
-        item {
-          Rows.TextRow(
-            text = stringResource(id = R.string.CallLinkDetailsFragment__delete_call_link),
-            icon = SignalIcons.Trash.imageVector,
-            foregroundTint = MaterialTheme.colorScheme.error,
-            onClick = callback::onDeleteClicked
+          CallLinkActionRow(
+            label = stringResource(R.string.CreateCallLinkBottomSheetDialogFragment__share_link_via_signal),
+            onClick = callback::onShareLinkViaSignalClicked,
+            modifier = Modifier.testTag(CALL_LINK_DETAILS_SHARE_SIGNAL_TAG)
           )
+          CallLinkActionRow(
+            label = stringResource(R.string.CreateCallLinkBottomSheetDialogFragment__copy_link),
+            onClick = callback::onCopyClicked,
+            modifier = Modifier.testTag(CALL_LINK_DETAILS_COPY_TAG)
+          )
+          CallLinkActionRow(
+            label = stringResource(R.string.CallLinkDetailsFragment__share_link),
+            onClick = callback::onShareClicked,
+            modifier = Modifier.testTag(CALL_LINK_DETAILS_SHARE_TAG)
+          )
+
+          if (state.canModify) {
+            CallLinkActionRow(
+              label = stringResource(R.string.CallLinkDetailsFragment__delete_call_link),
+              onClick = callback::onDeleteClicked,
+              modifier = Modifier.testTag(CALL_LINK_DETAILS_DELETE_TAG)
+            )
+          }
         }
       }
     }
 
-    if (state.displayRevocationDialog) {
-      Dialogs.SimpleAlertDialog(
-        title = stringResource(R.string.CallLinkDetailsFragment__delete_link),
-        body = stringResource(id = R.string.CallLinkDetailsFragment__this_link_will_no_longer_work),
-        confirm = stringResource(id = R.string.delete),
-        dismiss = stringResource(id = android.R.string.cancel),
+    Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+      CallLinkFeedbackBanner(
+        message = if (state.alreadyInCall) {
+          stringResource(R.string.CommunicationActions__you_are_already_in_a_call)
+        } else {
+          null
+        }
+      )
+      CallLinkFeedbackBanner(
+        message = when (state.failure) {
+          CallLinkDetailsFailure.COULD_NOT_DELETE -> stringResource(R.string.CallLinkDetailsFragment__couldnt_delete_call_link)
+          CallLinkDetailsFailure.COULD_NOT_SAVE -> stringResource(R.string.CallLinkDetailsFragment__couldnt_save_changes)
+          CallLinkDetailsFailure.COULD_NOT_UPDATE_APPROVAL -> stringResource(R.string.CallLinkDetailsFragment__couldnt_update_admin_approval)
+          null -> null
+        }
+      )
+    }
+
+    if (state.showRevocationConfirmation) {
+      CallLinkRevocationConfirmation(
         onConfirm = callback::onDeleteConfirmed,
-        onDismiss = callback::onDeleteCanceled
+        onCancel = callback::onDeleteCanceled
       )
     }
   }
 }
 
 @Composable
-private fun FailureSnackbar(
-  failureSnackbar: CallLinkDetailsState.FailureSnackbar?,
-  modifier: Modifier = Modifier
+private fun CallLinkRevocationConfirmation(
+  onConfirm: () -> Unit,
+  onCancel: () -> Unit
 ) {
-  val message: String? = when (failureSnackbar) {
-    CallLinkDetailsState.FailureSnackbar.COULD_NOT_DELETE_CALL_LINK -> stringResource(R.string.CallLinkDetailsFragment__couldnt_delete_call_link)
-    CallLinkDetailsState.FailureSnackbar.COULD_NOT_SAVE_CHANGES -> stringResource(R.string.CallLinkDetailsFragment__couldnt_save_changes)
-    CallLinkDetailsState.FailureSnackbar.COULD_NOT_UPDATE_ADMIN_APPROVAL -> stringResource(R.string.CallLinkDetailsFragment__couldnt_update_admin_approval)
-    null -> null
-  }
+  BackHandler(onBack = onCancel)
 
-  val hostState = remember { SnackbarHostState() }
-  Snackbars.Host(hostState, modifier = modifier)
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(LightThemeTokens.colors.background)
+      .testTag(CALL_LINK_DETAILS_CONFIRMATION_TAG)
+  ) {
+    LightTopBar(
+      center = LightTopBarCenter.Text(
+        stringResource(R.string.CallLinkDetailsFragment__delete_link)
+      )
+    )
 
-  LaunchedEffect(message) {
-    if (message != null) {
-      hostState.showSnackbar(message)
+    Box(
+      modifier = Modifier
+        .weight(1f)
+        .fillMaxWidth()
+        .padding(horizontal = 2f.gridUnitsAsDp()),
+      contentAlignment = Alignment.Center
+    ) {
+      LightText(
+        text = stringResource(R.string.CallLinkDetailsFragment__this_link_will_no_longer_work),
+        variant = LightTextVariant.Copy,
+        align = TextAlign.Center
+      )
     }
+
+    LightBottomBar(
+      items = listOf(
+        LightBarButton.Text(
+          text = stringResource(android.R.string.cancel),
+          onClick = onCancel
+        ),
+        LightBarButton.Text(
+          text = stringResource(R.string.delete),
+          onClick = onConfirm
+        )
+      )
+    )
   }
 }
 
-@DayNightPreviews
+@Preview(widthDp = 360, heightDp = 413, showBackground = true)
 @Composable
 private fun CallLinkDetailsScreenPreview() {
-  val callLink = remember {
-    val credentials = CallLinkCredentials(
-      byteArrayOf(1, 2, 3, 4),
-      byteArrayOf(3, 4, 5, 6)
-    )
-    CallLinkTable.CallLink(
-      recipientId = RecipientId.UNKNOWN,
-      roomId = CallLinkRoomId.fromBytes(byteArrayOf(1, 2, 3, 4)),
-      credentials = credentials,
-      state = SignalCallLinkState(
-        name = "Call Name",
-        revoked = false,
-        restrictions = Restrictions.NONE,
-        expiration = Instant.MAX
-      ),
-      deletionTimestamp = 0L
-    )
-  }
-
-  Previews.Preview {
+  MollyLightTheme {
     CallLinkDetailsScreen(
-      CallLinkDetailsState(
-        false,
-        false,
-        callLink
+      state = CallLinkDetailsLightState(
+        call = SignalCallRowState(
+          name = "Call Name",
+          url = "https://signal.link/call/#key=example"
+        ),
+        canModify = true,
+        approvalRequired = false
       ),
-      true,
-      CallLinkDetailsCallback.Empty
+      callback = CallLinkDetailsCallback.Empty
     )
   }
 }
