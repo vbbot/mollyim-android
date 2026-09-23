@@ -114,12 +114,7 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
     spinnerView = binding.countryCode.editText as TextInputEditText
     countryPickerView = binding.countryPicker
 
-    // Set back icon before styling so toolbar() picks it up and tints it.
-    binding.toolbar.setNavigationIcon(org.signal.core.ui.R.drawable.symbol_arrow_start_24)
-    binding.toolbar.setNavigationOnClickListener { popBackStack() }
-
     LightRegistrationViewStyle.surface(binding.root)
-    LightRegistrationViewStyle.toolbar(binding.toolbar)
     LightRegistrationViewStyle.title(binding.verifyHeader)
     LightRegistrationViewStyle.body(binding.verifySubheader)
     LightRegistrationViewStyle.body(binding.country)
@@ -129,8 +124,6 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
     LightRegistrationViewStyle.action(binding.registerButton)
     LightRegistrationViewStyle.icon(binding.dropdown)
     binding.countryPicker.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-    // Re-apply after setSupportActionBar so tints survive the toolbar reset.
-    binding.toolbar.post { LightRegistrationViewStyle.toolbar(binding.toolbar) }
 
     countryPickerView.setOnClickListener {
       moveToCountryPickerScreen()
@@ -155,6 +148,12 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
     binding.toolbar.title = ""
     val activity = requireActivity() as AppCompatActivity
     activity.setSupportActionBar(binding.toolbar)
+
+    // Set navigation icon and click listener AFTER setSupportActionBar — the
+    // ActionBar wrapper clears any listener registered before it takes over.
+    binding.toolbar.setNavigationIcon(com.thelightphone.sdk.ui.R.drawable.ic_back_white)
+    LightRegistrationViewStyle.toolbar(binding.toolbar)
+    binding.toolbar.setNavigationOnClickListener { popBackStack() }
 
     requireActivity().addMenuProvider(UseProxyMenuProvider(), viewLifecycleOwner)
 

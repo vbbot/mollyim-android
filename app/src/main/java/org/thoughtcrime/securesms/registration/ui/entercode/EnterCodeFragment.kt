@@ -70,7 +70,7 @@ class EnterCodeFragment : LoggingFragment(R.layout.fragment_registration_enter_c
     super.onViewCreated(view, savedInstanceState)
     setDebugLogSubmitMultiTapView(binding.verifyHeader)
 
-    binding.toolbar.setNavigationIcon(org.signal.core.ui.R.drawable.symbol_arrow_start_24)
+    binding.toolbar.setNavigationIcon(com.thelightphone.sdk.ui.R.drawable.ic_back_white)
     binding.toolbar.setNavigationOnClickListener { popBackStack() }
 
     LightRegistrationViewStyle.surface(binding.root)
