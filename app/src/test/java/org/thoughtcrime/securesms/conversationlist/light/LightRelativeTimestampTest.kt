@@ -8,6 +8,7 @@ package org.thoughtcrime.securesms.conversationlist.light
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -81,4 +82,24 @@ class LightRelativeTimestampTest {
     assertEquals("", format(0L))
     assertEquals("", format(-1L))
   }
+
+  @Test
+  fun accessible_timestamp_description_participates_in_row_equality() {
+    val first = conversationItem(timestampDescription = "5 minutes ago")
+    val second = conversationItem(timestampDescription = "6 minutes ago")
+
+    assertNotEquals(first, second)
+  }
+
+  private fun conversationItem(timestampDescription: String) = LightConversationListItem(
+    key = 1L,
+    sourceIndex = 0,
+    kind = LightConversationListItem.Kind.THREAD,
+    name = "Ada",
+    timestamp = "09:05",
+    timestampDescription = timestampDescription,
+    unread = false,
+    selected = false,
+    conversation = null
+  )
 }
