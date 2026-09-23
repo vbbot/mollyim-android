@@ -179,12 +179,6 @@ fun LightLazyScrollView(
     val scrollPx = scrollMetrics.first
     val maxScrollPx = scrollMetrics.second
     val showScrollBar = maxScrollPx > 0f
-    val contentPaddingEnd = when {
-        !showScrollBar -> 0f
-        scrollBarPosition == LightScrollBarPosition.Outside -> SCROLLBAR_WIDTH_UNITS
-        else -> 0f
-    }
-
     fun scrollToOffsetPx(targetPx: Float) {
         if (itemHeightPx <= 0f) return
         val itemCount = listState.layoutInfo.totalItemsCount
@@ -222,17 +216,29 @@ fun LightLazyScrollView(
                 state = listState,
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight()
-                    .padding(end = contentPaddingEnd.gridUnitsAsDp()),
+                    .fillMaxHeight(),
                 content = content,
             )
-            if (showScrollBar) {
-                LightScrollBar(
-                    contentScrollOffsetPx = scrollPx,
-                    maxContentScrollOffsetPx = maxScrollPx,
-                    onScrollTo = ::scrollToOffsetPx,
-                    modifier = Modifier.fillMaxHeight(),
-                )
+            // MOLLY-VENDOR: upstream padded the content by the gutter width *and* placed the
+            // track beside it, reserving SCROLLBAR_WIDTH_UNITS twice, and only while the bar was
+            // visible. Content therefore sat 4 grid units from the edge once a list was long
+            // enough to scroll and 0 when it was not. Both contradict the invariants asserted in
+            // LightScrollViewLayoutTest (outsideContentWidthIsTotalMinusGutter,
+            // contentWidthIsInvariantToScrollBarVisibility) and the behaviour of the non-lazy
+            // LightScrollView above. The slot is now reserved once and never double-counted.
+            Box(
+                modifier = Modifier
+                    .width(SCROLLBAR_WIDTH_UNITS.gridUnitsAsDp())
+                    .fillMaxHeight(),
+            ) {
+                if (showScrollBar) {
+                    LightScrollBar(
+                        contentScrollOffsetPx = scrollPx,
+                        maxContentScrollOffsetPx = maxScrollPx,
+                        onScrollTo = ::scrollToOffsetPx,
+                        modifier = Modifier.fillMaxHeight(),
+                    )
+                }
             }
         }
     }

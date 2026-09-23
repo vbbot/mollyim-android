@@ -56,13 +56,13 @@ import org.thoughtcrime.securesms.light.MollyLightTheme
  * | edge | grid units |
  * |---|---|
  * | name, from the left | 1.75 (0.5 row padding + 1.0 marker slot + 0.25 gap) |
- * | timestamp, from the right | 4.5 (0.5 row padding + 2.0 scrollbar gutter + 2.0 scrollbar track) |
+ * | timestamp, from the right | 2.5 (0.5 row padding + 2.0 scrollbar track) |
  *
- * The 4.5 is worth spelling out because it surprises people: `LightLazyScrollView` lays the
- * scrollbar out as a 2-unit `Row` sibling *and* pads the `LazyColumn` by another 2 units, so the
- * gutter is reserved twice whenever the list is long enough to scroll. That is upstream SDK
- * behaviour, shared verbatim with the reference client -- hence the assertion that the two agree
- * rather than an assertion against a hand-picked constant.
+ * Upstream `LightLazyScrollView` laid the scrollbar out as a 2-unit `Row` sibling *and* padded the
+ * `LazyColumn` by another 2 units, reserving the gutter twice and only while the list was long
+ * enough to scroll -- 4.5 units when scrollable, 0.5 when not. See the `MOLLY-VENDOR:` note in
+ * LightScrollView.kt. The slot is now reserved once and unconditionally, so these numbers hold
+ * whether or not the scrollbar is showing.
  */
 @RunWith(RobolectricTestRunner::class)
 // LP3 geometry: 1080x1240 at 3x, i.e. 360dp x 413dp -- the same numbers the SDK's own previews use.
@@ -116,7 +116,7 @@ class LightConversationListGeometryTest {
    * the time column belongs -- the one with fewer rows wins.
    */
   @Test
-  fun `a list too short to scroll drops the scrollbar gutter and its timestamps slide right`() {
+  fun `a list too short to scroll keeps the same gutter as one that does`() {
     var gridUnit = 0.dp
 
     composeTestRule.setContent {
@@ -130,7 +130,7 @@ class LightConversationListGeometryTest {
     }
 
     assertThat(nameLeftInsetUnits(gridUnit)).isCloseTo(NAME_LEFT_UNITS, TOLERANCE_UNITS)
-    assertThat(timestampRightInsetUnits(gridUnit, STATIC_ROW_COUNT)).isCloseTo(ROW_PADDING_UNITS, TOLERANCE_UNITS)
+    assertThat(timestampRightInsetUnits(gridUnit, STATIC_ROW_COUNT)).isCloseTo(TIMESTAMP_RIGHT_UNITS, TOLERANCE_UNITS)
   }
 
   /** Left edge of the first row's name, in grid units from the screen's left edge. */
@@ -243,8 +243,7 @@ class LightConversationListGeometryTest {
     /** Fewer rows than an LP3 screen holds, so the list does not scroll. */
     private const val STATIC_ROW_COUNT = 3
     private const val NAME_LEFT_UNITS = 1.75f
-    private const val TIMESTAMP_RIGHT_UNITS = 4.5f
-    private const val ROW_PADDING_UNITS = 0.5f
+    private const val TIMESTAMP_RIGHT_UNITS = 2.5f
 
     /** A twentieth of a grid unit, i.e. two thirds of a dp on LP3. */
     private const val TOLERANCE_UNITS = 0.05f
