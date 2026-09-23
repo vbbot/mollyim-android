@@ -24,11 +24,14 @@ import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.util.MediaUtil
 
 /**
- * A reply's quoted message, rendered as one line above the reply body.
+ * The two ends of a reply, each rendered as one dimmed line beside the body it belongs to.
  *
  * ```
- *   ↶ Steinar: see you at three
+ *   ↶ Steinar: see you at three      <- [present], on the reply
  *   Perfect, I'll be there
+ *
+ *   See you at three                 <- [presentRepliesIndicator], on the message replied to
+ *   ↶ Replies
  * ```
  *
  * Signal draws a quote as a filled, cornered card with a coloured rule down its start edge
@@ -53,6 +56,11 @@ object LightQuoteLine {
    * Deliberately *not* `↩ U+21A9`: that code point has an emoji presentation, so it is liable to
    * come back as a colour sprite from the platform's emoji font, and a coloured glyph has no place
    * in a monochrome thread.
+   *
+   * One glyph serves both directions: `↶` means "reply" wherever it appears in the thread, and
+   * whether a line is the message being answered or the note that answers exist is said by where the
+   * line sits and what it reads, not by a second symbol. The reference client's `↷` is *not*
+   * borrowed for the other direction -- there it means forwarded.
    */
   const val GLYPH = "↶"
 
@@ -83,6 +91,39 @@ object LightQuoteLine {
     view.setTextColor(LightItemStyle.colors(view.context).contentSecondary.toArgb())
     view.maxLines = 1
     view.ellipsize = TextUtils.TruncateAt.END
+  }
+
+  /**
+   * Shows [view] as the "this message has replies" affordance, or hides it when it has none.
+   *
+   * Signal marks a message that has been quoted with a filled circular chip hung off the edge of its
+   * bubble (`ConversationItem.setHasBeenQuoted`), which is bubble vocabulary twice over: a fill, and
+   * a position defined by an edge that a Light row does not have. This says the same thing the way
+   * the thread says everything else -- the reply glyph, one step down the type scale, dimmed, with no
+   * container -- and carries the same tap target, which opens the replies sheet.
+   *
+   * Styled by [style], exactly as the quote line is: the two are a matched pair and must not drift.
+   *
+   * @return whether the affordance was shown.
+   */
+  fun presentRepliesIndicator(view: TextView, hasBeenQuoted: Boolean): Boolean {
+    if (!hasBeenQuoted) {
+      view.visibility = View.GONE
+      return false
+    }
+
+    view.text = buildRepliesLine(view.context)
+    view.visibility = View.VISIBLE
+    return true
+  }
+
+  /** Split out from [presentRepliesIndicator] so that it can be asserted on directly. */
+  @VisibleForTesting
+  fun buildRepliesLine(context: Context): CharSequence {
+    return SpannableStringBuilder()
+      .inSpans(RelativeSizeSpan(GLYPH_SCALE)) { append(GLYPH) }
+      .append(" ")
+      .append(context.getString(R.string.MessageQuotesBottomSheet_replies))
   }
 
   /**

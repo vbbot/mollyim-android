@@ -6,10 +6,15 @@
 package org.thoughtcrime.securesms.conversation.light
 
 import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.LifecycleOwner
 import com.bumptech.glide.RequestManager
 import com.thelightphone.sdk.ui.LightTextVariant
@@ -17,6 +22,8 @@ import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.AudioView
 import org.thoughtcrime.securesms.components.ConversationItemFooter
 import org.thoughtcrime.securesms.components.ConversationItemThumbnail
+import org.thoughtcrime.securesms.components.LinkPreviewView
+import org.thoughtcrime.securesms.components.OutlinedThumbnailView
 import org.thoughtcrime.securesms.components.QuoteView
 import org.thoughtcrime.securesms.components.emoji.EmojiTextView
 import org.thoughtcrime.securesms.conversation.ConversationItem
@@ -28,17 +35,13 @@ import org.thoughtcrime.securesms.conversation.mutiselect.MultiselectPart
 import org.thoughtcrime.securesms.conversation.v2.items.SenderNameWithLabelView
 import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle
 import org.thoughtcrime.securesms.conversation.v2.items.light.LightMessageColumn
+import org.thoughtcrime.securesms.conversation.v2.items.light.LightMessageShape
 import org.thoughtcrime.securesms.conversation.v2.items.light.LightQuoteLine
 import org.thoughtcrime.securesms.database.model.MessageRecord
 import org.thoughtcrime.securesms.database.model.MmsMessageRecord
 import org.thoughtcrime.securesms.recipients.Recipient
+import org.thoughtcrime.securesms.util.ProjectionList
 import org.thoughtcrime.securesms.util.ViewUtil
-import org.thoughtcrime.securesms.util.hasDocument
-import org.thoughtcrime.securesms.util.hasGiftBadge
-import org.thoughtcrime.securesms.util.hasLinkPreview
-import org.thoughtcrime.securesms.util.hasPoll
-import org.thoughtcrime.securesms.util.hasSharedContact
-import org.thoughtcrime.securesms.util.isViewOnceMessage
 import java.util.Locale
 import java.util.Optional
 
@@ -58,20 +61,32 @@ import java.util.Optional
  * scale and palette on the caption and the timestamp, and swaps Signal's boxed quote card for the
  * one-line [LightQuoteLine].
  *
+ * ### Two ways a bubble gets drawn
+ *
+ * Refusing the bubble *drawable* is only half of it, and missing the other half is what put a
+ * chat-colour bubble back around every outgoing media row on the device. A bubble on an **outgoing**
+ * message is not painted by the message at all: `RecyclerViewColorizer` fills the whole list with the
+ * chat colour, punches a hole through it for each item's `getColorizerProjections`, and the projection
+ * `ConversationItem` hands back is the body bubble's rectangle and corner radii -- computed from the
+ * view's geometry, with no reference to its background. [LightConversationItemBodyBubble] can make the
+ * drawable transparent; only [getColorizerProjections] can stop the list painting the shape.
+ *
  * ### Why not every subtype loses its bubble
  *
  * Signal picks its foreground colours to sit on a filled chat-colour bubble, so an outgoing caption
  * is near-white; drawn bubble-less on the LP3's white background that is invisible text. Everything
- * [isBubbleless] returns true for is re-coloured here to match. The subtypes it returns *false* for
- * are composite cards -- a document row, a contact card, a link preview, a view-once placeholder --
- * whose own internal structure is expressed through the bubble and which have no Light grammar to
- * fall back on; stripping the container off those leaves a row of disconnected fragments, so they
- * keep it. See the milestone report for the subtype-by-subtype account.
+ * [LightMessageShape.isBubbleless] returns true for is re-coloured here to match; the subtypes it
+ * returns *false* for keep their container, and the reasoning is stated there.
  */
 class LightConversationItem @JvmOverloads constructor(
   context: Context,
   attrs: AttributeSet? = null
 ) : ConversationItem(context, attrs) {
+
+  companion object {
+    /** See [applyLightLinkPreviewStyle]. */
+    private const val LINK_PREVIEW_DESCRIPTION_LINES = 2
+  }
 
   private lateinit var lightBodyBubble: LightConversationItemBodyBubble
   private lateinit var lightBodyText: EmojiTextView
@@ -81,6 +96,11 @@ class LightConversationItem @JvmOverloads constructor(
   private var lightQuoteView: QuoteView? = null
   private var lightContactPhotoHolder: View? = null
   private var lightSenderName: SenderNameWithLabelView? = null
+  private var lightQuotedIndicator: ImageView? = null
+
+  /** The chip's own fill and glyph tint, kept so that a row which keeps its bubble gets them back. */
+  private var quotedIndicatorFill: Drawable? = null
+  private var quotedIndicatorTint: ColorStateList? = null
 
   /** The bubble's own horizontal inset, as the source layout states it. Restored on rows that keep one. */
   private var bubbleInset: Int = 0
@@ -90,6 +110,16 @@ class LightConversationItem @JvmOverloads constructor(
 
   /** Recomputed per bind; drives every post-bind fix-up below. */
   private var bubbleless: Boolean = false
+
+  /** Handed to the colorizer in place of the bubble's outline on a row that has none. Never filled. */
+  private val noProjections = ProjectionList()
+
+  /**
+   * How far a link preview's text stands off its thumbnail, as the shared `link_preview.xml` declares
+   * it. Captured from the view the first time one is styled rather than restated as a number here, so
+   * that the two cannot drift; `-1` until then.
+   */
+  private var linkPreviewTextInset: Int = -1
 
   /**
    * `ConversationItem` keeps its own listener private, and the quote line needs it to open the
@@ -113,6 +143,9 @@ class LightConversationItem @JvmOverloads constructor(
     lightQuoteView = findViewById(R.id.quote_view)
     lightContactPhotoHolder = findViewById(R.id.contact_photo_container)
     lightSenderName = findViewById(R.id.group_sender_name_with_label)
+    lightQuotedIndicator = findViewById(R.id.quoted_indicator)
+    quotedIndicatorFill = lightQuotedIndicator?.background
+    quotedIndicatorTint = lightQuotedIndicator?.imageTintList
     bubbleInset = resources.getDimensionPixelOffset(R.dimen.message_bubble_horizontal_padding)
     quoteCardInset = lightQuoteView?.let { ViewUtil.getLeftMargin(it) } ?: 0
 
@@ -152,7 +185,7 @@ class LightConversationItem @JvmOverloads constructor(
 
     // Before super.bind: the bubble drawable is installed on the way through setMessageShape, and
     // this is what decides whether that install is honoured.
-    bubbleless = isBubbleless(record)
+    bubbleless = LightMessageShape.isBubbleless(record)
     lightBodyBubble.bubbleless = bubbleless
 
     super.bind(
@@ -178,6 +211,8 @@ class LightConversationItem @JvmOverloads constructor(
     applyLightGutters(record)
     applyLightInsets()
     applyLightThumbnailStyle()
+    applyLightLinkPreviewStyle()
+    applyLightQuotedIndicatorStyle()
     presentQuoteLine(record)
 
     // No avatars in a Light thread -- the text rows carry none either, and the sender's name already
@@ -195,26 +230,28 @@ class LightConversationItem @JvmOverloads constructor(
   }
 
   /**
-   * Which media subtypes read correctly with no container behind them.
+   * Stops the list painting a bubble this row does not have.
    *
-   * True for the ones the Light design has a grammar for: thumbnail media (photo, video, GIF,
-   * album) with or without a caption, voice notes, and the already-container-less stickers and
-   * borderless images. False for the composite cards -- see the class note.
+   * The single most consequential line in this file, and the reason outgoing media rows still came
+   * out in chat-colour bubbles after every drawable in the tree had been made transparent. An
+   * outgoing bubble is not drawn by the message: `RecyclerViewColorizer` floods the `RecyclerView`
+   * with the chat colour and each item cuts a hole in it shaped like the projection returned here
+   * (`ConversationItem.getSnapshotProjections` -- the body bubble's rectangle and `bodyBubbleCorners`,
+   * derived from geometry, never from the background). With no projection there is no hole, and with
+   * no hole there is nothing to show through. This is what the V2 text-only holder does too, and for
+   * the same reason.
+   *
+   * `getSnapshotProjections` is deliberately left alone: it is read by the long-press snapshot and by
+   * the jump-to-message pulse, and emptying it would take the pulse with it -- which is exactly the
+   * feedback you get after tapping a quote line.
    */
-  private fun isBubbleless(record: MessageRecord): Boolean {
-    return when {
-      record.isViewOnceMessage() -> false
-      record.hasSharedContact() -> false
-      record.hasLinkPreview() -> false
-      record.hasDocument() -> false
-      record.hasPoll() -> false
-      record.hasGiftBadge() -> false
-      record.isPaymentNotification || record.isPaymentTombstone -> false
-      // A remote-deleted message is drawn as an outlined, empty bubble; that outline is the only
-      // thing marking it, so it keeps its container.
-      record.isRemoteDelete -> false
-      else -> true
+  override fun getColorizerProjections(coordinateRoot: ViewGroup): ProjectionList {
+    if (bubbleless) {
+      noProjections.clear()
+      return noProjections
     }
+
+    return super.getColorizerProjections(coordinateRoot)
   }
 
   /**
@@ -320,6 +357,142 @@ class LightConversationItem @JvmOverloads constructor(
     // The stub declares eight dips of elevation, which lifted media off the bubble it sat on. With
     // no bubble it is a drop shadow on bare paper, and Light's surfaces do not cast one.
     thumbnail.elevation = 0f
+  }
+
+  /**
+   * A link preview as image, title and domain, with nothing drawn around them.
+   *
+   * Signal builds one as a card: `linkpreview_container` carries a `signal_neutralSurface` fill, the
+   * `LinkPreviewView` itself is then filled again with the bubble colour, its `dispatchDraw` rounds
+   * the top corners through a `CornerMask`, and the 72dp thumbnail gets rounded corners and a hairline
+   * outline of its own. Four containers deep, all of it Material.
+   *
+   * Underneath that is a shape the Light thread already speaks: a picture with a line of text under
+   * it. So it is taken apart -- fills to transparent, every corner radius to zero, the thumbnail's
+   * outline off -- and re-set in type instead, which is the only hierarchy the Light design uses:
+   * the title at `Paragraph` in the content colour, exactly as a message body, and the domain at
+   * `Superfine` in `contentSecondary`, exactly as a timestamp.
+   *
+   * The description keeps its place between the two, at `Detail` and dimmed, but capped at two lines.
+   * Upstream allows it fifteen, which is survivable inside a card and is not survivable without one:
+   * a scraped paragraph with no box around it simply becomes the message. Two lines is what Signal's
+   * own compose-box preview allows, and what its condensed mode reduces to.
+   *
+   * Squared rather than uniformly rounded, and the thumbnail flattened, for the same reason as
+   * [applyLightThumbnailStyle]: rounding is bubble vocabulary, and the reference client has none.
+   *
+   * Re-applied per bind and only on a bubble-less row, because a recycled view carries whatever the
+   * previous message left on it and `setLinkPreview` puts the outline and the radii back every time.
+   */
+  private fun applyLightLinkPreviewStyle() {
+    val linkPreview: LinkPreviewView = findViewById(R.id.link_preview) ?: return
+
+    if (!bubbleless || linkPreview.visibility != View.VISIBLE) {
+      return
+    }
+
+    val content = LightItemStyle.contentColor(context)
+    val contentSecondary = LightItemStyle.contentSecondaryColor(context)
+
+    // The bubble-coloured fill ConversationItem.setMediaAttributes just stamped on, and the card's
+    // own surface underneath it.
+    linkPreview.setBackgroundColor(Color.TRANSPARENT)
+    // Zeroes the CornerMask that rounds the card's top corners in dispatchDraw. Its side effect of
+    // re-rounding the thumbnail is undone immediately below.
+    linkPreview.setCorners(0, 0)
+
+    val container: View? = findViewById(R.id.linkpreview_container)
+    container?.setBackgroundColor(Color.TRANSPARENT)
+    // The card's own 6dp inset, horizontally: it would indent the preview out of line with the body
+    // text beneath it. The vertical half stays -- with no card, that is the only thing separating the
+    // preview from the message.
+    container?.let { it.setPadding(0, it.paddingTop, 0, it.paddingBottom) }
+
+    // Not resolved at all until a preview with a picture has been bound, and GONE on the big-image
+    // variant, where the picture is the row's main thumbnail instead.
+    val thumbnail = findViewById<View>(R.id.linkpreview_thumbnail) as? OutlinedThumbnailView
+    thumbnail?.setOutlineEnabled(false)
+
+    val title: TextView? = findViewById(R.id.linkpreview_title)
+    val description: TextView? = findViewById(R.id.linkpreview_description)
+    val site: TextView? = findViewById(R.id.linkpreview_site)
+
+    if (linkPreviewTextInset < 0 && title != null) {
+      linkPreviewTextInset = (title.layoutParams as ViewGroup.MarginLayoutParams).marginStart
+    }
+
+    // That inset is only earned when there is a thumbnail to stand off. With none, a ConstraintLayout
+    // still resolves the chain against the collapsed view and the indent survives, which would leave
+    // the title out of line with everything else in the message column.
+    val textInset = if (thumbnail?.visibility == View.VISIBLE) linkPreviewTextInset.coerceAtLeast(0) else 0
+
+    title?.let {
+      LightItemStyle.apply(it, LightTextVariant.Paragraph)
+      it.setTextColor(content)
+      it.setTextInset(textInset)
+    }
+
+    description?.let {
+      LightItemStyle.apply(it, LightTextVariant.Detail)
+      it.setTextColor(contentSecondary)
+      it.maxLines = LINK_PREVIEW_DESCRIPTION_LINES
+      it.setTextInset(textInset)
+    }
+
+    site?.let {
+      LightItemStyle.apply(it, LightTextVariant.Superfine)
+      it.setTextColor(contentSecondary)
+      it.setTextInset(textInset)
+    }
+
+    // A Signal call link's "Join call" button, which rides along with the preview. Signal paints it
+    // for the bubble as well -- near-white text on a semi-transparent white fill on an outgoing row,
+    // which is an invisible button once there is no bubble under it. The Light SDK's own buttons
+    // (`LightBarButton`) are text in the `Button` step with no fill at all, so that is what it
+    // becomes.
+    val joinButton: TextView? = findViewById(R.id.join_button)
+    if (joinButton != null && joinButton.visibility == View.VISIBLE) {
+      LightItemStyle.apply(joinButton, LightTextVariant.Button)
+      joinButton.setTextColor(content)
+      joinButton.setBackgroundColor(Color.TRANSPARENT)
+    }
+  }
+
+  /**
+   * Moves a link preview's text to [inset] from the start edge.
+   *
+   * `marginStart` rather than `ViewUtil.setLeftMargin`, which writes `leftMargin`/`rightMargin`
+   * directly and so depends on the layout direction having already been resolved -- it has not been
+   * on the first bind of a freshly inflated stub.
+   */
+  private fun View.setTextInset(inset: Int) {
+    updateLayoutParams<ViewGroup.MarginLayoutParams> { marginStart = inset }
+  }
+
+  /**
+   * Signal's "this message has replies" chip, in the Light palette.
+   *
+   * A plain text message that has been replied to no longer comes through here at all -- it stays on
+   * the Light text row, which carries the affordance as a line of its own (see
+   * [LightQuoteLine.presentRepliesIndicator]). A *media* message that has been replied to still does,
+   * and `setHasBeenQuoted` shows it as a 32dp filled circle in `colorSurfaceVariant` beside the
+   * bubble. On a row with no bubble that is the only fill left on screen.
+   *
+   * The fill goes and the glyph is pulled back to the dimmed content token, which leaves the same
+   * 32dp tap target and the same click listener, drawn as a bare mark. The scheduled-message
+   * indicator in the same holder is left alone: it is not part of this.
+   */
+  private fun applyLightQuotedIndicatorStyle() {
+    val indicator = lightQuotedIndicator ?: return
+
+    if (bubbleless) {
+      indicator.background = null
+      indicator.imageTintList = ColorStateList.valueOf(LightItemStyle.contentSecondaryColor(context))
+    } else {
+      // Recycled back onto a row that kept its container, where the chip is Signal's own again.
+      indicator.background = quotedIndicatorFill
+      indicator.imageTintList = quotedIndicatorTint
+    }
   }
 
   /**

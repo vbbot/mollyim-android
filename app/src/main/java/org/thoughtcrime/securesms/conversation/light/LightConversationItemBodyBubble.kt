@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
+import androidx.appcompat.content.res.AppCompatResources
 import org.thoughtcrime.securesms.conversation.ConversationItemBodyBubble
 
 /**
@@ -27,7 +28,13 @@ import org.thoughtcrime.securesms.conversation.ConversationItemBodyBubble
  * `MULTIPLY` filter over zero alpha is still zero alpha -- and nothing is drawn.
  *
  * [bubbleless] is a mode rather than a constant because not every media subtype stays readable
- * without its container; see `LightConversationItem.isBubbleless`.
+ * without its container; see
+ * `org.thoughtcrime.securesms.conversation.v2.items.light.LightMessageShape.isBubbleless`. Being a
+ * mode is also what makes [setBackgroundResource] load-bearing -- see there.
+ *
+ * Note this only governs the bubble *drawable*. An outgoing message's bubble is additionally painted
+ * by the list itself, through the projections each item reports to `RecyclerViewColorizer`; refusing
+ * that is `LightConversationItem.getColorizerProjections`, not this.
  */
 class LightConversationItemBodyBubble @JvmOverloads constructor(
   context: Context,
@@ -44,7 +51,33 @@ class LightConversationItemBodyBubble @JvmOverloads constructor(
    */
   var bubbleless: Boolean = false
 
+  /** Which mode the drawable currently hanging on this view was installed under. */
+  private var installedBubbleless: Boolean? = null
+
   override fun setBackground(background: Drawable?) {
+    installedBubbleless = bubbleless
     super.setBackground(if (bubbleless) ColorDrawable(Color.TRANSPARENT) else background)
+  }
+
+  /**
+   * Makes sure a mode change is never skipped.
+   *
+   * `View.setBackgroundResource` returns immediately when handed the same resource it was handed
+   * last time, without calling `setBackground` -- and the eight bubble shapes are picked from a
+   * message's position in its cluster, so a recycled row is handed the same one as the message before
+   * it more often than not. Silently skipping the install is how a photo ends up wearing the document
+   * row's bubble, or a document row ends up with no bubble at all, depending on which way the row was
+   * recycled.
+   *
+   * When the mode has not changed the short-circuit is harmless and is left in place; when it has,
+   * the drawable is resolved here so that the install goes through [setBackground] regardless.
+   */
+  override fun setBackgroundResource(resid: Int) {
+    if (resid != 0 && installedBubbleless != bubbleless) {
+      setBackground(AppCompatResources.getDrawable(context, resid))
+      return
+    }
+
+    super.setBackgroundResource(resid)
   }
 }

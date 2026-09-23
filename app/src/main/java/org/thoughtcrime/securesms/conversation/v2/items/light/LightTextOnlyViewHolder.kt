@@ -5,6 +5,7 @@
 
 package org.thoughtcrime.securesms.conversation.v2.items.light
 
+import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.constraintlayout.widget.Guideline
@@ -12,6 +13,7 @@ import androidx.core.view.updateLayoutParams
 import com.thelightphone.sdk.ui.LightTextVariant
 import org.signal.core.util.dp
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.conversation.ConversationItemDisplayMode
 import org.thoughtcrime.securesms.database.model.MmsMessageRecord
 import org.thoughtcrime.securesms.conversation.v2.items.V2ConversationContext
 import org.thoughtcrime.securesms.conversation.v2.items.V2ConversationItemLayout
@@ -116,6 +118,20 @@ class LightTextOnlyViewHolder<Model : MappingModel<Model>>(
   /** The quoted message of a reply. Hidden on every row that is not one. See [LightQuoteLine]. */
   private val quoteLine: TextView = lightBinding.root.findViewById(R.id.light_quote_line)
 
+  /**
+   * The other end of the same relationship: "there are replies to this message". Hidden on every row
+   * that has none. See [LightQuoteLine.presentRepliesIndicator].
+   */
+  private val repliesIndicator: TextView = lightBinding.root.findViewById(R.id.quoted_indicator)
+
+  /**
+   * Signal reaches for this view directly in two places -- `ConversationSwipeAnimationHelper` slides
+   * and fades it with the bubble during a swipe-to-reply, and `ConversationFragment` fades it out
+   * behind the reaction overlay -- and the base text-only holder returns `null` because upstream's
+   * text rows can never carry one. Ours can, so it is handed over.
+   */
+  override val quotedIndicatorView: View = repliesIndicator
+
   init {
     // Bubble-less. The superclass installs a ChatColorsDrawable here in its own init; detaching it is
     // what removes the fill, the corners and the chat colour in one go. The drawable itself stays
@@ -131,6 +147,7 @@ class LightTextOnlyViewHolder<Model : MappingModel<Model>>(
     lightBinding.senderNameWithLabel?.setTextStyle(LightItemStyle.composeStyle(context, LightTextVariant.Detail))
     lightBinding.senderNameWithLabel?.pinColor(LightItemStyle.contentColor(context))
     LightQuoteLine.style(quoteLine)
+    LightQuoteLine.style(repliesIndicator)
 
     val isIncoming = lightBinding.isIncoming
     lightBinding.root.findViewById<Guideline>(R.id.light_column_start)
@@ -155,6 +172,7 @@ class LightTextOnlyViewHolder<Model : MappingModel<Model>>(
    */
   override fun onBound() {
     presentQuoteLine()
+    presentRepliesIndicator()
 
     val spacing = if (shape.isStartingShape) GROUP_START_SPACING else GROUPED_SPACING
     itemView.updateLayoutParams<ViewGroup.MarginLayoutParams> {
@@ -185,6 +203,50 @@ class LightTextOnlyViewHolder<Model : MappingModel<Model>>(
       } else {
         lightContext.clickListener.onItemClick(getMultiselectPartForLatestTouch())
       }
+    }
+  }
+
+  /**
+   * "This message has replies", as one line below the body.
+   *
+   * Upstream keeps a message that has been quoted off the text row entirely, because its affordance
+   * for this is a filled circle hung off the bubble's edge and only the media layout has a slot for
+   * it -- which on the device meant an ordinary sent message picking up a chat-colour bubble the
+   * moment somebody answered it. The row carries the affordance itself now, so the message stays
+   * where it belongs.
+   *
+   * The visibility conditions mirror `ConversationItem.setHasBeenQuoted`: no chip while a
+   * multi-select is running (the row is a selection target then, not a link), and none in the reduced
+   * display modes, where tapping through to another sheet is not on offer.
+   */
+  private fun presentRepliesIndicator() {
+    val record = conversationMessage.messageRecord
+    val offered = conversationMessage.hasBeenQuoted() &&
+      lightContext.selectedItems.isEmpty() &&
+      lightContext.displayMode == ConversationItemDisplayMode.Standard
+
+    if (!LightQuoteLine.presentRepliesIndicator(repliesIndicator, offered)) {
+      repliesIndicator.setOnClickListener(null)
+      repliesIndicator.setOnLongClickListener(null)
+      repliesIndicator.isClickable = false
+      repliesIndicator.isLongClickable = false
+      return
+    }
+
+    repliesIndicator.setOnClickListener {
+      // Guarded as well as hidden: a selection can begin without the row being re-bound, so the
+      // listener must not be the one thing standing between a long-press and the replies sheet.
+      if (lightContext.selectedItems.isEmpty()) {
+        lightContext.clickListener.onQuotedIndicatorClicked(record)
+      } else {
+        lightContext.clickListener.onItemClick(getMultiselectPartForLatestTouch())
+      }
+    }
+    // Long-press has to reach the row, or holding the line to select the message would do nothing --
+    // the same passthrough the body and the quote line already give.
+    repliesIndicator.setOnLongClickListener {
+      lightContext.clickListener.onItemLongClick(lightBinding.root, getMultiselectPartForLatestTouch())
+      true
     }
   }
 }
