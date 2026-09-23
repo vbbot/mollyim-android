@@ -30,7 +30,9 @@ import org.thoughtcrime.securesms.light.LightPanelAction
 import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.light.rememberLightTintedPainter
 import org.thoughtcrime.securesms.light.rememberMollyLightColors
-import org.thoughtcrime.securesms.conversation.ConversationFilter
+import org.thoughtcrime.securesms.calls.log.CallLogFilter
+import org.thoughtcrime.securesms.conversationlist.model.ConversationFilter
+import org.thoughtcrime.securesms.keyvalue.SignalStore
 import java.util.Locale
 
 @Composable
@@ -212,18 +214,18 @@ private fun MainLightOverflowMenu(
       } else {
         actions.add(
           LightPanelAction(
-            label = stringResource(R.string.text_secure_normal__clear_filter).uppercase(Locale.getDefault()),
+            label = stringResource(R.string.ConversationListFragment__clear_filter).uppercase(Locale.getDefault()),
             onSelected = {
               onDismiss()
-              toolbarCallback.onClearChatFilterClick()
+              toolbarCallback.onClearUnreadChatsFilterClick()
             }
           )
         )
       }
-      if (toolbarState.hasStarredMessages) {
+      if (SignalStore.labs.starredMessages) {
         actions.add(
           LightPanelAction(
-            label = stringResource(R.string.MainToolbar__starred_messages).uppercase(Locale.getDefault()),
+            label = stringResource(R.string.text_secure_normal__starred_messages).uppercase(Locale.getDefault()),
             onSelected = {
               onDismiss()
               toolbarCallback.onStarredMessagesClick()
@@ -242,10 +244,10 @@ private fun MainLightOverflowMenu(
       )
       actions.add(
         LightPanelAction(
-          label = stringResource(R.string.text_secure_normal__notification_profiles).uppercase(Locale.getDefault()),
+          label = stringResource(R.string.NotificationProfilesFragment__notification_profiles).uppercase(Locale.getDefault()),
           onSelected = {
             onDismiss()
-            toolbarCallback.onNotificationProfilesClick()
+            toolbarCallback.onNotificationProfileClick()
           }
         )
       )
@@ -260,7 +262,7 @@ private fun MainLightOverflowMenu(
           }
         )
       )
-      if (toolbarState.callFilter == ConversationFilter.OFF) {
+      if (toolbarState.callFilter == CallLogFilter.ALL) {
         actions.add(
           LightPanelAction(
             label = stringResource(R.string.CallLogFragment__filter_missed_calls).uppercase(Locale.getDefault()),
@@ -273,7 +275,7 @@ private fun MainLightOverflowMenu(
       } else {
         actions.add(
           LightPanelAction(
-            label = stringResource(R.string.text_secure_normal__clear_filter).uppercase(Locale.getDefault()),
+            label = stringResource(R.string.CallLogFragment__clear_filter).uppercase(Locale.getDefault()),
             onSelected = {
               onDismiss()
               toolbarCallback.onClearCallFilterClick()
@@ -292,10 +294,10 @@ private fun MainLightOverflowMenu(
       )
       actions.add(
         LightPanelAction(
-          label = stringResource(R.string.text_secure_normal__notification_profiles).uppercase(Locale.getDefault()),
+          label = stringResource(R.string.NotificationProfilesFragment__notification_profiles).uppercase(Locale.getDefault()),
           onSelected = {
             onDismiss()
-            toolbarCallback.onNotificationProfilesClick()
+            toolbarCallback.onNotificationProfileClick()
           }
         )
       )
@@ -303,7 +305,7 @@ private fun MainLightOverflowMenu(
     MainNavigationListLocation.STORIES -> {
       actions.add(
         LightPanelAction(
-          label = stringResource(R.string.Stories__story_privacy).uppercase(Locale.getDefault()),
+          label = stringResource(R.string.StoriesLandingFragment__story_privacy).uppercase(Locale.getDefault()),
           onSelected = {
             onDismiss()
             toolbarCallback.onStoryPrivacyClick()
