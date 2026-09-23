@@ -228,19 +228,19 @@ private fun AppSettingsContent(
   org.thoughtcrime.securesms.light.MollyLightTheme {
     Column(
       modifier = Modifier
-        .background(LightColors.Black)
+        .background(com.thelightphone.sdk.ui.LightThemeColors.Dark.background)
         .padding(
           top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
           bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         )
     ) {
-      com.thelightphone.sdk.ui.components.LightTopBar(
+      com.thelightphone.sdk.ui.LightTopBar(
         title = stringResource(R.string.text_secure_normal__menu_settings),
         onNavigationClick = callbacks::onNavigationClick
       )
       bannerManager.Banner()
 
-      com.thelightphone.sdk.ui.components.LightScrollView(
+      com.thelightphone.sdk.ui.LightScrollView(
         modifier = Modifier.weight(1f)
       ) {
         Column {
@@ -423,27 +423,6 @@ private fun BackupsWarningRow(
     warning = true
   )
 }
-,
-    icon = {
-      Box {
-        Icon(
-          imageVector = SignalIcons.Backup.imageVector,
-          tint = MaterialTheme.colorScheme.onSurface,
-          contentDescription = null
-        )
-
-        Box(
-          modifier = Modifier
-            .absoluteOffset(3.dp, (-2).dp)
-            .background(color = Color(0xFFFFCC00), shape = CircleShape)
-            .size(12.dp)
-            .align(Alignment.TopEnd)
-        )
-      }
-    },
-    onClick = onClick
-  )
-}
 
 
 @Composable
@@ -472,21 +451,21 @@ private fun BioRow(
     ) {
       com.thelightphone.sdk.ui.LightText(
         text = self.profileName.toString(),
-        variant = LightTextVariant.Title1,
-        color = LightColors.White
+        variant = LightTextVariant.Title,
+        color = com.thelightphone.sdk.ui.LightThemeColors.Dark.content
       )
 
       com.thelightphone.sdk.ui.LightText(
         text = prettyPhoneNumber,
-        variant = LightTextVariant.Body,
-        color = LightColors.Gray
+        variant = LightTextVariant.Copy,
+        color = com.thelightphone.sdk.ui.LightThemeColors.Dark.contentSecondary
       )
 
       if (hasUsername) {
         com.thelightphone.sdk.ui.LightText(
           text = self.username,
-          variant = LightTextVariant.Body,
-          color = LightColors.Gray
+          variant = LightTextVariant.Copy,
+          color = com.thelightphone.sdk.ui.LightThemeColors.Dark.contentSecondary
         )
       }
     }
@@ -636,8 +615,8 @@ private fun LightSettingsRow(
   ) {
     com.thelightphone.sdk.ui.LightText(
       text = text,
-      color = if (warning) MaterialTheme.colorScheme.error else if (enabled) LightColors.White else LightColors.Gray,
-      variant = LightTextVariant.Body
+      color = if (warning) MaterialTheme.colorScheme.error else if (enabled) com.thelightphone.sdk.ui.LightThemeColors.Dark.content else com.thelightphone.sdk.ui.LightThemeColors.Dark.contentSecondary,
+      variant = LightTextVariant.Copy
     )
   }
 }
