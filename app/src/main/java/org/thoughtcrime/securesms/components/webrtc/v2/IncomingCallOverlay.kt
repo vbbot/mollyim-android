@@ -8,6 +8,7 @@ package org.thoughtcrime.securesms.components.webrtc.v2
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.WindowManager
@@ -45,12 +46,15 @@ import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientId
 
 /**
- * A full-screen TYPE_APPLICATION_OVERLAY window shown during an incoming call.
+ * A full-screen TYPE_ACCESSIBILITY_OVERLAY window shown during an incoming call.
  *
- * Renders above Luma's lock screen (which does not respond to the standard KEYGUARD_OCCLUDE
- * transition) and above any other activity. The overlay is shown by ActiveCallManager when
- * TYPE_INCOMING_RINGING is signalled and SYSTEM_ALERT_WINDOW permission is held; it is dismissed
- * whenever the call state moves on (answered, declined, missed) or the call manager shuts down.
+ * LightOS's launcher (Luma, com.vandam.luma) draws its lock screen as a TYPE_ACCESSIBILITY_OVERLAY,
+ * which structurally outranks TYPE_APPLICATION_OVERLAY — so an ordinary app overlay can never appear
+ * over it while locked. The only window layer that can match Luma's is TYPE_ACCESSIBILITY_OVERLAY,
+ * which requires an AccessibilityService. [context] must therefore be [LightCallAccessibilityService]
+ * (the window is added through its context/token); this class is driven by that service, which is
+ * itself triggered from ActiveCallManager on TYPE_INCOMING_RINGING and dismissed when the call state
+ * moves on (answered, declined, missed) or the call manager shuts down.
  */
 class IncomingCallOverlay(private val context: Context) {
 
@@ -98,13 +102,19 @@ class IncomingCallOverlay(private val context: Context) {
     val params = WindowManager.LayoutParams(
       WindowManager.LayoutParams.MATCH_PARENT,
       WindowManager.LayoutParams.MATCH_PARENT,
-      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+      WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
       WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
         WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
         WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
-        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
       PixelFormat.OPAQUE,
-    )
+    ).apply {
+      if (Build.VERSION.SDK_INT >= 28) {
+        layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+      }
+    }
 
     val wm = context.getSystemService(WindowManager::class.java)
     lifecycleOwner = owner

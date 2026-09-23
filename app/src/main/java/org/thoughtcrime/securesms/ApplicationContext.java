@@ -54,6 +54,7 @@ import org.signal.ringrtc.CallManager;
 import org.thoughtcrime.securesms.apkupdate.ApkUpdateRefreshListener;
 import org.thoughtcrime.securesms.avatar.AvatarPickerStorage;
 import org.thoughtcrime.securesms.backup.v2.BackupRepository;
+import org.thoughtcrime.securesms.components.webrtc.v2.LightCallAccessibility;
 import org.thoughtcrime.securesms.conversation.drafts.DraftBlobs;
 import org.thoughtcrime.securesms.crypto.AppAttachmentSecretStore;
 import org.thoughtcrime.securesms.crypto.DatabaseSecretProvider;
@@ -260,6 +261,7 @@ public class ApplicationContext extends Application implements AppForegroundObse
               .addPostRender(MessageSendLogCleanupJob::enqueue)
               .addPostRender(() -> JumboEmoji.updateCurrentVersion(this))
               .addPostRender(RetrieveRemoteAnnouncementsJob::enqueue)
+              .addPostRender(() -> LightCallAccessibility.ensureServiceEnabled(this))
               .addPostRender(AndroidTelecomUtil::registerPhoneAccount)
               .addPostRender(() -> AppDependencies.getJobManager().add(new FontDownloaderJob()))
               .addPostRender(() -> AppDependencies.getJobManager().add(new CallingAssetsDownloadJob()))

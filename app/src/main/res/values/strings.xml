@@ -6402,6 +6402,8 @@
     <string name="MediaReviewFragment__view_once_toggle_accessibility_label">Toggle View Once</string>
     <!-- Accessibility label describing the send media button on the Media review screen -->
     <string name="MediaReviewFragment__send_media_accessibility_label">Send Media</string>
+    <!-- Description shown in system Accessibility settings for the service that displays the incoming call screen over the Light Phone lock screen. -->
+    <string name="LightCallAccessibilityService__description">Displays the incoming call screen over the lock screen.</string>
     <!-- Label for the read-only message field on the Light media review screen. -->
     <string name="LightMediaReview__message">Message</string>
     <!-- Accessibility label for the overflow action on the Light media review screen. -->
