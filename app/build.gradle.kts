@@ -385,6 +385,7 @@ dependencies {
   implementation(project(":lib:photoview"))
   implementation(project(":lib:blurhash"))
   implementation(project(":core:ui"))
+  implementation(project(":core:lightui"))
   implementation(project(":core:models"))
   implementation(project(":core:models-jvm"))
   implementation(project(":feature:camera"))

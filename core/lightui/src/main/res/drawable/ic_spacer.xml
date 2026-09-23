@@ -1,0 +1,6 @@
+<!-- Copyright (c) 2026 The Light Phone. SPDX-License-Identifier: MIT. Vendored from the Light Phone SDK. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40"/>

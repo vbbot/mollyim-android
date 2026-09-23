@@ -84,6 +84,7 @@ include(":core:models-jvm")
 include(":core:network")
 include(":core:ui")
 include(":core:serialization")
+include(":core:lightui")
 
 // FOSS GMS modules
 include(":core-gms:base")
