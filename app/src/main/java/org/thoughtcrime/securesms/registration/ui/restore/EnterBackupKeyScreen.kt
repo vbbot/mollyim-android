@@ -5,9 +5,9 @@
 
 package org.thoughtcrime.securesms.registration.ui.restore
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,15 +18,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,10 +45,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.gridUnitsAsDp
 import kotlinx.coroutines.launch
 import org.signal.core.models.AccountEntropyPool
 import org.signal.core.ui.compose.BottomSheets
-import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.horizontalGutters
@@ -59,7 +57,11 @@ import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.backup.v2.ui.BackupsIconColors
 import org.thoughtcrime.securesms.components.TemporaryScreenshotSecurity
 import org.thoughtcrime.securesms.fonts.MonoTypeface
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationProgress
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationTextField
 
 /**
  * Shared screen infrastructure for entering an [AccountEntropyPool].
@@ -90,44 +92,33 @@ fun EnterBackupKeyScreen(
     title = stringResource(R.string.EnterBackupKey_title),
     subtitle = stringResource(R.string.EnterBackupKey_subtitle),
     bottomContent = {
-      Row(
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        TextButton(
-          enabled = !inProgress,
-          modifier = Modifier.weight(weight = 1f, fill = false),
-          onClick = {
-            coroutineScope.launch {
-              sheetState.show()
+      Box(modifier = Modifier.fillMaxWidth()) {
+        RegistrationBottomActions(
+          left = RegistrationAction(
+            label = stringResource(id = R.string.EnterBackupKey_no_backup_key),
+            enabled = !inProgress,
+            onClick = {
+              coroutineScope.launch {
+                sheetState.show()
+              }
             }
-          }
-        ) {
-          Text(
-            text = stringResource(id = R.string.EnterBackupKey_no_backup_key)
-          )
-        }
-
-        Spacer(modifier = Modifier.size(24.dp))
-
-        AnimatedContent(
-          targetState = inProgress,
-          label = "next-progress"
-        ) { inProgress ->
-          if (inProgress) {
-            CircularProgressIndicator(
-              modifier = Modifier.size(40.dp)
-            )
+          ),
+          right = if (inProgress) {
+            null
           } else {
-            Buttons.LargeTonal(
+            RegistrationAction(
+              label = stringResource(id = R.string.RegistrationActivity_next),
               enabled = isBackupKeyValid && aepValidationError == null,
               onClick = onNextClicked
-            ) {
-              Text(
-                text = stringResource(id = R.string.RegistrationActivity_next)
-              )
-            }
+            )
           }
+        )
+        if (inProgress) {
+          RegistrationProgress(
+            modifier = Modifier
+              .align(Alignment.CenterEnd)
+              .padding(end = 2.5f.gridUnitsAsDp())
+          )
         }
       }
     }
@@ -139,16 +130,25 @@ fun EnterBackupKeyScreen(
 
     val autoFillHelper = backupKeyAutoFillHelper { onBackupKeyChanged(it) }
 
-    TextField(
+    val validationErrorText = when (aepValidationError) {
+      is AccountEntropyPoolVerification.AEPValidationError.TooLong -> stringResource(
+        R.string.EnterBackupKey_too_long_error,
+        aepValidationError.count,
+        aepValidationError.max
+      )
+      AccountEntropyPoolVerification.AEPValidationError.Invalid -> stringResource(R.string.EnterBackupKey_invalid_backup_key_error)
+      AccountEntropyPoolVerification.AEPValidationError.Incorrect -> stringResource(R.string.EnterBackupKey_incorrect_backup_key_error)
+      null -> null
+    }
+
+    RegistrationTextField(
       value = enteredText,
       onValueChange = {
         onBackupKeyChanged(it)
         autoFillHelper.onValueChanged(it)
       },
-      label = {
-        Text(text = stringResource(id = R.string.EnterBackupKey_backup_key))
-      },
-      textStyle = LocalTextStyle.current.copy(
+      label = stringResource(id = R.string.EnterBackupKey_backup_key),
+      textStyle = LightThemeTokens.typography.copy.copy(
         fontFamily = MonoTypeface.fontFamily(),
         lineHeight = 36.sp
       ),
@@ -166,12 +166,12 @@ fun EnterBackupKeyScreen(
           }
         }
       ),
-      supportingText = { aepValidationError?.ValidationErrorMessage() },
+      supportingText = validationErrorText,
       isError = aepValidationError != null,
+      singleLine = false,
       minLines = 4,
       visualTransformation = visualTransform,
-      modifier = Modifier
-        .fillMaxWidth()
+      inputModifier = Modifier
         .focusRequester(focusRequester)
         .attachBackupKeyAutoFillHelper(autoFillHelper)
         .onGloballyPositioned {
@@ -205,15 +205,6 @@ fun EnterBackupKeyScreen(
     }
 
     dialogContent()
-  }
-}
-
-@Composable
-private fun AccountEntropyPoolVerification.AEPValidationError.ValidationErrorMessage() {
-  when (this) {
-    is AccountEntropyPoolVerification.AEPValidationError.TooLong -> Text(text = stringResource(R.string.EnterBackupKey_too_long_error, this.count, this.max))
-    AccountEntropyPoolVerification.AEPValidationError.Invalid -> Text(text = stringResource(R.string.EnterBackupKey_invalid_backup_key_error))
-    AccountEntropyPoolVerification.AEPValidationError.Incorrect -> Text(text = stringResource(R.string.EnterBackupKey_incorrect_backup_key_error))
   }
 }
 

@@ -52,6 +52,7 @@ import org.thoughtcrime.securesms.crypto.UnrecoverableKeyException;
 import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.crypto.MasterSecretUtil;
 import org.thoughtcrime.securesms.logsubmit.SubmitDebugLogActivity;
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle;
 import org.thoughtcrime.securesms.util.CommunicationActions;
 import org.thoughtcrime.securesms.util.DynamicTheme;
 import org.thoughtcrime.securesms.util.SupportEmailUtil;
@@ -249,6 +250,11 @@ public class PassphrasePromptActivity extends PassphraseActivity {
 
     passphraseInput.setHint(hint);
     passphraseInput.setOnEditorActionListener(this::onEditorActionTriggered);
+
+    LightRegistrationViewStyle.INSTANCE.surface(passphraseAuthContainer);
+    LightRegistrationViewStyle.INSTANCE.title((android.widget.TextView) headerText);
+    LightRegistrationViewStyle.INSTANCE.input(passphraseLayout);
+    LightRegistrationViewStyle.INSTANCE.action(okButton);
 
     okButton.setOnClickListener(this::onOkClicked);
   }

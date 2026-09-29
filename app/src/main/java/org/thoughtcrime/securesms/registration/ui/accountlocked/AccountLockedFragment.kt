@@ -12,10 +12,12 @@ import android.view.View
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.activityViewModels
+import com.google.android.material.button.MaterialButton
 import org.signal.core.ui.logging.LoggingFragment
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.registration.fragments.RegistrationViewDelegate.setDebugLogSubmitMultiTapView
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -28,7 +30,16 @@ class AccountLockedFragment : LoggingFragment(R.layout.account_locked_fragment) 
 
     setDebugLogSubmitMultiTapView(view.findViewById(R.id.account_locked_title))
 
+    val title = view.findViewById<TextView>(R.id.account_locked_title)
     val description = view.findViewById<TextView>(R.id.account_locked_description)
+    val next = view.findViewById<MaterialButton>(R.id.account_locked_next)
+    val learnMore = view.findViewById<MaterialButton>(R.id.account_locked_learn_more)
+
+    LightRegistrationViewStyle.surface(view)
+    LightRegistrationViewStyle.title(title)
+    LightRegistrationViewStyle.body(description)
+    LightRegistrationViewStyle.action(next)
+    LightRegistrationViewStyle.action(learnMore)
 
     viewModel.lockedTimeRemaining.observe(
       viewLifecycleOwner

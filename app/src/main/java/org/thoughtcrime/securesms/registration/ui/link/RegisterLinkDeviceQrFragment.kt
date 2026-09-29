@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -41,6 +42,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+<<<<<<< HEAD
 import com.thelightphone.sdk.ui.LightBarButton
 import com.thelightphone.sdk.ui.LightIcons
 import com.thelightphone.sdk.ui.LightScrollBarPosition
@@ -50,6 +52,11 @@ import com.thelightphone.sdk.ui.LightTextVariant
 import com.thelightphone.sdk.ui.LightThemeTokens
 import com.thelightphone.sdk.ui.LightTopBar
 import com.thelightphone.sdk.ui.LightTopBarCenter
+=======
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+>>>>>>> 4e292dabd7 (WIP: preserve paused onboarding Light UI work)
 import com.thelightphone.sdk.ui.gridUnitsAsDp
 import com.thelightphone.sdk.ui.lightClickable
 import kotlinx.coroutines.Dispatchers
@@ -62,12 +69,20 @@ import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.SignalIcons
+<<<<<<< HEAD
+=======
+import org.signal.core.ui.compose.horizontalGutters
+>>>>>>> 4e292dabd7 (WIP: preserve paused onboarding Light UI work)
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.app.usernamelinks.QrCode
 import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
+<<<<<<< HEAD
+=======
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
+>>>>>>> 4e292dabd7 (WIP: preserve paused onboarding Light UI work)
 
 /**
  * Presents a QR code the user's existing Signal device can scan to link this LP3 as a linked device.
@@ -130,8 +145,27 @@ private fun RegisterLinkDeviceQrScreen(
   onErrorDismiss: () -> Unit = {},
   onCancel: () -> Unit = {}
 ) {
+<<<<<<< HEAD
   MollyLightTheme {
     Column(
+=======
+  // TODO [link-device] use actual design
+  RegistrationScreen(
+    title = "Scan this code with your phone",
+    subtitle = null,
+    bottomContent = {
+      RegistrationBottomActions(
+        center = RegistrationAction(
+          label = stringResource(android.R.string.cancel),
+          onClick = onCancel
+        )
+      )
+    }
+  ) {
+    FlowRow(
+      horizontalArrangement = Arrangement.spacedBy(space = 2f.gridUnitsAsDp(), alignment = Alignment.CenterHorizontally),
+      verticalArrangement = Arrangement.spacedBy(space = 1.5f.gridUnitsAsDp()),
+>>>>>>> 4e292dabd7 (WIP: preserve paused onboarding Light UI work)
       modifier = Modifier
         .fillMaxSize()
         .background(LightThemeTokens.colors.background)
@@ -149,6 +183,7 @@ private fun RegisterLinkDeviceQrScreen(
       LightScrollView(
         scrollBarPosition = LightScrollBarPosition.Outside,
         modifier = Modifier
+<<<<<<< HEAD
           .weight(1f)
           .fillMaxWidth()
       ) {
@@ -218,6 +253,66 @@ private fun RegisterLinkDeviceQrScreen(
                     )
                   }
                 }
+=======
+          .widthIn(160.dp, 240.dp)
+          .aspectRatio(1f)
+          .background(Color.White)
+          .padding(1f.gridUnitsAsDp()),
+        contentAlignment = Alignment.Center
+      ) {
+        AnimatedContent(
+          targetState = state.qrState,
+          contentKey = { it::class },
+          contentAlignment = Alignment.Center,
+          label = "qr-code-progress",
+          modifier = Modifier.fillMaxSize()
+        ) { qrState ->
+          when (qrState) {
+            is RegisterLinkDeviceQrViewModel.QrState.Loaded -> {
+              QrCode(
+                data = qrState.qrData,
+                foregroundColor = Color.Black,
+                modifier = Modifier.fillMaxSize()
+              )
+            }
+
+            RegisterLinkDeviceQrViewModel.QrState.Loading -> {
+              CircularProgressIndicator(
+                modifier = Modifier.size(3f.gridUnitsAsDp()),
+                color = Color.Black
+              )
+            }
+
+            is RegisterLinkDeviceQrViewModel.QrState.Scanned,
+            RegisterLinkDeviceQrViewModel.QrState.Failed -> {
+              Column(
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+              ) {
+                val status = if (qrState is RegisterLinkDeviceQrViewModel.QrState.Scanned) {
+                  "Scanned on device"
+                } else {
+                  stringResource(R.string.RestoreViaQr_qr_code_error)
+                }
+
+                LightText(
+                  text = status,
+                  variant = LightTextVariant.Detail,
+                  align = TextAlign.Center,
+                  color = Color.Black
+                )
+
+                Spacer(modifier = Modifier.height(0.5f.gridUnitsAsDp()))
+
+                LightText(
+                  text = stringResource(R.string.RestoreViaQr_retry),
+                  variant = LightTextVariant.Button,
+                  color = Color.Black,
+                  modifier = Modifier
+                    .lightClickable(onClick = onRetryQrCode)
+                    .padding(0.5f.gridUnitsAsDp())
+                )
+>>>>>>> 4e292dabd7 (WIP: preserve paused onboarding Light UI work)
               }
             }
           }
@@ -289,8 +384,12 @@ private fun InstructionRow(
     Icon(
       painter = icon,
       contentDescription = null,
+<<<<<<< HEAD
       tint = LightThemeTokens.colors.contentSecondary,
       modifier = Modifier.size(1.5f.gridUnitsAsDp())
+=======
+      tint = LightThemeTokens.colors.contentSecondary
+>>>>>>> 4e292dabd7 (WIP: preserve paused onboarding Light UI work)
     )
 
     Spacer(modifier = Modifier.width(1f.gridUnitsAsDp()))

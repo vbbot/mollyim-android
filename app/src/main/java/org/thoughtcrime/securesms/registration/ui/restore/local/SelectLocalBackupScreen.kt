@@ -5,34 +5,31 @@
 
 package org.thoughtcrime.securesms.registration.ui.restore.local
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.unit.dp
-import org.signal.core.ui.compose.Buttons
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.gridUnitsAsDp
+import com.thelightphone.sdk.ui.lightClickable
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
 
-/**
- * Allows the user to select a specific on-device backup to restore.
- */
+/** Shows the selected local backup while the callback owner retains all restore operations. */
 @Composable
 fun SelectLocalBackupScreen(
   selectedBackup: SelectableBackup,
@@ -45,96 +42,87 @@ fun SelectLocalBackupScreen(
     title = stringResource(R.string.SelectLocalBackupScreen__restore_on_device_backup),
     subtitle = stringResource(R.string.SelectLocalBackupScreen__restore_your_messages_from_the_backup_folder),
     bottomContent = {
-      Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-      ) {
-        Buttons.LargeTonal(
-          onClick = onRestoreBackupClick,
-          modifier = Modifier.fillMaxWidth()
-        ) {
-          Text(
-            text = stringResource(R.string.SelectLocalBackupScreen__restore_backup)
-          )
-        }
-
-        TextButton(
-          onClick = onCancelClick,
-          modifier = Modifier.padding(top = 24.dp)
-        ) {
-          Text(stringResource(android.R.string.cancel))
-        }
-      }
+      RegistrationBottomActions(
+        left = RegistrationAction(stringResource(android.R.string.cancel), onCancelClick),
+        right = RegistrationAction(
+          stringResource(R.string.SelectLocalBackupScreen__restore_backup),
+          onRestoreBackupClick
+        )
+      )
     }
   ) {
-    YourBackupCard(
+    BackupSummary(
       selectedBackup = selectedBackup,
       isSelectedBackupLatest = isSelectedBackupLatest
     )
 
-    TextButton(
-      onClick = onChooseADifferentBackupClick,
-      modifier = Modifier
-        .padding(top = 28.dp)
-        .align(alignment = Alignment.CenterHorizontally)
-    ) {
-      Icon(
-        imageVector = SignalIcons.Backup.imageVector,
-        contentDescription = null,
-        modifier = Modifier.padding(end = 8.dp)
-      )
-
-      if (isSelectedBackupLatest) {
-        Text(text = stringResource(R.string.SelectLocalBackupScreen__choose_an_earlier_backup))
+    BackupChoiceRow(
+      label = if (isSelectedBackupLatest) {
+        stringResource(R.string.SelectLocalBackupScreen__choose_an_earlier_backup)
       } else {
-        Text(text = stringResource(R.string.SelectLocalBackupScreen__choose_a_different_backup))
-      }
-    }
+        stringResource(R.string.SelectLocalBackupScreen__choose_a_different_backup)
+      },
+      onClick = onChooseADifferentBackupClick
+    )
   }
 }
 
 @Composable
-fun YourBackupCard(
+private fun BackupSummary(
   selectedBackup: SelectableBackup,
-  isSelectedBackupLatest: Boolean,
-  modifier: Modifier = Modifier
+  isSelectedBackupLatest: Boolean
 ) {
   Column(
-    modifier = modifier
+    modifier = Modifier
       .fillMaxWidth()
-      .background(color = SignalTheme.colors.colorSurface2, shape = RoundedCornerShape(12.dp))
-      .padding(20.dp)
+      .padding(vertical = 0.75f.gridUnitsAsDp())
   ) {
-    Text(
+    LightText(
       text = if (isSelectedBackupLatest) {
         stringResource(R.string.SelectLocalBackupScreen__your_latest_backup)
       } else {
         stringResource(R.string.SelectLocalBackupScreen__your_backup)
       },
-      style = MaterialTheme.typography.titleMedium,
-      modifier = Modifier.padding(bottom = 16.dp)
+      variant = LightTextVariant.Heading
     )
-
-    BackupInfoRow(
-      icon = ImageVector.vectorResource(R.drawable.symbol_recent_24),
-      text = selectedBackup.backupTime
-    )
+    Row(
+      modifier = Modifier.padding(top = 0.5f.gridUnitsAsDp()),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Icon(
+        imageVector = ImageVector.vectorResource(R.drawable.symbol_recent_24),
+        contentDescription = null,
+        tint = LightThemeTokens.colors.content,
+        modifier = Modifier.size(1.5f.gridUnitsAsDp())
+      )
+      LightText(
+        text = selectedBackup.backupTime,
+        variant = LightTextVariant.Copy,
+        modifier = Modifier.padding(start = 0.75f.gridUnitsAsDp())
+      )
+    }
   }
 }
 
 @Composable
-fun BackupInfoRow(
-  icon: ImageVector,
-  text: String
-) {
-  Row {
+private fun BackupChoiceRow(label: String, onClick: () -> Unit) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .lightClickable(onClick = onClick)
+      .padding(vertical = 0.75f.gridUnitsAsDp()),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
     Icon(
-      imageVector = icon,
+      imageVector = ImageVector.vectorResource(R.drawable.symbol_backup_24),
       contentDescription = null,
-      tint = MaterialTheme.colorScheme.primary
+      tint = LightThemeTokens.colors.content,
+      modifier = Modifier.size(1.5f.gridUnitsAsDp())
     )
-    Text(
-      text = text,
-      modifier = Modifier.padding(start = 12.dp, bottom = 12.dp)
+    LightText(
+      text = label,
+      variant = LightTextVariant.Heading,
+      modifier = Modifier.padding(start = 0.75f.gridUnitsAsDp())
     )
   }
 }
@@ -144,10 +132,7 @@ fun BackupInfoRow(
 fun SelectLocalBackupScreenPreview() {
   Previews.Preview {
     SelectLocalBackupScreen(
-      selectedBackup = SelectableBackup(
-        timestamp = 0L,
-        backupTime = "Today \u2022 12:34 PM"
-      ),
+      selectedBackup = SelectableBackup(timestamp = 0L, backupTime = "Today · 12:34 PM"),
       isSelectedBackupLatest = true,
       onRestoreBackupClick = {},
       onCancelClick = {},

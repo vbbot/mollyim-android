@@ -18,27 +18,21 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -51,31 +45,35 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.gridUnitsAsDp
+import com.thelightphone.sdk.ui.lightClickable
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
-import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Dialogs
-import org.signal.core.ui.compose.DropdownMenus
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.ui.compose.horizontalGutters
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.signal.registration.proto.RegistrationProvisionMessage
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.app.usernamelinks.QrCode
 import org.thoughtcrime.securesms.components.settings.app.usernamelinks.QrCodeData
-import org.thoughtcrime.securesms.components.settings.app.usernamelinks.UsernameQrCodeColorScheme
 import org.thoughtcrime.securesms.registration.data.network.RegisterAccountResult
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreenTitleSubtitle
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
+import java.util.Locale
 
 /**
  * Show QR code on new device to allow registration and restore via old device.
@@ -173,25 +171,19 @@ private fun RestoreViaQrScreen(
 ) {
   RegistrationScreen(
     menu = {
-      Box(modifier = Modifier.align(Alignment.End)) {
-        val controller = remember { DropdownMenus.MenuController() }
-
-        IconButton(onClick = { controller.toggle() }) {
-          Icon(
-            imageVector = SignalIcons.MoreVertical.imageVector,
-            contentDescription = null
-          )
-        }
-
-        DropdownMenus.Menu(controller = controller) {
-          DropdownMenus.Item(
-            text = { Text(stringResource(R.string.preferences_use_proxy)) },
-            onClick = {
-              controller.hide()
-              onUseProxy()
-            }
-          )
-        }
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(end = 2f.gridUnitsAsDp()),
+        contentAlignment = Alignment.CenterEnd
+      ) {
+        LightText(
+          text = stringResource(R.string.preferences_use_proxy).uppercase(Locale.getDefault()),
+          variant = LightTextVariant.Button,
+          modifier = Modifier
+            .lightClickable(onClick = onUseProxy)
+            .padding(0.5f.gridUnitsAsDp())
+        )
       }
     },
     topContent = {
@@ -201,93 +193,81 @@ private fun RestoreViaQrScreen(
       )
     },
     bottomContent = {
-      TextButton(
-        onClick = onCancel,
-        modifier = Modifier.align(Alignment.Center)
-      ) {
-        Text(text = stringResource(android.R.string.cancel))
-      }
+      RegistrationBottomActions(
+        center = RegistrationAction(
+          label = stringResource(android.R.string.cancel),
+          onClick = onCancel
+        )
+      )
     }
   ) {
     FlowRow(
-      horizontalArrangement = Arrangement.spacedBy(space = 48.dp, alignment = Alignment.CenterHorizontally),
-      verticalArrangement = Arrangement.spacedBy(space = 48.dp),
+      horizontalArrangement = Arrangement.spacedBy(space = 2f.gridUnitsAsDp(), alignment = Alignment.CenterHorizontally),
+      verticalArrangement = Arrangement.spacedBy(space = 1.5f.gridUnitsAsDp()),
       modifier = Modifier
         .fillMaxWidth()
         .horizontalGutters()
     ) {
       Box(
         modifier = Modifier
-          .widthIn(160.dp, 320.dp)
+          .widthIn(160.dp, 240.dp)
           .aspectRatio(1f)
-          .clip(RoundedCornerShape(24.dp))
-          .background(UsernameQrCodeColorScheme.Blue.borderColor)
-          .padding(40.dp)
+          .background(Color.White)
+          .padding(1f.gridUnitsAsDp()),
+        contentAlignment = Alignment.Center
       ) {
-        SignalTheme(isDarkMode = false) {
-          Box(
-            modifier = Modifier
-              .clip(RoundedCornerShape(12.dp))
-              .background(MaterialTheme.colorScheme.surface)
-              .fillMaxWidth()
-              .fillMaxHeight()
-              .padding(16.dp),
-            contentAlignment = Alignment.Center
-          ) {
-            AnimatedContent(
-              targetState = state.qrState,
-              contentKey = { it::class },
-              contentAlignment = Alignment.Center,
-              label = "qr-code-progress",
-              modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight()
-            ) { qrState ->
-              when (qrState) {
-                is RestoreViaQrViewModel.QrState.Loaded -> {
-                  QrCode(
-                    data = qrState.qrData,
-                    foregroundColor = UsernameQrCodeColorScheme.Blue.foregroundColor,
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .fillMaxHeight()
-                  )
+        AnimatedContent(
+          targetState = state.qrState,
+          contentKey = { it::class },
+          contentAlignment = Alignment.Center,
+          label = "qr-code-progress",
+          modifier = Modifier.fillMaxSize()
+        ) { qrState ->
+          when (qrState) {
+            is RestoreViaQrViewModel.QrState.Loaded -> {
+              QrCode(
+                data = qrState.qrData,
+                foregroundColor = Color.Black,
+                modifier = Modifier.fillMaxSize()
+              )
+            }
+
+            RestoreViaQrViewModel.QrState.Loading -> {
+              CircularProgressIndicator(
+                modifier = Modifier.size(3f.gridUnitsAsDp()),
+                color = Color.Black
+              )
+            }
+
+            is RestoreViaQrViewModel.QrState.Scanned,
+            RestoreViaQrViewModel.QrState.Failed -> {
+              Column(
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+              ) {
+                val status = if (qrState is RestoreViaQrViewModel.QrState.Scanned) {
+                  stringResource(R.string.RestoreViaQr_qr_code_scanned)
+                } else {
+                  stringResource(R.string.RestoreViaQr_qr_code_error)
                 }
 
-                RestoreViaQrViewModel.QrState.Loading -> {
-                  Box(contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(modifier = Modifier.size(48.dp))
-                  }
-                }
+                LightText(
+                  text = status,
+                  variant = LightTextVariant.Detail,
+                  align = TextAlign.Center,
+                  color = Color.Black
+                )
 
-                is RestoreViaQrViewModel.QrState.Scanned,
-                RestoreViaQrViewModel.QrState.Failed -> {
-                  Column(
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                  ) {
-                    val text = if (state.qrState is RestoreViaQrViewModel.QrState.Scanned) {
-                      stringResource(R.string.RestoreViaQr_qr_code_scanned)
-                    } else {
-                      stringResource(R.string.RestoreViaQr_qr_code_error)
-                    }
+                Spacer(modifier = Modifier.height(0.5f.gridUnitsAsDp()))
 
-                    Text(
-                      text = text,
-                      textAlign = TextAlign.Center,
-                      style = MaterialTheme.typography.bodySmall,
-                      color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Buttons.Small(
-                      onClick = onRetryQrCode
-                    ) {
-                      Text(text = stringResource(R.string.RestoreViaQr_retry))
-                    }
-                  }
-                }
+                LightText(
+                  text = stringResource(R.string.RestoreViaQr_retry),
+                  variant = LightTextVariant.Button,
+                  color = Color.Black,
+                  modifier = Modifier
+                    .lightClickable(onClick = onRetryQrCode)
+                    .padding(0.5f.gridUnitsAsDp())
+                )
               }
             }
           }
@@ -404,21 +384,20 @@ private fun InstructionRow(
   instruction: String
 ) {
   Row(
-    modifier = Modifier
-      .padding(vertical = 12.dp)
+    modifier = Modifier.padding(vertical = 0.75f.gridUnitsAsDp())
   ) {
     Icon(
       painter = icon,
       contentDescription = null,
-      tint = MaterialTheme.colorScheme.onSurfaceVariant
+      tint = LightThemeTokens.colors.contentSecondary
     )
 
-    Spacer(modifier = Modifier.width(16.dp))
+    Spacer(modifier = Modifier.width(1f.gridUnitsAsDp()))
 
-    Text(
+    LightText(
       text = instruction,
-      style = MaterialTheme.typography.bodyLarge,
-      color = MaterialTheme.colorScheme.onSurfaceVariant
+      variant = LightTextVariant.Paragraph,
+      lighten = true
     )
   }
 }

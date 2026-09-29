@@ -5,22 +5,17 @@
 
 package org.thoughtcrime.securesms.registration.ui.restore.local
 
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -31,8 +26,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.sp
-import org.signal.core.ui.compose.Buttons
-import org.signal.core.ui.compose.CircularProgressWrapper
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.gridUnitsAsDp
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
 import org.thoughtcrime.securesms.R
@@ -44,8 +39,13 @@ import org.thoughtcrime.securesms.registration.ui.restore.BackupKeyVisualTransfo
 import org.thoughtcrime.securesms.registration.ui.restore.RegistrationErrorDialogs
 import org.thoughtcrime.securesms.registration.ui.restore.attachBackupKeyAutoFillHelper
 import org.thoughtcrime.securesms.registration.ui.restore.backupKeyAutoFillHelper
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationProgress
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationTextField
 
+/** Light recovery-key entry; restore state, validation and account operations remain callback-owned. */
 @Composable
 fun EnterLocalBackupKeyScreen(
   enteredText: String,
@@ -66,44 +66,57 @@ fun EnterLocalBackupKeyScreen(
   val keyboardController = LocalSoftwareKeyboardController.current
   val focusRequester = remember { FocusRequester() }
   var requestFocus by remember { mutableStateOf(true) }
-
-  val autoFillHelper = backupKeyAutoFillHelper { onBackupKeyChanged(it) }
+  val autoFillHelper = backupKeyAutoFillHelper(onBackupKeyChanged)
 
   RegistrationScreen(
     title = stringResource(R.string.EnterLocalBackupKeyScreen__enter_your_recovery_key),
     subtitle = stringResource(R.string.EnterLocalBackupKeyScreen__your_recovery_key_is_a_64_character_code),
     bottomContent = {
-      Row {
-        TextButton(
-          onClick = onNoBackupKeyClick,
-          colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.outline)
-        ) {
-          Text(text = stringResource(R.string.EnterLocalBackupKeyScreen__no_recovery_key))
-        }
-        Spacer(modifier = Modifier.weight(1f))
-        CircularProgressWrapper(
-          isLoading = isRegistrationInProgress
-        ) {
-          Buttons.LargeTonal(
-            onClick = onNextClicked,
-            enabled = isBackupKeyValid && aepValidationError == null
-          ) {
-            Text(text = stringResource(R.string.EnterLocalBackupKeyScreen__next))
+      Box(modifier = Modifier.fillMaxWidth()) {
+        RegistrationBottomActions(
+          left = RegistrationAction(
+            label = stringResource(R.string.EnterLocalBackupKeyScreen__no_recovery_key),
+            onClick = onNoBackupKeyClick
+          ),
+          right = if (isRegistrationInProgress) {
+            null
+          } else {
+            RegistrationAction(
+              label = stringResource(R.string.EnterLocalBackupKeyScreen__next),
+              enabled = isBackupKeyValid && aepValidationError == null,
+              onClick = onNextClicked
+            )
           }
+        )
+        if (isRegistrationInProgress) {
+          RegistrationProgress(
+            modifier = Modifier
+              .align(Alignment.CenterEnd)
+              .padding(end = 2.5f.gridUnitsAsDp())
+          )
         }
       }
     }
   ) {
-    TextField(
+    val validationErrorText = when (aepValidationError) {
+      is AccountEntropyPoolVerification.AEPValidationError.TooLong -> stringResource(
+        R.string.EnterBackupKey_too_long_error,
+        aepValidationError.count,
+        aepValidationError.max
+      )
+      AccountEntropyPoolVerification.AEPValidationError.Invalid -> stringResource(R.string.EnterBackupKey_invalid_backup_key_error)
+      AccountEntropyPoolVerification.AEPValidationError.Incorrect -> stringResource(R.string.EnterBackupKey_incorrect_backup_key_error)
+      null -> null
+    }
+
+    RegistrationTextField(
       value = enteredText,
       onValueChange = { value ->
         onBackupKeyChanged(value)
         autoFillHelper.onValueChanged(value)
       },
-      label = {
-        Text(text = stringResource(id = R.string.EnterBackupKey_backup_key))
-      },
-      textStyle = LocalTextStyle.current.copy(
+      label = stringResource(id = R.string.EnterBackupKey_backup_key),
+      textStyle = LightThemeTokens.typography.copy.copy(
         fontFamily = MonoTypeface.fontFamily(),
         lineHeight = 36.sp
       ),
@@ -121,12 +134,12 @@ fun EnterLocalBackupKeyScreen(
           }
         }
       ),
-      supportingText = { aepValidationError?.let { ValidationErrorMessage(it) } },
+      supportingText = validationErrorText,
       isError = aepValidationError != null,
+      singleLine = false,
       minLines = 4,
       visualTransformation = visualTransform,
-      modifier = Modifier
-        .fillMaxWidth()
+      inputModifier = Modifier
         .focusRequester(focusRequester)
         .attachBackupKeyAutoFillHelper(autoFillHelper)
         .onGloballyPositioned {
@@ -143,15 +156,6 @@ fun EnterLocalBackupKeyScreen(
       onRegistrationErrorDismiss = onRegistrationErrorDismiss,
       onBackupKeyHelp = onBackupKeyHelp
     )
-  }
-}
-
-@Composable
-private fun ValidationErrorMessage(error: AccountEntropyPoolVerification.AEPValidationError) {
-  when (error) {
-    is AccountEntropyPoolVerification.AEPValidationError.TooLong -> Text(text = stringResource(R.string.EnterBackupKey_too_long_error, error.count, error.max))
-    AccountEntropyPoolVerification.AEPValidationError.Invalid -> Text(text = stringResource(R.string.EnterBackupKey_invalid_backup_key_error))
-    AccountEntropyPoolVerification.AEPValidationError.Incorrect -> Text(text = stringResource(R.string.EnterBackupKey_incorrect_backup_key_error))
   }
 }
 

@@ -24,6 +24,8 @@ import org.thoughtcrime.securesms.registration.data.network.RegisterAccountResul
 import org.thoughtcrime.securesms.registration.data.network.VerificationCodeRequestResult
 import org.thoughtcrime.securesms.registration.fragments.RegistrationViewDelegate.setDebugLogSubmitMultiTapView
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationContracts
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.SupportEmailUtil
 import org.thoughtcrime.securesms.util.ViewUtil
@@ -44,6 +46,15 @@ class RegistrationLockFragment : LoggingFragment(R.layout.fragment_registration_
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
     setDebugLogSubmitMultiTapView(view.findViewById(R.id.kbs_lock_pin_title))
+
+    LightRegistrationViewStyle.surface(binding.root)
+    LightRegistrationViewStyle.title(binding.kbsLockPinTitle)
+    LightRegistrationViewStyle.body(binding.kbsLockPinDescription)
+    LightRegistrationViewStyle.input(binding.kbsLockPinInput)
+    LightRegistrationViewStyle.detail(binding.kbsLockPinInputLabel)
+    LightRegistrationViewStyle.action(binding.kbsLockForgotPin)
+    LightRegistrationViewStyle.action(binding.kbsLockKeyboardToggle)
+    LightRegistrationViewStyle.action(binding.kbsLockPinConfirm)
 
     val args: RegistrationLockFragmentArgs = RegistrationLockFragmentArgs.fromBundle(requireArguments())
 
@@ -119,7 +130,7 @@ class RegistrationLockFragment : LoggingFragment(R.layout.fragment_registration_
 
     val pin: String = binding.kbsLockPinInput.getText().toString()
 
-    val trimmedLength = pin.replace(" ", "").length
+    val trimmedLength = LightRegistrationContracts.pinLength(pin, LightRegistrationContracts.PinWhitespace.REMOVE_SPACES)
     if (trimmedLength == 0) {
       Toast.makeText(requireContext(), R.string.RegistrationActivity_you_must_enter_your_registration_lock_PIN, Toast.LENGTH_LONG).show()
       enableAndFocusPinEntry()

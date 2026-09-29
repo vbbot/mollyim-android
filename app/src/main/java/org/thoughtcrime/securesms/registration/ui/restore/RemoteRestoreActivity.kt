@@ -10,27 +10,17 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.weight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,15 +31,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightBottomBar
+import com.thelightphone.sdk.ui.LightProgressBar
+import com.thelightphone.sdk.ui.LightScrollBarPosition
+import com.thelightphone.sdk.ui.LightScrollView
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.gridUnitsAsDp
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
@@ -61,12 +57,8 @@ import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.signal.core.util.ThreadUtil
 import org.signal.core.util.bytes
 import org.thoughtcrime.securesms.BaseActivity
@@ -75,15 +67,14 @@ import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.backup.v2.MessageBackupTier
 import org.thoughtcrime.securesms.backup.v2.RestoreV2Event
 import org.thoughtcrime.securesms.backup.v2.ui.subscription.MessageBackupsTypeFeature
-import org.thoughtcrime.securesms.backup.v2.ui.subscription.MessageBackupsTypeFeatureRow
 import org.thoughtcrime.securesms.components.contactsupport.ContactSupportCallbacks
 import org.thoughtcrime.securesms.components.contactsupport.ContactSupportDialog
 import org.thoughtcrime.securesms.components.contactsupport.ContactSupportViewModel
 import org.thoughtcrime.securesms.components.contactsupport.SendSupportEmailEffect
 import org.thoughtcrime.securesms.conversation.v2.registerForLifecycle
 import org.thoughtcrime.securesms.keyvalue.SignalStore
-import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
-import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreenTitleSubtitle
+import org.thoughtcrime.securesms.light.MollyLightTheme
+import org.thoughtcrime.securesms.light.rememberMollyLightColors
 import org.thoughtcrime.securesms.registration.util.RegistrationUtil
 import org.thoughtcrime.securesms.util.DateUtils
 import org.thoughtcrime.securesms.util.PlayStoreUtil
@@ -194,8 +185,12 @@ class RemoteRestoreActivity : BaseActivity() {
         contactSupportViewModel.hideContactSupport()
       }
 
-      SignalTheme {
-        Surface {
+      MollyLightTheme {
+        Box(
+          modifier = Modifier
+            .fillMaxSize()
+            .background(LightThemeTokens.colors.background)
+        ) {
           RestoreFromBackupContent(
             state = state,
             contactSupportState = contactSupportState,
@@ -217,11 +212,11 @@ class RemoteRestoreActivity : BaseActivity() {
           )
 
           if (showSkipRestoreWarning) {
-            Dialogs.SimpleAlertDialog(
+            LightRemoteConfirmation(
               title = stringResource(R.string.SelectRestoreMethodFragment__skip_restore_title),
-              body = stringResource(R.string.SelectRestoreMethodFragment__skip_restore_warning),
-              confirm = stringResource(R.string.SelectRestoreMethodFragment__skip_restore),
-              dismiss = stringResource(android.R.string.cancel),
+              message = stringResource(R.string.SelectRestoreMethodFragment__skip_restore_warning),
+              confirmLabel = stringResource(R.string.SelectRestoreMethodFragment__skip_restore),
+              dismissLabel = stringResource(android.R.string.cancel),
               onConfirm = {
                 lifecycleScope.launch {
                   viewModel.skipRestore()
@@ -231,8 +226,7 @@ class RemoteRestoreActivity : BaseActivity() {
                 }
               },
               onDismiss = { showSkipRestoreWarning = false },
-              confirmColor = MaterialTheme.colorScheme.error,
-              properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+              dismissOnBack = false
             )
           }
         }
@@ -281,7 +275,8 @@ private fun RestoreFromBackupContent(
 ) {
   when (state.loadState) {
     RemoteRestoreViewModel.ScreenState.LoadState.LOADING -> {
-      Dialogs.IndeterminateProgressDialog(
+      LightRestoreStatus(
+        title = stringResource(R.string.RemoteRestoreActivity__restore_from_backup),
         message = stringResource(R.string.RemoteRestoreActivity__fetching_backup_details)
       )
     }
@@ -318,7 +313,10 @@ private fun RestoreFromBackupContent(
     }
 
     RemoteRestoreViewModel.ScreenState.LoadState.STORAGE_SERVICE_RESTORE -> {
-      Dialogs.IndeterminateProgressDialog()
+      LightRestoreStatus(
+        title = stringResource(R.string.RemoteRestoreActivity__restore_from_backup),
+        message = stringResource(R.string.RemoteRestoreActivity__restoring)
+      )
     }
   }
 }
@@ -348,116 +346,91 @@ private fun BackupAvailableContent(
     )
   }
 
-  RegistrationScreen(
-    menu = null,
-    topContent = {
-      if (state.backupTier != null) {
-        RegistrationScreenTitleSubtitle(
-          title = stringResource(id = R.string.RemoteRestoreActivity__restore_from_backup),
-          subtitle = AnnotatedString(subtitle)
-        )
-      } else {
-        Icon(
-          imageVector = SignalIcons.Backup.imageVector,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.primary,
-          modifier = Modifier
-            .size(64.dp)
-            .background(color = SignalTheme.colors.colorSurface2, shape = CircleShape)
-            .padding(12.dp)
-            .align(Alignment.CenterHorizontally)
-        )
-
-        Spacer(modifier = Modifier.size(16.dp))
-
-        Text(
-          text = stringResource(id = R.string.RemoteRestoreActivity__restore_from_backup),
-          style = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.Center),
-          modifier = Modifier.fillMaxWidth()
-        )
-      }
-    },
-
-    bottomContent = {
-      Column {
-        if (state.isLoaded()) {
-          Buttons.LargeTonal(
-            onClick = onRestoreBackupClick,
-            modifier = Modifier.fillMaxWidth()
-          ) {
-            Text(text = stringResource(id = R.string.RemoteRestoreActivity__restore_backup))
-          }
-        }
-
-        TextButton(
-          onClick = onCancelClick,
-          modifier = Modifier.fillMaxWidth()
-        ) {
-          Text(text = stringResource(id = if (state.isRemoteRestoreOnlyOption) R.string.RemoteRestoreActivity__skip_restore else android.R.string.cancel))
-        }
-      }
-    }
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(LightThemeTokens.colors.background)
   ) {
-    if (state.backupTier != null) {
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .background(color = SignalTheme.colors.colorSurface2, shape = RoundedCornerShape(18.dp))
-          .padding(horizontal = 20.dp)
-          .padding(top = 20.dp, bottom = 18.dp)
-      ) {
-        Text(
-          text = stringResource(id = R.string.RemoteRestoreActivity__your_backup_includes),
-          style = MaterialTheme.typography.titleMedium,
-          modifier = Modifier.padding(bottom = 6.dp)
-        )
+    LightScrollView(
+      scrollBarPosition = LightScrollBarPosition.Inside,
+      modifier = Modifier
+        .weight(1f)
+        .fillMaxWidth()
+        .padding(horizontal = 2f.gridUnitsAsDp())
+    ) {
+      LightText(
+        text = stringResource(R.string.RemoteRestoreActivity__restore_from_backup),
+        variant = LightTextVariant.Title,
+        modifier = Modifier.padding(top = 1.5f.gridUnitsAsDp())
+      )
+      LightText(
+        text = subtitle,
+        variant = LightTextVariant.Detail,
+        lighten = true,
+        modifier = Modifier.padding(top = 0.75f.gridUnitsAsDp())
+      )
 
-        getFeatures(state.backupTier, state.backupMediaTTL).forEach {
-          MessageBackupsTypeFeatureRow(
-            messageBackupsTypeFeature = it,
-            iconTint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 16.dp, top = 6.dp)
+      if (state.backupTier != null) {
+        LightText(
+          text = stringResource(R.string.RemoteRestoreActivity__your_backup_includes),
+          variant = LightTextVariant.Heading,
+          modifier = Modifier.padding(top = 1.5f.gridUnitsAsDp(), bottom = 0.35f.gridUnitsAsDp())
+        )
+        getFeatures(state.backupTier, state.backupMediaTTL).forEach { feature ->
+          LightText(
+            text = feature.label,
+            variant = LightTextVariant.Copy,
+            modifier = Modifier.padding(vertical = 0.4f.gridUnitsAsDp())
           )
         }
       }
 
-      Text(
+      LightText(
         text = stringResource(R.string.RemoteRestoreActivity__your_media_will_restore_in_the_background),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.secondary,
-        modifier = Modifier.padding(top = 16.dp)
-      )
-    } else {
-      Text(
-        text = subtitle,
-        style = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(vertical = 20.dp)
-      )
-
-      Text(
-        text = stringResource(R.string.RemoteRestoreActivity__your_media_will_restore_in_the_background),
-        style = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        variant = LightTextVariant.Paragraph,
+        lighten = true,
+        modifier = Modifier.padding(top = 1.25f.gridUnitsAsDp(), bottom = 1f.gridUnitsAsDp())
       )
     }
 
-    when (state.importState) {
-      RemoteRestoreViewModel.ImportState.None -> Unit
-      RemoteRestoreViewModel.ImportState.InProgress -> RestoreProgressDialog(state.restoreProgress)
-      RemoteRestoreViewModel.ImportState.Restored -> Unit
-      RemoteRestoreViewModel.ImportState.NetworkFailure -> RestoreNetworkFailedDialog(onDismiss = onImportErrorDialogDismiss)
-      RemoteRestoreViewModel.ImportState.Failed -> {
-        if (SignalStore.backup.hasInvalidBackupVersion) {
-          InvalidBackupVersionDialog(onUpdateSignal = onUpdateSignal, onDismiss = onImportErrorDialogDismiss)
-        } else {
-          RestoreFailedDialog(onDismiss = onImportErrorDialogDismiss)
-        }
-      }
+    LightBottomBar(
+      items = listOf(
+        LightBarButton.Text(
+          text = stringResource(
+            if (state.isRemoteRestoreOnlyOption) {
+              R.string.RemoteRestoreActivity__skip_restore
+            } else {
+              android.R.string.cancel
+            }
+          ).uppercase(),
+          onClick = onCancelClick
+        ),
+        LightBarButton.Text(
+          text = stringResource(R.string.RemoteRestoreActivity__restore_backup).uppercase(),
+          onClick = if (state.isLoaded()) onRestoreBackupClick else null
+        )
+      )
+    )
+  }
 
-      RemoteRestoreViewModel.ImportState.FailureWithLogPrompt -> {
-        RestoreFailedWithLogPromptDialog(onDismiss = onImportErrorDialogDismiss, onContactSupport = onContactSupport)
+  when (state.importState) {
+    RemoteRestoreViewModel.ImportState.None -> Unit
+    RemoteRestoreViewModel.ImportState.InProgress -> RestoreProgressDialog(state.restoreProgress)
+    RemoteRestoreViewModel.ImportState.Restored -> Unit
+    RemoteRestoreViewModel.ImportState.NetworkFailure -> RestoreNetworkFailedDialog(onDismiss = onImportErrorDialogDismiss)
+    RemoteRestoreViewModel.ImportState.Failed -> {
+      if (SignalStore.backup.hasInvalidBackupVersion) {
+        InvalidBackupVersionDialog(onUpdateSignal = onUpdateSignal, onDismiss = onImportErrorDialogDismiss)
+      } else {
+        RestoreFailedDialog(onDismiss = onImportErrorDialogDismiss)
       }
+    }
+
+    RemoteRestoreViewModel.ImportState.FailureWithLogPrompt -> {
+      RestoreFailedWithLogPromptDialog(
+        onDismiss = onImportErrorDialogDismiss,
+        onContactSupport = onContactSupport
+      )
     }
   }
 }
@@ -540,70 +513,152 @@ private fun getFeatures(tier: MessageBackupTier?, mediaTTL: Duration): Immutable
   }
 }
 
-/**
- * A dialog that *just* shows a spinner. Useful for short actions where you need to
- * let the user know that some action is completing.
- */
 @Composable
 private fun RestoreProgressDialog(restoreProgress: RestoreV2Event?) {
-  AlertDialog(
-    onDismissRequest = {},
-    confirmButton = {},
-    dismissButton = {},
-    text = {
-      Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-          .fillMaxWidth()
-      ) {
-        Column(
-          horizontalAlignment = Alignment.CenterHorizontally,
-          modifier = Modifier.wrapContentSize()
-        ) {
-          if (restoreProgress == null || restoreProgress.type == RestoreV2Event.Type.PROGRESS_FINALIZING) {
-            CircularProgressIndicator(
-              modifier = Modifier
-                .padding(top = 55.dp, bottom = 16.dp)
-                .width(48.dp)
-                .height(48.dp)
-            )
-          } else {
-            CircularProgressIndicator(
-              progress = { restoreProgress.getProgress() },
-              modifier = Modifier
-                .padding(top = 55.dp, bottom = 16.dp)
-                .width(48.dp)
-                .height(48.dp)
-            )
-          }
+  BackHandler(onBack = {})
 
-          val progressText = when (restoreProgress?.type) {
-            RestoreV2Event.Type.PROGRESS_DOWNLOAD -> stringResource(id = R.string.RemoteRestoreActivity__downloading_backup)
-            RestoreV2Event.Type.PROGRESS_RESTORE -> stringResource(id = R.string.RemoteRestoreActivity__restoring_messages)
-            RestoreV2Event.Type.PROGRESS_FINALIZING -> stringResource(id = R.string.RemoteRestoreActivity__finishing_restore)
-            else -> stringResource(id = R.string.RemoteRestoreActivity__restoring)
-          }
+  val progressText = when (restoreProgress?.type) {
+    RestoreV2Event.Type.PROGRESS_DOWNLOAD -> stringResource(R.string.RemoteRestoreActivity__downloading_backup)
+    RestoreV2Event.Type.PROGRESS_RESTORE -> stringResource(R.string.RemoteRestoreActivity__restoring_messages)
+    RestoreV2Event.Type.PROGRESS_FINALIZING -> stringResource(R.string.RemoteRestoreActivity__finishing_restore)
+    else -> stringResource(R.string.RemoteRestoreActivity__restoring)
+  }
+  val progressDetail = if (restoreProgress != null && restoreProgress.type != RestoreV2Event.Type.PROGRESS_FINALIZING) {
+    stringResource(
+      R.string.RemoteRestoreActivity__s_of_s_s,
+      restoreProgress.count.toUnitString(),
+      restoreProgress.estimatedTotalCount.toUnitString(),
+      "%.2f%%".format(restoreProgress.getProgress() * 100)
+    )
+  } else {
+    null
+  }
 
-          Text(
-            text = progressText,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 12.dp)
-          )
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(LightThemeTokens.colors.background)
+      .padding(horizontal = 2f.gridUnitsAsDp()),
+    verticalArrangement = Arrangement.Center,
+    horizontalAlignment = Alignment.CenterHorizontally
+  ) {
+    LightText(
+      text = progressText,
+      variant = LightTextVariant.Heading,
+      align = TextAlign.Center
+    )
+    // `progressDetail` is null exactly when there is no measurable progress to show: no event yet,
+    // or the finalizing pass, which the original spinner treated the same way.
+    if (progressDetail != null) {
+      LightProgressBar(
+        colors = rememberMollyLightColors(),
+        progress = restoreProgress?.getProgress() ?: 0f
+      )
+      LightText(
+        text = progressDetail,
+        variant = LightTextVariant.Detail,
+        align = TextAlign.Center,
+        lighten = true,
+        modifier = Modifier.padding(top = 0.75f.gridUnitsAsDp())
+      )
+    }
+  }
+}
 
-          if (restoreProgress != null && restoreProgress.type != RestoreV2Event.Type.PROGRESS_FINALIZING) {
-            val progressBytes = restoreProgress.count.toUnitString()
-            val totalBytes = restoreProgress.estimatedTotalCount.toUnitString()
-            Text(
-              text = stringResource(id = R.string.RemoteRestoreActivity__s_of_s_s, progressBytes, totalBytes, "%.2f%%".format(restoreProgress.getProgress() * 100)),
-              style = MaterialTheme.typography.bodySmall,
-              modifier = Modifier.padding(bottom = 12.dp)
-            )
-          }
-        }
+@Composable
+private fun LightRestoreStatus(title: String, message: String) {
+  BackHandler(onBack = {})
+
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(LightThemeTokens.colors.background)
+      .padding(horizontal = 2f.gridUnitsAsDp()),
+    verticalArrangement = Arrangement.Center,
+    horizontalAlignment = Alignment.CenterHorizontally
+  ) {
+    LightText(
+      text = title,
+      variant = LightTextVariant.Heading,
+      align = TextAlign.Center
+    )
+    LightText(
+      text = message,
+      variant = LightTextVariant.Paragraph,
+      align = TextAlign.Center,
+      lighten = true,
+      modifier = Modifier.padding(top = 0.75f.gridUnitsAsDp())
+    )
+  }
+}
+
+@Composable
+private fun LightRemoteConfirmation(
+  title: String,
+  message: String,
+  confirmLabel: String,
+  dismissLabel: String? = null,
+  onConfirm: () -> Unit,
+  onDismiss: () -> Unit = {},
+  dismissOnBack: Boolean = true
+) {
+  LightRemoteActionScreen(
+    title = title,
+    message = message,
+    onBack = if (dismissOnBack) onDismiss else null,
+    actions = buildList {
+      if (dismissLabel != null) {
+        // Matches Dialogs.SimpleAlertDialog's dismiss button: clear the dialog state first, then
+        // run the deny action (which these call sites never supplied, so it stays a no-op).
+        add(LightBarButton.Text(text = dismissLabel.uppercase(), onClick = onDismiss))
       }
-    },
-    modifier = Modifier.width(212.dp)
+      // Matches Dialogs.SimpleAlertDialog's confirm button, which ran `onDismiss()` and *then*
+      // `onConfirm()`. Several call sites rely on that ordering: RestoreFailedWithLogPromptDialog
+      // clears the import-error state via onDismiss while onContactSupport opens support, and
+      // InvalidBackupVersionDialog clears it while onUpdateSignal leaves for the Play Store.
+      // Calling only onConfirm left the failure dialog latched open behind support/Play Store.
+      add(LightBarButton.Text(text = confirmLabel.uppercase(), onClick = { onDismiss(); onConfirm() }))
+    }
   )
+}
+
+@Composable
+private fun LightRemoteActionScreen(
+  title: String,
+  message: String,
+  actions: List<LightBarButton>,
+  onBack: (() -> Unit)? = null
+) {
+  BackHandler(onBack = onBack ?: {})
+
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(LightThemeTokens.colors.background)
+  ) {
+    Column(
+      modifier = Modifier
+        .weight(1f)
+        .fillMaxWidth()
+        .padding(horizontal = 2f.gridUnitsAsDp()),
+      verticalArrangement = Arrangement.Center,
+      horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+      LightText(
+        text = title,
+        variant = LightTextVariant.Heading,
+        align = TextAlign.Center
+      )
+      LightText(
+        text = message,
+        variant = LightTextVariant.Paragraph,
+        align = TextAlign.Center,
+        lighten = true,
+        modifier = Modifier.padding(top = 0.75f.gridUnitsAsDp())
+      )
+    }
+    LightBottomBar(items = actions)
+  }
 }
 
 @DayNightPreviews
@@ -624,10 +679,10 @@ private fun ProgressDialogPreview() {
 fun BackupNotFoundDialog(
   onDismiss: () -> Unit = {}
 ) {
-  Dialogs.SimpleAlertDialog(
+  LightRemoteConfirmation(
     title = stringResource(R.string.EnterBackupKey_backup_not_found),
-    body = stringResource(R.string.EnterBackupKey_backup_key_you_entered_is_correct_but_no_backup),
-    confirm = stringResource(android.R.string.ok),
+    message = stringResource(R.string.EnterBackupKey_backup_key_you_entered_is_correct_but_no_backup),
+    confirmLabel = stringResource(android.R.string.ok),
     onConfirm = onDismiss,
     onDismiss = onDismiss
   )
@@ -637,10 +692,10 @@ fun BackupNotFoundDialog(
 fun RestoreFailedDialog(
   onDismiss: () -> Unit = {}
 ) {
-  Dialogs.SimpleAlertDialog(
+  LightRemoteConfirmation(
     title = stringResource(R.string.RemoteRestoreActivity__couldnt_transfer),
-    body = stringResource(R.string.RemoteRestoreActivity__error_occurred),
-    confirm = stringResource(android.R.string.ok),
+    message = stringResource(R.string.RemoteRestoreActivity__error_occurred),
+    confirmLabel = stringResource(android.R.string.ok),
     onConfirm = onDismiss,
     onDismiss = onDismiss
   )
@@ -651,11 +706,11 @@ fun RestoreFailedWithLogPromptDialog(
   onDismiss: () -> Unit = {},
   onContactSupport: () -> Unit = {}
 ) {
-  Dialogs.SimpleAlertDialog(
+  LightRemoteConfirmation(
     title = stringResource(R.string.RemoteRestoreActivity__failure_with_log_prompt_title),
-    body = stringResource(R.string.RemoteRestoreActivity__failure_with_log_prompt_body),
-    confirm = stringResource(R.string.RemoteRestoreActivity__failure_with_log_prompt_contact_button),
-    dismiss = stringResource(android.R.string.ok),
+    message = stringResource(R.string.RemoteRestoreActivity__failure_with_log_prompt_body),
+    confirmLabel = stringResource(R.string.RemoteRestoreActivity__failure_with_log_prompt_contact_button),
+    dismissLabel = stringResource(android.R.string.ok),
     onConfirm = onContactSupport,
     onDismiss = onDismiss
   )
@@ -665,10 +720,10 @@ fun RestoreFailedWithLogPromptDialog(
 fun RestoreNetworkFailedDialog(
   onDismiss: () -> Unit = {}
 ) {
-  Dialogs.SimpleAlertDialog(
+  LightRemoteConfirmation(
     title = stringResource(R.string.RemoteRestoreActivity__couldnt_transfer),
-    body = stringResource(R.string.RegistrationActivity_error_connecting_to_service),
-    confirm = stringResource(android.R.string.ok),
+    message = stringResource(R.string.RegistrationActivity_error_connecting_to_service),
+    confirmLabel = stringResource(android.R.string.ok),
     onConfirm = onDismiss,
     onDismiss = onDismiss
   )
@@ -681,29 +736,32 @@ fun TierRestoreFailedDialog(
   onContactSupport: () -> Unit = {},
   onCancel: () -> Unit = {}
 ) {
-  if (loadAttempts > 2) {
-    Dialogs.AdvancedAlertDialog(
-      title = stringResource(R.string.EnterBackupKey_cant_restore_backup),
-      body = stringResource(R.string.EnterBackupKey_your_backup_cant_be_restored_right_now),
-      positive = stringResource(R.string.EnterBackupKey_try_again),
-      neutral = stringResource(R.string.EnterBackupKey_contact_support),
-      negative = stringResource(android.R.string.cancel),
-      onPositive = onRetryRestore,
-      onNeutral = onContactSupport,
-      onNegative = onCancel,
-      properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
-    )
-  } else {
-    Dialogs.SimpleAlertDialog(
-      title = stringResource(R.string.EnterBackupKey_cant_restore_backup),
-      body = stringResource(R.string.EnterBackupKey_your_backup_cant_be_restored_right_now),
-      confirm = stringResource(R.string.EnterBackupKey_try_again),
-      dismiss = stringResource(android.R.string.cancel),
-      onConfirm = onRetryRestore,
-      onDeny = onCancel,
-      onDismissRequest = {}
-    )
-  }
+  LightRemoteActionScreen(
+    title = stringResource(R.string.EnterBackupKey_cant_restore_backup),
+    message = stringResource(R.string.EnterBackupKey_your_backup_cant_be_restored_right_now),
+    actions = buildList {
+      add(
+        LightBarButton.Text(
+          text = stringResource(android.R.string.cancel).uppercase(),
+          onClick = onCancel
+        )
+      )
+      if (loadAttempts > 2) {
+        add(
+          LightBarButton.Text(
+            text = stringResource(R.string.EnterBackupKey_contact_support).uppercase(),
+            onClick = onContactSupport
+          )
+        )
+      }
+      add(
+        LightBarButton.Text(
+          text = stringResource(R.string.EnterBackupKey_try_again).uppercase(),
+          onClick = onRetryRestore
+        )
+      )
+    }
+  )
 }
 
 @DayNightPreviews
@@ -727,12 +785,12 @@ fun InvalidBackupVersionDialog(
   onUpdateSignal: () -> Unit = {},
   onDismiss: () -> Unit = {}
 ) {
-  Dialogs.SimpleAlertDialog(
+  LightRemoteConfirmation(
     title = stringResource(R.string.RemoteRestoreActivity__couldnt_restore),
-    body = stringResource(R.string.RemoteRestoreActivity__update_latest),
-    confirm = stringResource(R.string.RemoteRestoreActivity__update_signal),
+    message = stringResource(R.string.RemoteRestoreActivity__update_latest),
+    confirmLabel = stringResource(R.string.RemoteRestoreActivity__update_signal),
+    dismissLabel = stringResource(R.string.RemoteRestoreActivity__not_now),
     onConfirm = onUpdateSignal,
-    dismiss = stringResource(R.string.RemoteRestoreActivity__not_now),
     onDismiss = onDismiss
   )
 }

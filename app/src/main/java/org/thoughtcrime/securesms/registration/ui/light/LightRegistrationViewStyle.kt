@@ -24,7 +24,6 @@ import com.thelightphone.sdk.ui.LightTextVariant
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle
 import org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton
-import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -72,8 +71,11 @@ object LightRegistrationViewStyle {
 
   fun action(button: MaterialButton) {
     LightItemStyle.apply(button, LightTextVariant.Button)
+    // `isAllCaps` already renders the label in caps at draw time. Do NOT also rewrite
+    // `button.text`: that would resolve the string resource in the current locale, flatten any
+    // styled spans the resource carries, and locale-uppercase the stored value -- which mangles
+    // languages where uppercasing changes the letters (Turkish dotted/dotless i, German sharp s).
     button.isAllCaps = true
-    button.text = button.text?.toString()?.uppercase(Locale.getDefault())
     button.backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
     button.strokeWidth = 0
     button.cornerRadius = 0
@@ -89,8 +91,10 @@ object LightRegistrationViewStyle {
   }
 
   fun action(button: CircularProgressMaterialButton) {
-    val materialButton = button.findViewById<MaterialButton>(R.id.button)
-    action(materialButton)
+    // Guarded: these are looked up by id out of CircularProgressMaterialButton's own inflated
+    // layout. An unresolved id must degrade to "leave this button alone", never throw -- this runs
+    // on the registration-lock and re-registration PIN screens, where a crash is a hard lockout.
+    button.findViewById<MaterialButton>(R.id.button)?.let(::action)
 
     // The CircularProgressIndicator lives behind the MaterialButton. When the button
     // is enabled, CircularProgressMaterialButton sets the indicator to VISIBLE — which

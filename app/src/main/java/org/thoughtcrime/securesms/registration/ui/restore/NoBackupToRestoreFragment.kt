@@ -11,13 +11,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,16 +22,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.gridUnitsAsDp
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Dialogs
@@ -45,6 +43,8 @@ import org.signal.registration.proto.RegistrationProvisionMessage
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.registration.data.network.RegisterAccountResult
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 import org.thoughtcrime.securesms.util.viewModel
@@ -117,26 +117,21 @@ private fun NoBackupToRestoreContent(
     title = stringResource(id = R.string.NoBackupToRestore_title),
     subtitle = stringResource(id = R.string.NoBackupToRestore_subtitle),
     bottomContent = {
-      Column {
-        Buttons.LargeTonal(
-          onClick = onSkipRestore,
-          modifier = Modifier.fillMaxWidth()
-        ) {
-          Text(text = stringResource(id = R.string.NoBackupToRestore_skip_restore))
-        }
-
-        TextButton(
-          onClick = onCancel,
-          modifier = Modifier.fillMaxWidth()
-        ) {
-          Text(text = stringResource(id = android.R.string.cancel))
-        }
-      }
+      RegistrationBottomActions(
+        left = RegistrationAction(
+          label = stringResource(id = android.R.string.cancel),
+          onClick = onCancel
+        ),
+        right = RegistrationAction(
+          label = stringResource(id = R.string.NoBackupToRestore_skip_restore),
+          onClick = onSkipRestore
+        )
+      )
     }
   ) {
     Column(
-      verticalArrangement = Arrangement.spacedBy(24.dp),
-      modifier = Modifier.padding(horizontal = 32.dp)
+      verticalArrangement = Arrangement.spacedBy(1.5f.gridUnitsAsDp()),
+      modifier = Modifier.padding(horizontal = 2f.gridUnitsAsDp())
     ) {
       StepRow(icon = painterResource(CoreUiR.drawable.symbol_device_phone_24), text = stringResource(id = R.string.NoBackupToRestore_step1))
 
@@ -173,15 +168,16 @@ private fun StepRow(
   ) {
     Icon(
       painter = icon,
-      tint = MaterialTheme.colorScheme.onSurfaceVariant,
+      tint = LightThemeTokens.colors.contentSecondary,
       contentDescription = null
     )
 
-    Spacer(modifier = Modifier.width(16.dp))
+    Spacer(modifier = Modifier.width(1f.gridUnitsAsDp()))
 
-    Text(
+    LightText(
       text = text,
-      style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+      variant = LightTextVariant.Paragraph,
+      lighten = true
     )
   }
 }

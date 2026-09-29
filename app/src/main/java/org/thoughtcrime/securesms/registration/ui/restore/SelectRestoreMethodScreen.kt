@@ -6,21 +6,17 @@
 package org.thoughtcrime.securesms.registration.ui.restore
 
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
 
-/**
- * Screen showing various restore methods available during quick and manual re-registration.
- */
+/** Screen showing the restore methods available in the active registration flow. */
 @Composable
 fun SelectRestoreMethodScreen(
   restoreMethods: List<RestoreMethod>,
@@ -32,15 +28,15 @@ fun SelectRestoreMethodScreen(
     title = stringResource(id = R.string.SelectRestoreMethodFragment__restore_or_transfer_account),
     subtitle = stringResource(id = R.string.SelectRestoreMethodFragment__get_your_signal_account),
     bottomContent = {
-      TextButton(
-        onClick = onSkip,
-        modifier = Modifier.align(Alignment.Center)
-      ) {
-        Text(text = stringResource(R.string.registration_activity__skip_restore))
-      }
+      RegistrationBottomActions(
+        center = RegistrationAction(
+          label = stringResource(R.string.registration_activity__skip_restore),
+          onClick = onSkip
+        )
+      )
     }
   ) {
-    for (method in restoreMethods) {
+    restoreMethods.forEach { method ->
       RestoreRow(
         icon = painterResource(method.iconRes),
         title = stringResource(method.titleRes),

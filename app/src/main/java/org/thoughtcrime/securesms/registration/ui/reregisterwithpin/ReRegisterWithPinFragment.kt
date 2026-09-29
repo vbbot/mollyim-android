@@ -24,6 +24,8 @@ import org.thoughtcrime.securesms.registration.fragments.RegistrationViewDelegat
 import org.thoughtcrime.securesms.registration.ui.RegistrationCheckpoint
 import org.thoughtcrime.securesms.registration.ui.RegistrationState
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationContracts
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
 import org.thoughtcrime.securesms.registration.ui.phonenumber.EnterPhoneNumberMode
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.SupportEmailUtil
@@ -46,6 +48,16 @@ class ReRegisterWithPinFragment : LoggingFragment(R.layout.fragment_registration
 
     RegistrationViewDelegate.setDebugLogSubmitMultiTapView(binding.pinRestorePinTitle)
     binding.pinRestorePinDescription.setText(R.string.RegistrationLockFragment__enter_the_pin_you_created_for_your_account)
+
+    LightRegistrationViewStyle.surface(binding.root)
+    LightRegistrationViewStyle.title(binding.pinRestorePinTitle)
+    LightRegistrationViewStyle.body(binding.pinRestorePinDescription)
+    LightRegistrationViewStyle.detail(binding.pinRestorePinInputLabel)
+    LightRegistrationViewStyle.input(binding.editKbsTextinputlayout)
+    LightRegistrationViewStyle.action(binding.pinRestoreForgotPin)
+    LightRegistrationViewStyle.action(binding.pinRestoreKeyboardToggle)
+    LightRegistrationViewStyle.action(binding.pinRestorePinContinue)
+    LightRegistrationViewStyle.action(binding.pinRestoreSkipButton)
 
     binding.pinRestoreForgotPin.visibility = View.GONE
     binding.pinRestoreForgotPin.setOnClickListener { onNeedHelpClicked() }
@@ -121,7 +133,7 @@ class ReRegisterWithPinFragment : LoggingFragment(R.layout.fragment_registration
       return
     }
 
-    if (pin.trim().length < SvrConstants.MINIMUM_PIN_LENGTH) {
+    if (LightRegistrationContracts.pinLength(pin, LightRegistrationContracts.PinWhitespace.TRIM_EDGES) < SvrConstants.MINIMUM_PIN_LENGTH) {
       Toast.makeText(requireContext(), getString(R.string.RegistrationActivity_your_pin_has_at_least_d_digits_or_characters, SvrConstants.MINIMUM_PIN_LENGTH), Toast.LENGTH_LONG).show()
       enableAndFocusPinEntry()
       return

@@ -19,10 +19,14 @@ package org.thoughtcrime.securesms;
 import android.os.Bundle;
 
 import android.view.View;
+import android.widget.TextView;
+
+import com.google.android.material.button.MaterialButton;
 
 import org.signal.core.util.logging.Log;
 import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.crypto.MasterSecretUtil;
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 
 /**
@@ -57,6 +61,13 @@ public class PassphraseCreateActivity extends PassphraseActivity {
   private void initializeResources() {
     yesButton = findViewById(R.id.yes_button);
     noButton  = findViewById(R.id.no_button);
+
+    LightRegistrationViewStyle.INSTANCE.surface(findViewById(android.R.id.content));
+    LightRegistrationViewStyle.INSTANCE.title((TextView) findViewById(R.id.blurb));
+    LightRegistrationViewStyle.INSTANCE.body((TextView) findViewById(R.id.subblurb));
+    LightRegistrationViewStyle.INSTANCE.body((TextView) findViewById(R.id.passphrase_lock_explanation));
+    LightRegistrationViewStyle.INSTANCE.action((MaterialButton) yesButton);
+    LightRegistrationViewStyle.INSTANCE.action((MaterialButton) noButton);
 
     yesButton.setOnClickListener(v -> onButtonClicked(true));
     noButton.setOnClickListener(v -> onButtonClicked(false));

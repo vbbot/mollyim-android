@@ -18,10 +18,12 @@
 package org.thoughtcrime.securesms.migrations;
 
 import android.os.Bundle;
+import android.widget.TextView;
 
 import org.signal.core.util.logging.Log;
 import org.thoughtcrime.securesms.PassphraseRequiredActivity;
 import org.thoughtcrime.securesms.R;
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle;
 
 /**
  * An activity that can be shown to block access to the rest of the app when a long-running or
@@ -43,6 +45,8 @@ public class ApplicationMigrationActivity extends PassphraseRequiredActivity {
       if (running) {
         Log.i(TAG, "UI-blocking migration is in progress. Showing spinner.");
         setContentView(R.layout.application_migration_activity);
+        LightRegistrationViewStyle.INSTANCE.surface(findViewById(android.R.id.content));
+        LightRegistrationViewStyle.INSTANCE.title((TextView) findViewById(R.id.app_migration_text));
       } else if (!isFinishing()) {
         Log.i(TAG, "UI-blocking migration is no-longer in progress. Finishing.");
         startActivity(getIntent().getParcelableExtra("next_intent"));

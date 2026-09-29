@@ -1,73 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
-
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    tools:viewBindingIgnore="true"
     android:id="@+id/password_auth_container"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_margin="8dp"
-    android:orientation="vertical">
+    android:layout_height="match_parent"
+    android:background="@color/core_black"
+    android:paddingStart="27dp"
+    android:paddingEnd="27dp"
+    tools:viewBindingIgnore="true">
 
     <TextView
         android:id="@+id/header_text"
-        style="@style/Signal.Text.Headline"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:layout_marginBottom="36dp"
-        android:gravity="center_horizontal"
+        android:layout_marginTop="24dp"
+        android:fontFamily="sans-serif"
         android:text="@string/prompt_passphrase_activity__molly_is_locked"
-        android:textStyle="bold" />
+        android:textColor="@color/core_white"
+        android:textSize="28sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/passphrase_layout"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginTop="32dp"
+        app:boxBackgroundMode="none"
+        app:endIconMode="password_toggle"
+        app:endIconTint="@color/core_white"
         app:errorEnabled="false"
         app:hintEnabled="false"
-        app:passwordToggleEnabled="true">
+        app:layout_constraintBottom_toTopOf="@id/unlock_action"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/header_text"
+        app:layout_constraintVertical_bias="0.35">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/passphrase_input"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
+            android:backgroundTint="@color/core_white"
+            android:fontFamily="sans-serif"
             android:imeOptions="actionGo"
             android:inputType="textPassword"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
+            android:paddingStart="0dp"
+            android:paddingEnd="0dp"
+            android:textColor="@color/core_white"
+            android:textColorHint="@color/core_grey_45"
+            android:textCursorDrawable="@null"
+            android:textSize="20sp" />
 
     </com.google.android.material.textfield.TextInputLayout>
 
     <FrameLayout
+        android:id="@+id/unlock_action"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="60dp"
+        android:layout_marginBottom="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
         <org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton
             android:id="@+id/ok_button"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="32dp"
-            android:layout_marginEnd="32dp"
-            android:layout_marginBottom="16dp"
-            app:materialThemeOverlay="@style/ThemeOverlay.Signal.CircularProgressIndicator.Primary.Fixed"
+            android:layout_height="match_parent"
+            android:backgroundTint="@android:color/transparent"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/core_white"
             app:circularProgressMaterialButton__label="@string/prompt_passphrase_activity__unlock"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent" />
+            app:materialThemeOverlay="@style/ThemeOverlay.Signal.CircularProgressIndicator.Primary.Fixed" />
 
         <androidx.appcompat.widget.AppCompatImageView
             android:id="@+id/success"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:layout_gravity="center_horizontal"
-            android:tint="?attr/colorPrimary"
+            android:layout_gravity="center"
+            android:tint="@color/core_white"
             android:visibility="gone"
             app:srcCompat="@drawable/ic_check_outline_22" />
 
     </FrameLayout>
 
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

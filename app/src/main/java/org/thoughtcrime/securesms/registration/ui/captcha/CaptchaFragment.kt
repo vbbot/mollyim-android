@@ -17,6 +17,7 @@ import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
 import org.thoughtcrime.securesms.databinding.FragmentRegistrationCaptchaBinding
 import org.thoughtcrime.securesms.registration.fragments.RegistrationConstants
+import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
 
 abstract class CaptchaFragment : LoggingFragment(R.layout.fragment_registration_captcha) {
 
@@ -25,6 +26,10 @@ abstract class CaptchaFragment : LoggingFragment(R.layout.fragment_registration_
   @SuppressLint("SetJavaScriptEnabled")
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
+    LightRegistrationViewStyle.surface(binding.root)
+    LightRegistrationViewStyle.surface(binding.root.getChildAt(0))
+    LightRegistrationViewStyle.title(binding.registrationCaptchaTitle)
+
     binding.registrationCaptchaWebView.settings.javaScriptEnabled = true
     binding.registrationCaptchaWebView.clearCache(true)
 
