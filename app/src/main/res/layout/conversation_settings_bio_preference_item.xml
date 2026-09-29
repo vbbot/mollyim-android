@@ -4,7 +4,8 @@
     tools:viewBindingIgnore="true"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:background="@android:color/black">
 
     <org.thoughtcrime.securesms.components.emoji.EmojiTextView
         android:id="@+id/bio_preference_headline"
@@ -15,6 +16,7 @@
         android:layout_marginEnd="32dp"
         android:gravity="center"
         android:textAppearance="@style/Signal.Text.HeadlineMedium"
+        android:textColor="@android:color/white"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
@@ -50,7 +52,7 @@
         android:gravity="center"
         android:lineSpacingExtra="4sp"
         android:textAppearance="@style/Signal.Text.BodyLarge"
-        android:textColor="?attr/signal_text_secondary"
+        android:textColor="#B3FFFFFF"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/bio_preference_terminated_pill"
@@ -66,7 +68,7 @@
         android:gravity="center"
         android:lineSpacingExtra="4sp"
         android:textAppearance="@style/Signal.Text.BodyLarge"
-        android:textColor="?attr/signal_text_secondary"
+        android:textColor="#B3FFFFFF"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/bio_preference_subhead_1"
@@ -82,7 +84,7 @@
         android:gravity="center"
         android:lineSpacingExtra="4sp"
         android:textAppearance="@style/Signal.Text.BodySmall"
-        android:textColor="?attr/signal_text_secondary"
+        android:textColor="#B3FFFFFF"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/bio_preference_subhead_2"

@@ -3,6 +3,7 @@ package org.thoughtcrime.securesms.components.settings.conversation.preferences
 import android.text.SpannableStringBuilder
 import android.view.View
 import android.widget.TextView
+import androidx.annotation.LayoutRes
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import org.signal.core.ui.util.ThemeUtil
@@ -26,8 +27,8 @@ import org.signal.core.ui.R as CoreUiR
  */
 object RecipientPreference {
 
-  fun register(adapter: MappingAdapter) {
-    adapter.registerFactory(Model::class.java, LayoutFactory(::ViewHolder, R.layout.group_recipient_list_item))
+  fun register(adapter: MappingAdapter, @LayoutRes layoutId: Int = R.layout.group_recipient_list_item) {
+    adapter.registerFactory(Model::class.java, LayoutFactory(::ViewHolder, layoutId))
   }
 
   class Model(

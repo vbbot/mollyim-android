@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class AddGroupDetailsViewModel extends ViewModel {
 
@@ -36,7 +37,9 @@ public final class AddGroupDetailsViewModel extends ViewModel {
   private final MutableLiveData<String>                            name                      = new MutableLiveData<>("");
   private final MutableLiveData<byte[]>                            avatar                    = new MutableLiveData<>();
   private final SingleLiveEvent<GroupCreateResult>                 groupCreateResult         = new SingleLiveEvent<>();
-  private final MutableLiveData<Integer>                           disappearingMessagesTimer = new MutableLiveData<>(SignalStore.settings().getUniversalExpireTimer());
+  private final MutableLiveData<Boolean>                            isCreating                = new MutableLiveData<>(false);
+  private final AtomicBoolean                                       createInFlight             = new AtomicBoolean(false);
+  private final MutableLiveData<Integer>                            disappearingMessagesTimer = new MutableLiveData<>(SignalStore.settings().getUniversalExpireTimer());
   private final LiveData<Boolean>                                  isMms;
   private final LiveData<Boolean>                                  canSubmitForm;
   private final LiveData<List<Recipient>>                           sameGroups;
@@ -77,8 +80,16 @@ public final class AddGroupDetailsViewModel extends ViewModel {
     return canSubmitForm;
   }
 
+  @NonNull LiveData<String> getName() {
+    return name;
+  }
+
   @NonNull LiveData<GroupCreateResult> getGroupCreateResult() {
     return groupCreateResult;
+  }
+
+  @NonNull LiveData<Boolean> getIsCreating() {
+    return isCreating;
   }
 
   @NonNull LiveData<byte[]> getAvatar() {
@@ -117,6 +128,12 @@ public final class AddGroupDetailsViewModel extends ViewModel {
   }
 
   void create() {
+    if (!createInFlight.compareAndSet(false, true)) {
+      return;
+    }
+
+    isCreating.setValue(true);
+
     List<GroupMemberEntry.NewGroupCandidate> members           = Objects.requireNonNull(this.members.getValue());
     Set<RecipientId>                         memberIds         = members.stream().map(member -> member.getMember().getId()).collect(Collectors.toSet());
     byte[]                                   avatarBytes       = avatar.getValue();
@@ -124,7 +141,7 @@ public final class AddGroupDetailsViewModel extends ViewModel {
     Integer                                  disappearingTimer = disappearingMessagesTimer.getValue();
 
     if (TextUtils.isEmpty(groupName)) {
-      groupCreateResult.postValue(GroupCreateResult.error(GroupCreateResult.Error.Type.ERROR_INVALID_NAME));
+      publishCreateResult(GroupCreateResult.error(GroupCreateResult.Error.Type.ERROR_INVALID_NAME));
       return;
     }
 
@@ -132,7 +149,15 @@ public final class AddGroupDetailsViewModel extends ViewModel {
                            avatarBytes,
                            groupName,
                            disappearingTimer,
-                           groupCreateResult::postValue);
+                           this::publishCreateResult);
+  }
+
+  private void publishCreateResult(@NonNull GroupCreateResult result) {
+    if (result instanceof GroupCreateResult.Error) {
+      createInFlight.set(false);
+      isCreating.postValue(false);
+    }
+    groupCreateResult.postValue(result);
   }
 
   private static @NonNull List<GroupMemberEntry.NewGroupCandidate> filterDeletedMembers(@NonNull List<GroupMemberEntry.NewGroupCandidate> members, @NonNull Set<RecipientId> deleted) {

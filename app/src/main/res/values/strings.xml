@@ -1449,6 +1449,9 @@
     <string name="AddGroupDetailsFragment__name_this_group">Name this group</string>
     <string name="AddGroupDetailsFragment__create_group">Create group</string>
     <string name="AddGroupDetailsFragment__create">Create</string>
+    <string name="AddGroupDetailsFragment__creating">Creating…</string>
+    <string name="AddGroupDetailsFragment__group_avatar">Group avatar</string>
+    <string name="AddGroupDetailsFragment__will_be_invited">Will be invited</string>
     <string name="AddGroupDetailsFragment__members">Members</string>
     <string name="AddGroupDetailsFragment__you_can_add_or_invite_friends_after_creating_this_group">You can add or invite friends after creating this group.</string>
     <string name="AddGroupDetailsFragment__group_name_required">Group name (required)</string>

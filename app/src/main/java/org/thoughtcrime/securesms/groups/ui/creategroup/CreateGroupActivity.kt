@@ -9,41 +9,38 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightBottomBar
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.signal.core.ui.compose.AllDevicePreviews
-import org.signal.core.ui.compose.Buttons
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.theme.SignalTheme
 import org.thoughtcrime.securesms.PassphraseRequiredActivity
@@ -53,6 +50,8 @@ import org.thoughtcrime.securesms.groups.SelectionLimits
 import org.thoughtcrime.securesms.groups.ui.creategroup.CreateGroupUiState.NavTarget
 import org.thoughtcrime.securesms.groups.ui.creategroup.CreateGroupUiState.UserMessage
 import org.thoughtcrime.securesms.groups.ui.creategroup.details.AddGroupDetailsActivity
+import org.thoughtcrime.securesms.light.MollyLightTheme
+import org.thoughtcrime.securesms.light.lightScrim
 import org.thoughtcrime.securesms.recipients.ui.RecipientLookupFailureMessage
 import org.thoughtcrime.securesms.recipients.ui.RecipientPicker
 import org.thoughtcrime.securesms.recipients.ui.RecipientPickerCallbacks
@@ -146,7 +145,6 @@ private fun CreateGroupScreen(
   )
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 private fun CreateGroupScreenUi(
   uiState: CreateGroupUiState,
@@ -161,6 +159,7 @@ private fun CreateGroupScreenUi(
   } else {
     stringResource(R.string.CreateGroupActivity__select_members)
   }
+  val action = createGroupPrimaryAction(uiState.newSelections.size, uiState.isLookingUpRecipient)
 
   RecipientPickerScaffold(
     title = title,
@@ -169,49 +168,77 @@ private fun CreateGroupScreenUi(
     topAppBarActions = {},
     snackbarHostState = remember { SnackbarHostState() },
     primaryContent = {
-      CreateGroupRecipientPicker(
-        uiState = uiState,
-        callbacks = callbacks
-      )
-
-      UserMessagesHost(
-        userMessage = uiState.userMessage,
-        onDismiss = callbacks::onUserMessageDismissed
-      )
-
-      if (uiState.isLookingUpRecipient) {
-        Dialogs.IndeterminateProgressDialog()
-      }
-    },
-    floatingActionButton = {
-      AnimatedContent(
-        targetState = uiState.newSelections.isNotEmpty(),
-        transitionSpec = {
-          ContentTransform(
-            targetContentEnter = EnterTransition.None,
-            initialContentExit = ExitTransition.None
-          ) using SizeTransform(sizeAnimationSpec = { _, _ -> tween(300) })
-        }
-      ) { hasSelectedContacts ->
-        if (hasSelectedContacts) {
-          FilledTonalIconButton(
-            onClick = callbacks::onNextClicked,
-            content = {
-              Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_arrow_end_24),
-                contentDescription = stringResource(R.string.CreateGroupActivity__accessibility_next)
-              )
-            }
+      Column(
+        modifier = Modifier
+          .fillMaxSize()
+          .background(Color.Black)
+      ) {
+        Box(modifier = Modifier.weight(1f)) {
+          CreateGroupRecipientPicker(
+            uiState = uiState,
+            callbacks = callbacks
           )
-        } else {
-          Buttons.MediumTonal(
-            onClick = callbacks::onNextClicked
-          ) {
-            Text(text = stringResource(R.string.CreateGroupActivity__skip))
+
+          UserMessagesHost(
+            userMessage = uiState.userMessage,
+            onDismiss = callbacks::onUserMessageDismissed
+          )
+
+          if (uiState.isLookingUpRecipient) {
+            // See AddMembersScreenUi: this replaces a Dialogs.IndeterminateProgressDialog, which
+            // refused both an outside tap and Back. A translucent background blocks neither.
+            BackHandler(enabled = true) { }
+            MollyLightTheme {
+              Box(
+                modifier = Modifier
+                  .fillMaxSize()
+                  .background(LightThemeTokens.colors.background.copy(alpha = 0.9f))
+                  .lightScrim(),
+                contentAlignment = Alignment.Center
+              ) {
+                LightText(
+                  text = stringResource(R.string.LinkDeviceFragment__loading),
+                  variant = LightTextVariant.Heading
+                )
+              }
+            }
           }
+        }
+
+        MollyLightTheme {
+          LightBottomBar(
+            items = listOf(
+              LightBarButton.Text(
+                text = stringResource(
+                  if (action.kind == CreateGroupPrimaryAction.Kind.SKIP) {
+                    R.string.CreateGroupActivity__skip
+                  } else {
+                    R.string.CreateGroupActivity__accessibility_next
+                  }
+                ),
+                onClick = if (action.enabled) callbacks::onNextClicked else null
+              )
+            ),
+            modifier = Modifier.fillMaxWidth()
+          )
         }
       }
     }
+  )
+}
+
+data class CreateGroupPrimaryAction(
+  val kind: Kind,
+  val enabled: Boolean
+) {
+  enum class Kind { SKIP, NEXT }
+}
+
+fun createGroupPrimaryAction(selectionCount: Int, isLookingUpRecipient: Boolean): CreateGroupPrimaryAction {
+  require(selectionCount >= 0)
+  return CreateGroupPrimaryAction(
+    kind = if (selectionCount == 0) CreateGroupPrimaryAction.Kind.SKIP else CreateGroupPrimaryAction.Kind.NEXT,
+    enabled = !isLookingUpRecipient
   )
 }
 

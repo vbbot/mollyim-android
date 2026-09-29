@@ -1,6 +1,7 @@
 package org.thoughtcrime.securesms.components.settings.conversation.preferences
 
 import android.view.View
+import androidx.annotation.LayoutRes
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.DSLSettingsIcon
 import org.thoughtcrime.securesms.components.settings.DSLSettingsText
@@ -14,8 +15,8 @@ import org.thoughtcrime.securesms.util.adapter.mapping.MappingAdapter
  */
 object LargeIconClickPreference {
 
-  fun register(adapter: MappingAdapter) {
-    adapter.registerFactory(Model::class.java, LayoutFactory(::ViewHolder, R.layout.large_icon_preference_item))
+  fun register(adapter: MappingAdapter, @LayoutRes layoutId: Int = R.layout.large_icon_preference_item) {
+    adapter.registerFactory(Model::class.java, LayoutFactory(::ViewHolder, layoutId))
   }
 
   class Model(

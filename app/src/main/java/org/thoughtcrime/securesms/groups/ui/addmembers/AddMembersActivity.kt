@@ -11,29 +11,41 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightBottomBar
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
 import org.signal.core.ui.compose.AllDevicePreviews
-import org.signal.core.ui.compose.Buttons
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.theme.SignalTheme
 import org.signal.core.util.getParcelableArrayListExtraCompat
@@ -48,6 +60,8 @@ import org.thoughtcrime.securesms.database.model.GroupRecord
 import org.thoughtcrime.securesms.groups.GroupId
 import org.thoughtcrime.securesms.groups.SelectionLimits
 import org.thoughtcrime.securesms.groups.ui.addmembers.AddMembersUiState.UserMessage
+import org.thoughtcrime.securesms.light.MollyLightTheme
+import org.thoughtcrime.securesms.light.lightScrim
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.recipients.ui.RecipientLookupFailureMessage
 import org.thoughtcrime.securesms.recipients.ui.RecipientPicker
@@ -147,7 +161,6 @@ private fun AddMembersScreen(
   )
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 private fun AddMembersScreenUi(
   uiState: AddMembersUiState,
@@ -162,6 +175,10 @@ private fun AddMembersScreenUi(
   } else {
     stringResource(R.string.AddMembersActivity__add_members)
   }
+  val doneEnabled = addMembersPrimaryAction(
+    selectionCount = uiState.newSelections.size,
+    isLookingUpRecipient = uiState.isLookingUpRecipient
+  ).enabled && uiState.userMessage !is UserMessage.GroupAddConfirmation
 
   RecipientPickerScaffold(
     title = title,
@@ -170,28 +187,98 @@ private fun AddMembersScreenUi(
     topAppBarActions = {},
     snackbarHostState = remember { SnackbarHostState() },
     primaryContent = {
-      AddMembersRecipientPicker(
-        uiState = uiState,
-        callbacks = callbacks
-      )
-
-      UserMessagesHost(
-        userMessage = uiState.userMessage,
-        onAddConfirmed = callbacks::onAddConfirmed,
-        onDismiss = callbacks::onUserMessageDismissed
-      )
-
-      if (uiState.isLookingUpRecipient) {
-        Dialogs.IndeterminateProgressDialog()
-      }
-    },
-    floatingActionButton = {
-      Buttons.MediumTonal(
-        enabled = uiState.newSelections.isNotEmpty(),
-        onClick = callbacks::onDoneClicked
+      Column(
+        modifier = Modifier
+          .fillMaxSize()
+          .background(Color.Black)
       ) {
-        Text(text = stringResource(R.string.AddMembersActivity__done))
+        Box(modifier = Modifier.weight(1f)) {
+          AddMembersRecipientPicker(
+            uiState = uiState,
+            callbacks = callbacks
+          )
+
+          UserMessagesHost(
+            userMessage = uiState.userMessage,
+            onAddConfirmed = callbacks::onAddConfirmed,
+            onDismiss = callbacks::onUserMessageDismissed
+          )
+
+          if (uiState.isLookingUpRecipient) {
+            // The Material dialog this replaced set dismissOnBackPress = dismissOnClickOutside =
+            // false, so both a stray tap and a Back press stopped here. A translucent background on
+            // its own blocks neither, and the recipient picker underneath stays fully interactive.
+            BackHandler(enabled = true) { }
+            MollyLightTheme {
+              Box(
+                modifier = Modifier
+                  .fillMaxSize()
+                  .background(LightThemeTokens.colors.background.copy(alpha = 0.9f))
+                  .lightScrim(),
+                contentAlignment = Alignment.Center
+              ) {
+                LightText(
+                  text = stringResource(R.string.LinkDeviceFragment__loading),
+                  variant = LightTextVariant.Heading
+                )
+              }
+            }
+          }
+        }
+
+        MollyLightTheme {
+          LightBottomBar(
+            items = listOf(
+              LightBarButton.Text(
+                text = stringResource(R.string.AddMembersActivity__done),
+                onClick = if (doneEnabled) callbacks::onDoneClicked else null
+              )
+            ),
+            modifier = Modifier.fillMaxWidth()
+          )
+        }
       }
+    }
+  )
+}
+
+data class AddMembersPrimaryAction(val enabled: Boolean)
+
+fun addMembersPrimaryAction(selectionCount: Int, isLookingUpRecipient: Boolean): AddMembersPrimaryAction {
+  require(selectionCount >= 0)
+  return AddMembersPrimaryAction(enabled = selectionCount > 0 && !isLookingUpRecipient)
+}
+
+enum class AddMembersConfirmationAction {
+  DISMISS,
+  CONFIRM
+}
+
+enum class AddMembersConfirmationEffect {
+  DISMISS,
+  RETURN_SELECTED_IDS
+}
+
+data class AddMembersConfirmationTransition(
+  val submitted: Boolean,
+  val effect: AddMembersConfirmationEffect?
+)
+
+/**
+ * Reduces confirmation taps to a one-shot effect. The activity's confirm effect only returns IDs;
+ * ConversationSettings remains the sole owner of the group mutation.
+ */
+fun reduceAddMembersConfirmation(
+  submitted: Boolean,
+  action: AddMembersConfirmationAction
+): AddMembersConfirmationTransition {
+  if (submitted) return AddMembersConfirmationTransition(submitted = true, effect = null)
+
+  return AddMembersConfirmationTransition(
+    submitted = true,
+    effect = when (action) {
+      AddMembersConfirmationAction.DISMISS -> AddMembersConfirmationEffect.DISMISS
+      AddMembersConfirmationAction.CONFIRM -> AddMembersConfirmationEffect.RETURN_SELECTED_IDS
     }
   )
 }
@@ -300,14 +387,57 @@ private fun GroupAddConfirmationDialog(
     }
   }
 
-  Dialogs.SimpleAlertDialog(
-    title = "",
-    body = bodyText,
-    confirm = stringResource(R.string.AddMembersActivity__add),
-    dismiss = stringResource(android.R.string.cancel),
-    onConfirm = { onAddConfirmed(message.recipientIds) },
-    onDismiss = { onDismiss(message) }
-  )
+  var submitted by rememberSaveable(message) { mutableStateOf(false) }
+  val dismissOnce = {
+    val transition = reduceAddMembersConfirmation(submitted, AddMembersConfirmationAction.DISMISS)
+    submitted = transition.submitted
+    if (transition.effect == AddMembersConfirmationEffect.DISMISS) onDismiss(message)
+  }
+  BackHandler(enabled = !submitted, onBack = dismissOnce)
+
+  MollyLightTheme {
+    Box(modifier = Modifier.fillMaxSize()) {
+      // Sibling scrim, not a parent that consumes: the bottom bar underneath is the only other
+      // thing in this Box and it has to keep its own taps.
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .background(LightThemeTokens.colors.background)
+          .lightScrim()
+      )
+
+      Column(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(20.dp),
+        verticalArrangement = Arrangement.Center
+      ) {
+        LightText(text = bodyText, variant = LightTextVariant.Heading)
+      }
+
+      LightBottomBar(
+        items = listOf(
+          LightBarButton.Text(
+            text = stringResource(android.R.string.cancel),
+            onClick = if (submitted) null else dismissOnce
+          ),
+          LightBarButton.Text(
+            text = stringResource(R.string.AddMembersActivity__add),
+            onClick = if (submitted) null else {
+              {
+                val transition = reduceAddMembersConfirmation(submitted, AddMembersConfirmationAction.CONFIRM)
+                submitted = transition.submitted
+                if (transition.effect == AddMembersConfirmationEffect.RETURN_SELECTED_IDS) {
+                  onAddConfirmed(message.recipientIds)
+                }
+              }
+            }
+          )
+        ),
+        modifier = Modifier.align(Alignment.BottomCenter)
+      )
+    }
+  }
 }
 
 private fun GroupRecord.getDisplayTitle(context: Context): String {

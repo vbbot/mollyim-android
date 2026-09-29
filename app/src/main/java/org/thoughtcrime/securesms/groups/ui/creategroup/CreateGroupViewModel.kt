@@ -84,10 +84,13 @@ class CreateGroupViewModel : ViewModel() {
   }
 
   fun continueToGroupDetails() {
-    viewModelScope.launch {
-      internalUiState.update { it.copy(isLookingUpRecipient = true) }
+    val currentState = uiState.value
+    if (currentState.isLookingUpRecipient || currentState.pendingDestination != null) return
 
-      val selectedRecipientIds = uiState.value.newSelections.map { it.orCreateRecipientId }
+    val selectedRecipientIds = currentState.newSelections.map { it.orCreateRecipientId }
+    internalUiState.update { it.copy(isLookingUpRecipient = true) }
+
+    viewModelScope.launch {
       when (val lookupResult = RecipientRepository.lookup(recipientIds = selectedRecipientIds)) {
         is RecipientRepository.IdLookupResult.FoundAll -> {
           internalUiState.update {

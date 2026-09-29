@@ -12,5 +12,6 @@
     android:gravity="center_horizontal"
     android:maxLines="2"
     android:textAppearance="@style/Signal.Text.BodyLarge"
-    android:textColor="?attr/signal_text_secondary"
+    android:background="@android:color/black"
+    android:textColor="#B3FFFFFF"
     tools:text="Group to plot the capture of Doc Oct" />

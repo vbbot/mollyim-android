@@ -1,22 +1,23 @@
 package org.thoughtcrime.securesms.groups.ui
 
+import android.content.Context
 import android.os.Bundle
 import android.view.View
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -25,32 +26,40 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.setFragmentResult
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.fragment.findNavController
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightIcon
+import com.thelightphone.sdk.ui.LightIcons
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.LightTopBar
+import com.thelightphone.sdk.ui.LightTopBarCenter
+import com.thelightphone.sdk.ui.gridUnitsAsDp
+import com.thelightphone.sdk.ui.lightClickable
 import org.signal.core.ui.compose.ComposeFragment
-import org.signal.core.ui.compose.Dialogs
-import org.signal.core.ui.compose.Dividers
 import org.signal.core.ui.compose.LocalFragmentManager
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.util.logging.Log
 import org.signal.core.util.requireParcelableCompat
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.contacts.paged.ArbitraryRepository
-import org.thoughtcrime.securesms.contacts.paged.ContactSearch
-import org.thoughtcrime.securesms.contacts.paged.ContactSearchAdapter
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchCallbacks
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchConfiguration
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchData
@@ -59,20 +68,22 @@ import org.thoughtcrime.securesms.contacts.paged.ContactSearchPagedDataSourceRep
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchRepository
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchState
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchViewModel
-import org.thoughtcrime.securesms.conversation.RecipientSearchBar
+import org.thoughtcrime.securesms.contacts.paged.light.LightContactItem
+import org.thoughtcrime.securesms.contacts.paged.light.LightContactListScreen
+import org.thoughtcrime.securesms.contacts.paged.light.LightContactState
+import org.thoughtcrime.securesms.contacts.paged.rememberDefaultContactSearchItemClickCallbacks
 import org.thoughtcrime.securesms.conversation.mutiselect.forward.SearchConfigurationProvider
 import org.thoughtcrime.securesms.groups.GroupId
 import org.thoughtcrime.securesms.groups.SelectionLimits
-import org.thoughtcrime.securesms.groups.ui.MemberSearchFragment.AddMembersModel
-import org.thoughtcrime.securesms.groups.ui.MemberSearchFragment.DividerModel
-import org.thoughtcrime.securesms.groups.ui.MemberSearchFragment.InviteViaModel
+import org.thoughtcrime.securesms.light.LightSearchField
+import org.thoughtcrime.securesms.light.MollyLightTheme
+import org.thoughtcrime.securesms.light.lightScrim
 import org.thoughtcrime.securesms.recipients.ui.bottomsheet.RecipientBottomSheetDialogFragment
 import org.thoughtcrime.securesms.recipients.ui.sharablegrouplink.GroupLinkBottomSheetDialogFragment
 import org.thoughtcrime.securesms.search.SearchRepository
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingModel
-import org.thoughtcrime.securesms.util.adapter.mapping.compose.MappingEntryProvider
-import org.thoughtcrime.securesms.util.adapter.mapping.compose.rememberMappingEntryProvider
 import org.thoughtcrime.securesms.util.fragments.findListener
+import java.util.Locale
 
 /**
  * Fragment that shows all members in a group (including self)
@@ -181,32 +192,18 @@ class MemberSearchFragment : ComposeFragment(), RecipientBottomSheetDialogFragme
           groupId = groupId,
           showGroupsInCommon = false,
           showSelfAsYou = true,
-          roleFilter = when (memberFilter) {
-            MemberSearchViewModel.MemberFilter.ALL -> ContactSearchConfiguration.MemberRole.ALL
-            MemberSearchViewModel.MemberFilter.ADMINS -> ContactSearchConfiguration.MemberRole.ADMINS
-            MemberSearchViewModel.MemberFilter.CONTACTS -> ContactSearchConfiguration.MemberRole.CONTACTS
-          }
+          roleFilter = memberFilter.toContactSearchRole()
         )
       )
 
-      if (canAdd || hasGroupLink) {
-        val set = if (canAdd && hasGroupLink) {
-          setOf(MemberArbitraryRepository.TYPE_DIVIDER, MemberArbitraryRepository.TYPE_ADD_MEMBERS, MemberArbitraryRepository.TYPE_INVITE_VIA)
-        } else if (canAdd) {
-          setOf(MemberArbitraryRepository.TYPE_DIVIDER, MemberArbitraryRepository.TYPE_ADD_MEMBERS)
-        } else {
-          setOf(MemberArbitraryRepository.TYPE_DIVIDER, MemberArbitraryRepository.TYPE_INVITE_VIA)
-        }
-        addSection(ContactSearchConfiguration.Section.Arbitrary(set))
+      val actionTypes = memberSearchActionTypes(canAdd, hasGroupLink)
+      if (actionTypes.isNotEmpty()) {
+        addSection(ContactSearchConfiguration.Section.Arbitrary(actionTypes))
       }
 
       withEmptyState {
         addSection(ContactSearchConfiguration.Section.Empty)
-        addSection(
-          ContactSearchConfiguration.Section.Arbitrary(
-            setOf(MemberArbitraryRepository.TYPE_DIVIDER, MemberArbitraryRepository.TYPE_ADD_MEMBERS, MemberArbitraryRepository.TYPE_INVITE_VIA)
-          )
-        )
+        addSection(ContactSearchConfiguration.Section.Arbitrary(memberSearchEmptyActionTypes()))
       }
     }
   }
@@ -250,7 +247,45 @@ class MemberSearchFragment : ComposeFragment(), RecipientBottomSheetDialogFragme
   }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+internal enum class MemberSearchRowAction {
+  DIVIDER,
+  ADD_MEMBERS,
+  INVITE_VIA
+}
+
+internal fun memberSearchRowAction(type: String): MemberSearchRowAction? = when (type) {
+  MemberSearchFragment.MemberArbitraryRepository.TYPE_DIVIDER -> MemberSearchRowAction.DIVIDER
+  MemberSearchFragment.MemberArbitraryRepository.TYPE_ADD_MEMBERS -> MemberSearchRowAction.ADD_MEMBERS
+  MemberSearchFragment.MemberArbitraryRepository.TYPE_INVITE_VIA -> MemberSearchRowAction.INVITE_VIA
+  else -> null
+}
+
+/** The insertion order is also the order the arbitrary repository returns to the paged list. */
+internal fun memberSearchActionTypes(canAdd: Boolean, hasGroupLink: Boolean): Set<String> = buildSet {
+  if (canAdd || hasGroupLink) {
+    add(MemberSearchFragment.MemberArbitraryRepository.TYPE_DIVIDER)
+  }
+  if (canAdd) {
+    add(MemberSearchFragment.MemberArbitraryRepository.TYPE_ADD_MEMBERS)
+  }
+  if (hasGroupLink) {
+    add(MemberSearchFragment.MemberArbitraryRepository.TYPE_INVITE_VIA)
+  }
+}
+
+/** Matches the existing empty configuration: no-results keeps both recovery actions reachable. */
+internal fun memberSearchEmptyActionTypes(): Set<String> = setOf(
+  MemberSearchFragment.MemberArbitraryRepository.TYPE_DIVIDER,
+  MemberSearchFragment.MemberArbitraryRepository.TYPE_ADD_MEMBERS,
+  MemberSearchFragment.MemberArbitraryRepository.TYPE_INVITE_VIA
+)
+
+internal fun MemberSearchViewModel.MemberFilter.toContactSearchRole(): ContactSearchConfiguration.MemberRole = when (this) {
+  MemberSearchViewModel.MemberFilter.ALL -> ContactSearchConfiguration.MemberRole.ALL
+  MemberSearchViewModel.MemberFilter.ADMINS -> ContactSearchConfiguration.MemberRole.ADMINS
+  MemberSearchViewModel.MemberFilter.CONTACTS -> ContactSearchConfiguration.MemberRole.CONTACTS
+}
+
 @Composable
 fun MemberSearchScreen(
   contactViewModel: ContactSearchViewModel,
@@ -260,57 +295,154 @@ fun MemberSearchScreen(
   contactSearchCallbacks: MemberSearchFragment.SearchCallbacks
 ) {
   val onBackPressedDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
-  var showFilterDialog by remember { mutableStateOf(false) }
+  val focusManager = LocalFocusManager.current
+  val keyboardController = LocalSoftwareKeyboardController.current
+  var showFilterPicker by remember { mutableStateOf(false) }
 
-  if (showFilterDialog) {
-    val filters = MemberSearchViewModel.MemberFilter.entries
-
-    Dialogs.RadioListDialog(
-      onDismissRequest = { showFilterDialog = false },
-      title = stringResource(R.string.MemberSearchFragment__filter),
-      labels = stringArrayResource(R.array.filter_search_entries),
-      values = filters.map { it.name }.toTypedArray(),
-      selectedIndex = filters.indexOf(memberFilter),
-      onSelected = { index -> onFilterSelected(filters[index]) }
-    )
+  BackHandler(enabled = showFilterPicker) {
+    showFilterPicker = false
   }
 
-  Scaffold(
-    topBar = {
-      TopAppBar(
-        title = { Text(text = stringResource(R.string.MemberSearchFragment__search_members)) },
-        navigationIcon = {
-          IconButton(onClick = { onBackPressedDispatcher?.onBackPressed() }) {
-            Icon(
-              imageVector = SignalIcons.ArrowStart.imageVector,
-              contentDescription = stringResource(R.string.DSLSettingsToolbar__navigate_up)
-            )
+  MollyLightTheme {
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(LightThemeTokens.colors.background)
+    ) {
+      Column(modifier = Modifier.fillMaxSize()) {
+        MemberSearchTopBar(
+          title = stringResource(R.string.MemberSearchFragment__search_members),
+          onBack = { onBackPressedDispatcher?.onBackPressed() },
+          onFilter = {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+            showFilterPicker = true
           }
-        },
-        actions = {
-          val filterActive = memberFilter != MemberSearchViewModel.MemberFilter.ALL
-          IconButton(onClick = { showFilterDialog = true }) {
-            Icon(
-              imageVector = ImageVector.vectorResource(R.drawable.symbol_filter_20),
-              tint = if (filterActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-              contentDescription = stringResource(R.string.MemberSearchFragment__filter),
-              modifier = Modifier
-                .size(26.dp)
-                .background(color = if (filterActive) MaterialTheme.colorScheme.primary else Color.Transparent, shape = CircleShape)
-                .padding(3.dp)
-            )
-          }
-        }
-      )
+        )
+
+        MemberSearchContent(
+          contactViewModel = contactViewModel,
+          memberFilter = memberFilter,
+          mapStateToConfiguration = mapStateToConfiguration,
+          contactSearchCallbacks = contactSearchCallbacks,
+          modifier = Modifier.weight(1f)
+        )
+      }
+
+      if (showFilterPicker) {
+        MemberSearchFilterPicker(
+          memberFilter = memberFilter,
+          onFilterSelected = { selected ->
+            onFilterSelected(selected)
+            showFilterPicker = false
+          },
+          onDismiss = { showFilterPicker = false }
+        )
+      }
     }
+  }
+}
+
+@Composable
+private fun MemberSearchTopBar(
+  title: String,
+  onBack: () -> Unit,
+  onFilter: () -> Unit
+) {
+  Box(
+    modifier = Modifier
+      .fillMaxWidth()
+      .windowInsetsPadding(WindowInsets.statusBars)
+      .background(LightThemeTokens.colors.background)
   ) {
-    MemberSearchContent(
-      contactViewModel = contactViewModel,
-      memberFilter = memberFilter,
-      mapStateToConfiguration = mapStateToConfiguration,
-      contactSearchCallbacks = contactSearchCallbacks,
-      modifier = Modifier.padding(it)
+    LightTopBar(
+      leftButton = LightBarButton.LightIcon(
+        icon = LightIcons.BACK,
+        onClick = onBack,
+        contentDescription = stringResource(R.string.DSLSettingsToolbar__navigate_up)
+      ),
+      center = LightTopBarCenter.Text(title),
+      rightButton = LightBarButton.Text(
+        text = stringResource(R.string.MemberSearchFragment__filter).uppercase(Locale.getDefault()),
+        onClick = onFilter,
+        contentDescription = stringResource(R.string.MemberSearchFragment__filter)
+      )
     )
+  }
+}
+
+/** Full-screen Light selector so all three filters remain reachable after the LP3 system IME closes. */
+@Composable
+internal fun MemberSearchFilterPicker(
+  memberFilter: MemberSearchViewModel.MemberFilter,
+  onFilterSelected: (MemberSearchViewModel.MemberFilter) -> Unit,
+  onDismiss: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val filters = MemberSearchViewModel.MemberFilter.entries
+  val labels = stringArrayResource(R.array.filter_search_entries)
+
+  Box(modifier = modifier.fillMaxSize()) {
+    // The picker is opaque and covers the list, but a background consumes nothing: without the
+    // scrim a tap between the top bar and the last filter row would land on the member row, the
+    // search field or the Filter button underneath. The scrim sits under the rows so it only ever
+    // sees what no row claimed.
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(LightThemeTokens.colors.background)
+        .lightScrim()
+    )
+
+    Column(modifier = Modifier.fillMaxSize()) {
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .windowInsetsPadding(WindowInsets.statusBars)
+      ) {
+        LightTopBar(
+          leftButton = LightBarButton.LightIcon(
+            icon = LightIcons.BACK,
+            onClick = onDismiss,
+            contentDescription = stringResource(R.string.DSLSettingsToolbar__navigate_up)
+          ),
+          center = LightTopBarCenter.Text(stringResource(R.string.MemberSearchFragment__filter))
+        )
+      }
+
+      filters.forEachIndexed { index, filter ->
+        val label = labels[index].uppercase(Locale.getDefault())
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = MEMBER_ROW_HEIGHT_UNITS.gridUnitsAsDp())
+            .semantics(mergeDescendants = true) {
+              selected = filter == memberFilter
+            }
+            .lightClickable(role = Role.RadioButton) { onFilterSelected(filter) }
+            .padding(horizontal = MEMBER_ROW_SIDE_UNITS.gridUnitsAsDp()),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Box(
+            modifier = Modifier.width(MEMBER_MARKER_SLOT_UNITS.gridUnitsAsDp()),
+            contentAlignment = Alignment.CenterStart
+          ) {
+            LightIcon(
+              icon = if (filter == memberFilter) LightIcons.SELECT_ON else LightIcons.SELECT_OFF,
+              size = MEMBER_MARKER_SLOT_UNITS,
+              contentDescription = null
+            )
+          }
+          Box(modifier = Modifier.width(MEMBER_COLUMN_GAP_UNITS.gridUnitsAsDp()))
+          LightText(
+            text = label,
+            variant = LightTextVariant.Button,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
+        }
+      }
+    }
   }
 }
 
@@ -323,44 +455,17 @@ private fun MemberSearchContent(
   contactSearchCallbacks: MemberSearchFragment.SearchCallbacks
 ) {
   val focusRequester = remember { FocusRequester() }
-  val additionalEntries: MappingEntryProvider<Any> = rememberMappingEntryProvider {
-    entry<DividerModel> { Dividers.Default() }
-
-    entry<AddMembersModel> {
-      Rows.TextRow(
-        text = { Text(text = stringResource(R.string.AddMembersActivity__add_members)) },
-        icon = {
-          Icon(
-            imageVector = ImageVector.vectorResource(org.signal.core.ui.R.drawable.symbol_plus_24),
-            tint = MaterialTheme.colorScheme.onSurface,
-            contentDescription = null,
-            modifier = Modifier
-              .size(40.dp)
-              .background(color = MaterialTheme.colorScheme.surfaceVariant, shape = CircleShape)
-              .padding(8.dp)
-          )
-        },
-        onClick = contactSearchCallbacks::onAdd
-      )
-    }
-
-    entry<InviteViaModel> {
-      Rows.TextRow(
-        text = { Text(text = stringResource(R.string.MemberSearchFragment__invite_via)) },
-        icon = {
-          Icon(
-            imageVector = ImageVector.vectorResource(org.signal.core.ui.R.drawable.symbol_link_24),
-            tint = MaterialTheme.colorScheme.onSurface,
-            contentDescription = null,
-            modifier = Modifier
-              .size(40.dp)
-              .background(color = MaterialTheme.colorScheme.surfaceVariant, shape = CircleShape)
-              .padding(8.dp)
-          )
-        },
-        onClick = contactSearchCallbacks::onInvite
-      )
-    }
+  val lazyListState = rememberLazyListState()
+  val context = LocalContext.current
+  val anchorView = LocalView.current
+  val query by contactViewModel.query.collectAsStateWithLifecycle()
+  val data by contactViewModel.data.collectAsStateWithLifecycle()
+  val selection by contactViewModel.selectionState.collectAsStateWithLifecycle()
+  val controller by contactViewModel.controller.collectAsStateWithLifecycle()
+  val configurationState by contactViewModel.configurationState.collectAsStateWithLifecycle()
+  val clickCallbacks = rememberDefaultContactSearchItemClickCallbacks(contactViewModel, contactSearchCallbacks)
+  val lightState = remember(context, data, selection) {
+    memberSearchLightState(context, data, selection)
   }
 
   LaunchedEffect(Unit) {
@@ -368,43 +473,138 @@ private fun MemberSearchContent(
   }
 
   val currentMapStateToConfiguration by rememberUpdatedState(mapStateToConfiguration)
-  LaunchedEffect(memberFilter) {
-    contactViewModel.setConfiguration(
-      currentMapStateToConfiguration(contactViewModel.configurationState.value)
-    )
+  LaunchedEffect(configurationState, memberFilter) {
+    contactViewModel.setConfiguration(currentMapStateToConfiguration(configurationState))
+  }
+
+  LaunchedEffect(lazyListState) {
+    contactViewModel.scrollRequests.collect {
+      lazyListState.requestScrollToItem(0)
+    }
   }
 
   Column(
-    modifier = modifier.fillMaxSize()
+    modifier = modifier
+      .fillMaxSize()
+      .background(LightThemeTokens.colors.background)
   ) {
-    val query by contactViewModel.query.collectAsStateWithLifecycle()
     val hint = when (memberFilter) {
       MemberSearchViewModel.MemberFilter.ALL -> stringResource(R.string.MemberSearchFragment__search_members)
       MemberSearchViewModel.MemberFilter.ADMINS -> stringResource(R.string.MemberSearchFragment__search_admins)
       MemberSearchViewModel.MemberFilter.CONTACTS -> stringResource(R.string.MemberSearchFragment__search_contacts)
     }
-    RecipientSearchBar(
+    LightSearchField(
       hint = hint,
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(vertical = 12.dp, horizontal = 16.dp)
-        .focusRequester(focusRequester),
       query = query ?: "",
       onQueryChange = { contactViewModel.setQuery(it) },
-      onSearch = { contactViewModel.setQuery(it) }
+      focusRequester = focusRequester,
+      modifier = Modifier.fillMaxWidth()
     )
 
-    ContactSearch(
-      viewModel = contactViewModel,
-      mapStateToConfiguration = mapStateToConfiguration,
-      displayOptions = remember {
-        ContactSearchAdapter.DisplayOptions(
-          displaySecondaryInformation = ContactSearchAdapter.DisplaySecondaryInformation.NEVER
-        )
+    LightContactListScreen(
+      state = lightState,
+      listState = lazyListState,
+      onClick = { item ->
+        when (val row = item.data) {
+          is ContactSearchData.KnownRecipient -> clickCallbacks.onKnownRecipientClicked(anchorView, row, item.selected)
+          is ContactSearchData.UnknownRecipient -> clickCallbacks.onUnknownRecipientClicked(anchorView, row, item.selected)
+          is ContactSearchData.ChatTypeRow -> clickCallbacks.onChatTypeClicked(anchorView, row, item.selected)
+          is ContactSearchData.Story -> clickCallbacks.onStoryClicked(anchorView, row, item.selected)
+          is ContactSearchData.Expand -> clickCallbacks.onExpandClicked(row)
+          is ContactSearchData.Arbitrary -> when (memberSearchRowAction(row.type)) {
+            MemberSearchRowAction.ADD_MEMBERS -> contactSearchCallbacks.onAdd()
+            MemberSearchRowAction.INVITE_VIA -> contactSearchCallbacks.onInvite()
+            MemberSearchRowAction.DIVIDER,
+            null -> Unit
+          }
+          else -> Unit
+        }
       },
-      additionalEntries = additionalEntries,
-      callbacks = contactSearchCallbacks,
+      onDataNeededAtSourceIndex = { index -> controller?.onDataNeededAroundIndex(index) },
       modifier = Modifier.weight(1f)
     )
   }
 }
+
+/** Converts only this screen's three arbitrary models; shared contact-picker mapping stays untouched. */
+internal fun memberSearchLightState(
+  context: Context,
+  data: List<ContactSearchData?>,
+  selection: Set<ContactSearchKey>
+): LightContactState {
+  val base = LightContactItem.map(
+    context = context,
+    data = data,
+    selection = selection,
+    displayCheckBox = false
+  )
+
+  val rows = base.rows.mapNotNull { item ->
+    when (val source = data.getOrNull(item.sourceIndex)) {
+      is ContactSearchData.Arbitrary -> when (memberSearchRowAction(source.type)) {
+        MemberSearchRowAction.DIVIDER -> null
+        MemberSearchRowAction.ADD_MEMBERS -> memberActionItem(
+          sourceIndex = item.sourceIndex,
+          source = source,
+          label = context.getString(R.string.AddMembersActivity__add_members)
+        )
+        MemberSearchRowAction.INVITE_VIA -> memberActionItem(
+          sourceIndex = item.sourceIndex,
+          source = source,
+          label = context.getString(R.string.MemberSearchFragment__invite_via)
+        )
+        null -> item
+      }
+      is ContactSearchData.KnownRecipient -> if (source.showAdminLabel) {
+        item.withDetail(context.getString(R.string.GroupRecipientListItem_admin).uppercase(Locale.getDefault()))
+      } else {
+        item
+      }
+      else -> item
+    }
+  }
+
+  return LightContactState(
+    rows = rows,
+    selectionMode = false,
+    hasSnippets = rows.any { it.snippet.isNotEmpty() }
+  )
+}
+
+private fun memberActionItem(
+  sourceIndex: Int,
+  source: ContactSearchData.Arbitrary,
+  label: String
+): LightContactItem {
+  return LightContactItem(
+    key = "member-action:${source.type}",
+    sourceIndex = sourceIndex,
+    kind = LightContactItem.Kind.ACTION,
+    name = label.uppercase(Locale.getDefault()),
+    detail = "",
+    selected = false,
+    enabled = true,
+    action = null,
+    data = source
+  )
+}
+
+private fun LightContactItem.withDetail(newDetail: String): LightContactItem {
+  return LightContactItem(
+    key = key,
+    sourceIndex = sourceIndex,
+    kind = kind,
+    name = name,
+    detail = newDetail,
+    snippet = snippet,
+    selected = selected,
+    enabled = enabled,
+    action = action,
+    data = data
+  )
+}
+
+private const val MEMBER_ROW_HEIGHT_UNITS = 4.5f
+private const val MEMBER_MARKER_SLOT_UNITS = 1f
+private const val MEMBER_COLUMN_GAP_UNITS = 0.25f
+private const val MEMBER_ROW_SIDE_UNITS = 0.5f

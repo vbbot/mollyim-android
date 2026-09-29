@@ -289,6 +289,8 @@ class ConversationSettingsFragment :
     }
   }
 
+  override fun createAdapters(): Array<MappingAdapter> = arrayOf(ConversationSettingsLightAdapter())
+
   override fun bindAdapter(adapter: MappingAdapter) {
     nicknameLauncher = registerForActivityResult(NicknameActivity.Contract()) {
       // Intentionally left blank
@@ -299,9 +301,9 @@ class ConversationSettingsFragment :
     BioTextPreference.register(adapter)
     AvatarPreference.register(adapter)
     ButtonStripPreference.register(adapter)
-    LargeIconClickPreference.register(adapter)
+    LargeIconClickPreference.register(adapter, R.layout.conversation_settings_light_row)
     SharedMediaPreference.register(adapter)
-    RecipientPreference.register(adapter)
+    RecipientPreference.register(adapter, R.layout.conversation_settings_light_recipient)
     InternalPreference.register(adapter)
     GroupDescriptionPreference.register(adapter)
     LegacyGroupPreference.register(adapter)
