@@ -21,13 +21,12 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.widget.Toolbar;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import org.signal.core.util.DimensionUnit;
 import org.signal.core.util.logging.Log;
-import org.thoughtcrime.securesms.components.ContactFilterView;
 import org.thoughtcrime.securesms.contacts.ContactSelectionDisplayMode;
+import org.thoughtcrime.securesms.contacts.paged.light.LightContactSelectionHeader;
 import org.thoughtcrime.securesms.contacts.paged.ChatType;
 import org.thoughtcrime.securesms.contacts.selection.ContactSelectionArguments;
 import org.thoughtcrime.securesms.contacts.sync.ContactDiscovery;
@@ -58,8 +57,7 @@ public abstract class ContactSelectionActivity extends PassphraseRequiredActivit
 
   protected ContactSelectionListFragment contactsFragment;
 
-  private Toolbar           toolbar;
-  private ContactFilterView contactFilterView;
+  private LightContactSelectionHeader header;
 
   @Override
   protected void onPreCreate() {
@@ -75,8 +73,7 @@ public abstract class ContactSelectionActivity extends PassphraseRequiredActivit
 
     setContentView(getIntent().getIntExtra(EXTRA_LAYOUT_RES_ID, R.layout.contact_selection_activity));
 
-    initializeContactFilterView();
-    initializeToolbar();
+    initializeHeader();
     initializeResources();
     initializeSearch();
   }
@@ -87,29 +84,16 @@ public abstract class ContactSelectionActivity extends PassphraseRequiredActivit
     dynamicTheme.onResume(this);
   }
 
-  protected Toolbar getToolbar() {
-    return toolbar;
+  protected LightContactSelectionHeader getHeader() {
+    return header;
   }
 
-  protected ContactFilterView getContactFilterView() {
-    return contactFilterView;
-  }
-
-  private void initializeContactFilterView() {
-    this.contactFilterView = findViewById(R.id.contact_filter_edit_text);
+  private void initializeHeader() {
+    this.header = findViewById(R.id.contact_selection_header);
 
     if (getResources().getDisplayMetrics().heightPixels >= DimensionUnit.DP.toPixels(600)) {
-      this.contactFilterView.focusAndShowKeyboard();
+      this.header.focusAndShowKeyboard();
     }
-  }
-
-  private void initializeToolbar() {
-    this.toolbar = findViewById(R.id.toolbar);
-    setSupportActionBar(toolbar);
-
-    getSupportActionBar().setDisplayHomeAsUpEnabled(false);
-    getSupportActionBar().setIcon(null);
-    getSupportActionBar().setLogo(null);
   }
 
   private void initializeResources() {
@@ -118,7 +102,7 @@ public abstract class ContactSelectionActivity extends PassphraseRequiredActivit
   }
 
   private void initializeSearch() {
-    contactFilterView.setOnFilterChangedListener(filter -> contactsFragment.setQueryFilter(filter));
+    header.setOnQueryChanged(filter -> contactsFragment.setQueryFilter(filter));
   }
 
   @Override

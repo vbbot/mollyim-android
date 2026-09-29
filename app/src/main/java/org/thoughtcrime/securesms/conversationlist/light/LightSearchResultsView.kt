@@ -96,6 +96,7 @@ class LightSearchResultsView @JvmOverloads constructor(
   private var mapStateToConfiguration: ((ContactSearchState) -> ContactSearchConfiguration)? = null
 
   private var state by mutableStateOf(LightContactState())
+  private var latestRowsByKey: Map<String, LightContactItem> = emptyMap()
 
   /**
    * Shown only while there is nothing at all to draw, which for this screen means "the query has
@@ -143,11 +144,13 @@ class LightSearchResultsView @JvmOverloads constructor(
     LaunchedEffect(vm) {
       launch {
         vm.data.collect { data ->
-          state = LightContactItem.map(
+          val mapped = LightContactItem.map(
             context = context,
             data = data,
             selection = emptySet()
           )
+          latestRowsByKey = mapped.rows.associateBy(LightContactItem::key)
+          state = mapped
         }
       }
 
@@ -198,8 +201,9 @@ class LightSearchResultsView @JvmOverloads constructor(
    * [ContactSearchData] subtypes, and an unchecked cast here is exactly the shape of bug that has
    * already shipped a `ClassCastException` on this screen's old layouts.
    */
-  private fun onRowClicked(item: LightContactItem) {
+  private fun onRowClicked(key: String) {
     val calls = callback ?: return
+    val item = latestRowsByKey[key] ?: return
 
     if (item.action == LightContactItem.Action.CLEAR_CHAT_FILTER) {
       calls.onClearFilterClicked()
@@ -220,9 +224,9 @@ class LightSearchResultsView @JvmOverloads constructor(
    * Only a conversation has a long-press menu, exactly as before: the Material adapter registered a
    * long-click listener on the thread row and on no other kind.
    */
-  private fun onRowLongClicked(item: LightContactItem, bounds: ComposeRect) {
+  private fun onRowLongClicked(key: String, bounds: ComposeRect) {
     val calls = callback ?: return
-    val thread = item.data as? ContactSearchData.Thread ?: return
+    val thread = latestRowsByKey[key]?.data as? ContactSearchData.Thread ?: return
 
     calls.onThreadLongClicked(
       thread,

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,6 +51,7 @@ import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.recipients.ui.RecipientPicker.DisplayMode.Companion.flag
 import org.thoughtcrime.securesms.light.LightSearchField
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import java.util.Optional
 import java.util.function.Consumer
 
@@ -77,52 +79,54 @@ fun RecipientPicker(
   callbacks: RecipientPickerCallbacks,
   modifier: Modifier = Modifier
 ) {
-  Column(
-    modifier = modifier
-  ) {
-    val focusRequester = remember { FocusRequester() }
-    var shouldRequestFocus by rememberSaveable { mutableStateOf(focusAndShowKeyboard) }
+  MollyLightTheme {
+    Column(
+      modifier = modifier
+    ) {
+      val focusRequester = remember { FocusRequester() }
+      var shouldRequestFocus by rememberSaveable { mutableStateOf(focusAndShowKeyboard) }
 
-    LaunchedEffect(Unit) {
-      if (shouldRequestFocus) {
-        focusRequester.requestFocus()
+      LaunchedEffect(Unit) {
+        if (shouldRequestFocus) {
+          focusRequester.requestFocus()
+        }
       }
+
+      val isImeVisible = WindowInsets.isImeVisible
+      LaunchedEffect(isImeVisible) {
+        shouldRequestFocus = isImeVisible
+      }
+
+      // LIGHT PHONE: the Light field rather than Material's `SearchBar`. The focus requester is handed
+      // over as a parameter instead of through the modifier because it has to land on the text field
+      // itself -- the Light bar is a column with a rule under it, and requesting focus on that column
+      // would do nothing. Un-padded, because the field carries the list's own 0.5-grid-unit margin so
+      // that what you type sits in the same column as the names it filters.
+      LightSearchField(
+        hint = searchBarHint,
+        query = searchQuery,
+        onQueryChange = { filter -> callbacks.listActions.onSearchQueryChanged(query = filter) },
+        focusRequester = focusRequester,
+        modifier = Modifier.fillMaxWidth()
+      )
+
+      RecipientSearchResultsList(
+        displayModes = displayModes,
+        selectionLimits = selectionLimits,
+        searchQuery = searchQuery,
+        includeRecents = includeRecents,
+        isRefreshing = isRefreshing,
+        preselectedRecipients = preselectedRecipients,
+        pendingRecipientSelections = pendingRecipientSelections,
+        shouldResetContactsList = shouldResetContactsList,
+        bottomPadding = listBottomPadding,
+        clipListToPadding = clipListToPadding,
+        callbacks = callbacks,
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(top = 8.dp)
+      )
     }
-
-    val isImeVisible = WindowInsets.isImeVisible
-    LaunchedEffect(isImeVisible) {
-      shouldRequestFocus = isImeVisible
-    }
-
-    // LIGHT PHONE: the Light field rather than Material's `SearchBar`. The focus requester is handed
-    // over as a parameter instead of through the modifier because it has to land on the text field
-    // itself -- the Light bar is a column with a rule under it, and requesting focus on that column
-    // would do nothing. Un-padded, because the field carries the list's own 0.5-grid-unit margin so
-    // that what you type sits in the same column as the names it filters.
-    LightSearchField(
-      hint = searchBarHint,
-      query = searchQuery,
-      onQueryChange = { filter -> callbacks.listActions.onSearchQueryChanged(query = filter) },
-      focusRequester = focusRequester,
-      modifier = Modifier.fillMaxWidth()
-    )
-
-    RecipientSearchResultsList(
-      displayModes = displayModes,
-      selectionLimits = selectionLimits,
-      searchQuery = searchQuery,
-      includeRecents = includeRecents,
-      isRefreshing = isRefreshing,
-      preselectedRecipients = preselectedRecipients,
-      pendingRecipientSelections = pendingRecipientSelections,
-      shouldResetContactsList = shouldResetContactsList,
-      bottomPadding = listBottomPadding,
-      clipListToPadding = clipListToPadding,
-      callbacks = callbacks,
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(top = 8.dp)
-    )
   }
 }
 
@@ -158,6 +162,7 @@ private fun RecipientSearchResultsList(
 
   val fragmentState = rememberFragmentState()
   var currentFragment by remember { mutableStateOf<ContactSelectionListFragment?>(null) }
+  var fragmentGeneration by remember { mutableIntStateOf(0) }
   val coroutineScope = rememberCoroutineScope()
   val focusManager = LocalFocusManager.current
 
@@ -165,7 +170,10 @@ private fun RecipientSearchResultsList(
     arguments = fragmentArgs,
     fragmentState = fragmentState,
     onUpdate = { fragment ->
-      currentFragment = fragment
+      if (currentFragment !== fragment) {
+        currentFragment = fragment
+        fragmentGeneration++
+      }
       fragment.view?.setPadding(0, 0, 0, 0)
       fragment.setUpCallbacks(
         callbacks = callbacks,
@@ -176,45 +184,43 @@ private fun RecipientSearchResultsList(
     modifier = modifier
   )
 
-  var previousQueryText by rememberSaveable { mutableStateOf("") }
-  LaunchedEffect(searchQuery) {
-    if (previousQueryText != searchQuery) {
-      if (searchQuery.isNotBlank()) {
-        currentFragment?.setQueryFilter(searchQuery)
-      } else {
-        currentFragment?.resetQueryFilter()
-      }
-      previousQueryText = searchQuery
+  LaunchedEffect(searchQuery, fragmentGeneration) {
+    val fragment = currentFragment ?: return@LaunchedEffect
+    if (searchQuery.isNotBlank()) {
+      fragment.setQueryFilter(searchQuery)
+    } else {
+      fragment.resetQueryFilter()
     }
   }
 
   var wasRefreshing by rememberSaveable { mutableStateOf(isRefreshing) }
-  LaunchedEffect(isRefreshing) {
-    currentFragment?.isRefreshing = isRefreshing
+  LaunchedEffect(isRefreshing, fragmentGeneration) {
+    val fragment = currentFragment ?: return@LaunchedEffect
+    fragment.isRefreshing = isRefreshing
     if (wasRefreshing && !isRefreshing) {
-      currentFragment?.onDataRefreshed()
+      fragment.onDataRefreshed()
     }
     wasRefreshing = isRefreshing
   }
 
-  LaunchedEffect(pendingRecipientSelections) {
+  LaunchedEffect(pendingRecipientSelections, fragmentGeneration) {
+    val fragment = currentFragment ?: return@LaunchedEffect
     if (pendingRecipientSelections.isNotEmpty()) {
-      currentFragment?.let { fragment ->
-        pendingRecipientSelections.forEach { recipientId ->
-          currentFragment?.addRecipientToSelectionIfAble(recipientId)
-        }
-        callbacks.listActions.onPendingRecipientSelectionsConsumed()
-
-        callbacks.listActions.onSelectionChanged(
-          newSelections = fragment.selectedContacts
-        )
+      pendingRecipientSelections.forEach { recipientId ->
+        fragment.addRecipientToSelectionIfAble(recipientId)
       }
+      callbacks.listActions.onPendingRecipientSelectionsConsumed()
+
+      callbacks.listActions.onSelectionChanged(
+        newSelections = fragment.selectedContacts
+      )
     }
   }
 
-  LaunchedEffect(shouldResetContactsList) {
+  LaunchedEffect(shouldResetContactsList, fragmentGeneration) {
+    val fragment = currentFragment ?: return@LaunchedEffect
     if (shouldResetContactsList) {
-      currentFragment?.reset()
+      fragment.reset()
       callbacks.listActions.onContactsListReset()
     }
   }

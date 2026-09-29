@@ -5,21 +5,20 @@
 
 package org.thoughtcrime.securesms.conversation.mutiselect.forward
 
-import androidx.compose.foundation.layout.Arrangement.spacedBy
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -27,23 +26,30 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightBottomBar
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.designVerticalPxToDp
+import com.thelightphone.sdk.ui.gridUnitsAsDp
+import java.util.Locale
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.IconButtons
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.TextFields
-import org.signal.core.ui.compose.horizontalGutters
-import org.signal.core.ui.isSplitPane
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.contacts.paged.ContactSearchKey
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.recipients.rememberRecipientField
+
+private const val SUMMARY_HEIGHT_UNITS = 3f
+private const val MESSAGE_HEIGHT_UNITS = 4.5f
 
 @Composable
 fun MultiselectForwardBottomBar(
@@ -52,88 +58,102 @@ fun MultiselectForwardBottomBar(
   events: (MultiselectForwardBottomBarEvent) -> Unit,
   modifier: Modifier = Modifier
 ) {
-  val gutter = dimensionResource(org.signal.core.ui.R.dimen.gutter)
-
-  Column(
+  Row(
     modifier = modifier
+      .fillMaxWidth()
+      .background(LightThemeTokens.colors.background)
   ) {
-    HorizontalDivider(
-      modifier = Modifier.padding(bottom = 12.dp)
-    )
+    if (isSplitPane) {
+      Spacer(modifier = Modifier.weight(1f))
+    }
 
-    Row {
-      if (isSplitPane) {
-        Spacer(modifier = Modifier.weight(1f))
+    Column(modifier = Modifier.weight(1f)) {
+      SelectionSummary(state)
+
+      if (state.isAddMessageVisible) {
+        AddMessage(
+          message = state.message,
+          onMessageChanged = { events(MultiselectForwardBottomBarEvent.AddMessageUpdate(it)) }
+        )
       }
 
-      Column(
-        modifier = Modifier.weight(1f)
-      ) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          val shouldDisplayAddMessageInThisRow = state.isSendButtonVisible && !state.isAddMessageVisible
-          Selection(
-            state,
-            modifier = Modifier
-              .weight(1f)
-              .heightIn(min = 44.dp)
-              .padding(end = if (shouldDisplayAddMessageInThisRow) 8.dp else gutter)
-          )
-
-          if (shouldDisplayAddMessageInThisRow) {
-            Send(
-              state = state,
-              events = events,
-              modifier = Modifier.padding(end = gutter)
-            )
-          }
-        }
-
-        if (state.isAddMessageVisible) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = spacedBy(8.dp),
-            modifier = Modifier
-              .heightIn(min = 44.dp)
-              .horizontalGutters()
-          ) {
-            AddMessage(
-              state = state,
-              events = events,
-              modifier = Modifier
-                .weight(1f)
-                .heightIn(min = 44.dp)
-            )
-
-            if (state.isSendButtonVisible) {
-              Send(
-                state = state,
-                events = events
-              )
-            }
-          }
-        }
+      if (state.isSendButtonVisible) {
+        Send(state = state, events = events)
       }
     }
   }
 }
 
+/**
+ * The send action, in the bottom bar's own grammar.
+ *
+ * `LightBottomBar` has no first-class disabled state: a null `onClick` makes a bar item inert but
+ * leaves it drawn exactly as the enabled one, which on the Light Phone's black-and-white palette is
+ * a SEND button that looks live and does nothing. That matters here in a way it would not in a
+ * Material screen -- `MultiselectForwardState` disables sending while the safety-number or
+ * expiring-message confirmation is up, and a bar that reads as live during a confirmation is
+ * inviting a tap the user believes will send.
+ *
+ * So the enabled item is a real `LightBottomBar` item (it inherits the bar's exact height, padding
+ * and centring), and the disabled one is the same label drawn in the Light list's disabled register
+ * -- lightened, with `disabled()` in the semantics tree -- in a bar-shaped slot that reserves
+ * `LightBottomBar`'s own height so that nothing moves when the state flips.
+ */
 @Composable
-private fun Selection(
+private fun Send(
   state: MultiselectForwardBottomBarState,
-  modifier: Modifier = Modifier
+  events: (MultiselectForwardBottomBarEvent) -> Unit
 ) {
+  val sendLabel = stringResource(R.string.ShareActivity__send).uppercase(Locale.getDefault())
+
+  if (state.isSendButtonEnabled) {
+    LightBottomBar(
+      items = listOf(
+        LightBarButton.Text(
+          text = sendLabel,
+          contentDescription = stringResource(R.string.ShareActivity__send),
+          onClick = { events(MultiselectForwardBottomBarEvent.SendClick) }
+        )
+      )
+    )
+  } else {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(3f.gridUnitsAsDp())
+        .semantics {
+          role = Role.Button
+          disabled()
+        },
+      contentAlignment = Alignment.Center
+    ) {
+      LightText(
+        text = sendLabel,
+        variant = LightTextVariant.Button,
+        lighten = true,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+    }
+  }
+}
+
+@Composable
+private fun SelectionSummary(state: MultiselectForwardBottomBarState) {
   LazyRow(
-    modifier = modifier,
+    modifier = Modifier
+      .fillMaxWidth()
+      .heightIn(min = SUMMARY_HEIGHT_UNITS.gridUnitsAsDp())
+      .padding(horizontal = 0.5f.gridUnitsAsDp()),
     verticalAlignment = Alignment.CenterVertically
   ) {
     itemsIndexed(items = state.selection, key = { _, contact -> contact.key }) { index, contact ->
       val name by rememberDisplayName(contact)
-
-      Text(
-        text = "$name${if (index != state.selection.lastIndex) ", " else " "}",
-        modifier = Modifier.padding(start = if (index == 0) dimensionResource(org.signal.core.ui.R.dimen.gutter) else 0.dp)
+      LightText(
+        text = if (index == state.selection.lastIndex) name else "$name, ",
+        variant = LightTextVariant.Fine,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
       )
     }
   }
@@ -141,55 +161,50 @@ private fun Selection(
 
 @Composable
 private fun AddMessage(
-  state: MultiselectForwardBottomBarState,
-  events: (MultiselectForwardBottomBarEvent) -> Unit,
-  modifier: Modifier = Modifier
+  message: String,
+  onMessageChanged: (String) -> Unit
 ) {
-  TextFields.TextField(
-    value = state.message,
-    onValueChange = { events(MultiselectForwardBottomBarEvent.AddMessageUpdate(it)) },
-    placeholder = {
-      Text(text = stringResource(R.string.MultiselectForwardFragment__add_a_message))
-    },
-    shape = RoundedCornerShape(50),
-    colors = TextFieldDefaults.colors(
-      focusedIndicatorColor = Color.Transparent,
-      unfocusedIndicatorColor = Color.Transparent,
-      disabledIndicatorColor = Color.Transparent,
-      errorIndicatorColor = Color.Transparent
-    ),
-    contentPadding = PaddingValues(
-      start = 16.dp,
-      end = 16.dp,
-      top = 10.dp,
-      bottom = 10.dp
-    ),
-    modifier = modifier
-  )
-}
+  val colors = LightThemeTokens.colors
+  val keyboard = LocalSoftwareKeyboardController.current
 
-@Composable
-private fun Send(
-  state: MultiselectForwardBottomBarState,
-  events: (MultiselectForwardBottomBarEvent) -> Unit,
-  modifier: Modifier = Modifier
-) {
-  val context = LocalContext.current
-  val background = remember(context) { state.sendButtonColors.background.resolve(context) }
-  val foreground = remember(context) { state.sendButtonColors.foreground.resolve(context) }
-
-  IconButtons.IconButton(
-    enabled = state.isSendButtonEnabled,
-    onClick = { events(MultiselectForwardBottomBarEvent.SendClick) },
-    modifier = modifier,
-    colors = IconButtons.iconButtonColors(
-      contentColor = Color(foreground),
-      containerColor = Color(background)
-    )
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .background(colors.background)
   ) {
-    Icon(
-      imageVector = ImageVector.vectorResource(R.drawable.symbol_send_fill_24),
-      contentDescription = stringResource(R.string.ShareActivity__send)
+    BasicTextField(
+      value = message,
+      onValueChange = onMessageChanged,
+      singleLine = true,
+      textStyle = LightThemeTokens.typography.copy.copy(color = colors.content),
+      cursorBrush = SolidColor(colors.content),
+      keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+      keyboardActions = KeyboardActions(onSend = { keyboard?.hide() }),
+      modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = MESSAGE_HEIGHT_UNITS.gridUnitsAsDp())
+        .padding(horizontal = 1.75f.gridUnitsAsDp()),
+      decorationBox = { innerTextField ->
+        Box(contentAlignment = Alignment.CenterStart) {
+          if (message.isEmpty()) {
+            LightText(
+              text = stringResource(R.string.MultiselectForwardFragment__add_a_message),
+              variant = LightTextVariant.Copy,
+              lighten = true,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis
+            )
+          }
+          innerTextField()
+        }
+      }
+    )
+
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(3f.designVerticalPxToDp())
+        .background(colors.content)
     )
   }
 }
@@ -215,69 +230,7 @@ private fun MultiselectForwardBottomBarPreview() {
   Previews.Preview {
     MultiselectForwardBottomBar(
       isSplitPane = false,
-      state = rememberPreviewState(),
-      events = {},
-      modifier = Modifier.fillMaxWidth()
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun MultiselectForwardBottomBarPreviewWithSend() {
-  Previews.Preview {
-    MultiselectForwardBottomBar(
-      isSplitPane = false,
-      state = rememberPreviewState(
-        isSendButtonVisible = true
-      ),
-      events = {},
-      modifier = Modifier.fillMaxWidth()
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun MultiselectForwardBottomBarPreviewWithAddMessage() {
-  Previews.Preview {
-    MultiselectForwardBottomBar(
-      isSplitPane = false,
-      state = rememberPreviewState(
-        isAddMessageVisible = true
-      ),
-      events = {},
-      modifier = Modifier.fillMaxWidth()
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun MultiselectForwardBottomBarPreviewWithBoth() {
-  Previews.Preview {
-    MultiselectForwardBottomBar(
-      isSplitPane = false,
-      state = rememberPreviewState(
-        isSendButtonVisible = true,
-        isAddMessageVisible = true
-      ),
-      events = {},
-      modifier = Modifier.fillMaxWidth()
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun MultiselectForwardBottomBarPreviewWithSplit() {
-  Previews.Preview {
-    MultiselectForwardBottomBar(
-      isSplitPane = true,
-      state = rememberPreviewState(
-        isSendButtonVisible = true,
-        isAddMessageVisible = true
-      ),
+      state = rememberPreviewState(isSendButtonVisible = true, isAddMessageVisible = true),
       events = {},
       modifier = Modifier.fillMaxWidth()
     )
@@ -292,9 +245,14 @@ private fun rememberPreviewState(
   return remember {
     MultiselectForwardBottomBarState(
       selection = listOf(
-        MultiselectForwardBottomBarState.SelectedContact.KnownRecipient(Recipient(id = RecipientId.from(1), isResolving = false, systemContactName = "Miles")),
-        MultiselectForwardBottomBarState.SelectedContact.KnownRecipient(Recipient(id = RecipientId.from(2), isResolving = false, systemContactName = "Peter")),
-        MultiselectForwardBottomBarState.SelectedContact.KnownRecipient(Recipient(id = RecipientId.from(3), isResolving = false, systemContactName = "May"))
+        MultiselectForwardBottomBarState.SelectedContact.KnownRecipient(
+          ContactSearchKey.RecipientSearchKey(RecipientId.from(1), false),
+          Recipient(id = RecipientId.from(1), isResolving = false, systemContactName = "Miles")
+        ),
+        MultiselectForwardBottomBarState.SelectedContact.KnownRecipient(
+          ContactSearchKey.RecipientSearchKey(RecipientId.from(2), true),
+          Recipient(id = RecipientId.from(2), isResolving = false, systemContactName = "Peter")
+        )
       ),
       isSendButtonVisible = isSendButtonVisible,
       isAddMessageVisible = isAddMessageVisible

@@ -5,7 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Parcelable
 import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentManager
 import kotlinx.parcelize.Parcelize
 import org.signal.core.util.getParcelableArrayListExtraCompat
@@ -75,6 +77,17 @@ class StoriesMultiselectForwardActivity : MultiselectForwardActivity() {
         StoryMediaPreviews(previews = previewMedia)
       }
     }
+  }
+
+  override fun getLightArbitraryRowTypes(): Set<String> = setOf(PREVIEW_ITEM)
+
+  @Composable
+  override fun LightArbitraryRow(data: ContactSearchData.Arbitrary, modifier: Modifier) {
+    check(data.type == PREVIEW_ITEM) { "Unsupported story preview row: ${data.type}" }
+    StoryMediaPreviews(
+      previews = previewMedia,
+      modifier = modifier.fillMaxWidth()
+    )
   }
 
   private class PreviewEntryMappingModel : MappingModel<PreviewEntryMappingModel> {

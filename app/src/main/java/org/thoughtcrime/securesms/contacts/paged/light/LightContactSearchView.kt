@@ -74,6 +74,9 @@ class LightContactSearchView @JvmOverloads constructor(
 
   private var state by mutableStateOf(LightContactState())
 
+  /** Latest payloads are intentionally separate from render equality; actions resolve by visible key. */
+  private var latestRowsByKey: Map<String, LightContactItem> = emptyMap()
+
   /**
    * The whole-screen state, shown only while the list is genuinely empty -- which in this screen
    * means "still loading", because a search that matches nothing is answered with an `Empty` *row*
@@ -148,13 +151,16 @@ class LightContactSearchView @JvmOverloads constructor(
       launch {
         combine(vm.data, vm.selectionState) { data, selection -> data to selection }
           .collect { (data, selection) ->
-            state = LightContactItem.map(
+            val mapped = LightContactItem.map(
               context = context,
               data = data,
               selection = selection,
               fixedContacts = vm.fixedContacts,
               displayCheckBox = displayCheckBox
             )
+            // Do this even when `mapped == state`: equality deliberately ignores invisible payloads.
+            latestRowsByKey = mapped.rows.associateBy(LightContactItem::key)
+            state = mapped
             // Stands in for the adapter's submitList commit callback, which is what
             // ContactSelectionListFragment uses to decide whether to snap back to the top.
             callbacks.onAdapterListCommitted(state.rows.size)
@@ -211,7 +217,8 @@ class LightContactSearchView @JvmOverloads constructor(
    * several `ContactSearchData` subtypes, and an unchecked cast here is exactly the shape of bug
    * that has already shipped a ClassCastException on this screen's layouts.
    */
-  private fun onRowClicked(item: LightContactItem) {
+  private fun onRowClicked(key: String) {
+    val item = latestRowsByKey[key] ?: return
     val action = item.action
     if (action != null) {
       onActionClicked(action, item.data)
@@ -240,6 +247,7 @@ class LightContactSearchView @JvmOverloads constructor(
       LightContactItem.Action.REFRESH_CONTACTS -> arbitrary?.onRefreshContactsClicked()
       LightContactItem.Action.FIND_BY_USERNAME -> arbitrary?.onFindByUsernameClicked()
       LightContactItem.Action.FIND_BY_PHONE_NUMBER -> arbitrary?.onFindByPhoneNumberClicked()
+      LightContactItem.Action.HEADER -> (data as? ContactSearchData.Header)?.action?.action?.run()
       LightContactItem.Action.EXPAND -> {
         val expand = data as? ContactSearchData.Expand ?: return
         clickCallbacks?.onExpandClicked(expand)
@@ -253,8 +261,8 @@ class LightContactSearchView @JvmOverloads constructor(
   }
 
   /** The picker's menu drops down from this view, so the row's bounds are of no use to it. */
-  private fun onRowLongClicked(item: LightContactItem, bounds: Rect) {
-    val data = item.data as? ContactSearchData.KnownRecipient ?: return
+  private fun onRowLongClicked(key: String, bounds: Rect) {
+    val data = latestRowsByKey[key]?.data as? ContactSearchData.KnownRecipient ?: return
     longClickCallbacks?.onKnownRecipientLongClick(this, data)
   }
 }

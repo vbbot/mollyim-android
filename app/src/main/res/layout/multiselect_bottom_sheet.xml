@@ -4,24 +4,8 @@
     tools:viewBindingIgnore="true"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@android:color/black"
     android:orientation="vertical">
-
-    <View
-        android:id="@+id/anchor"
-        android:layout_width="48dp"
-        android:layout_height="2dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="16dp"
-        android:background="?attr/signal_icon_tint_tab_unselected" />
-
-    <TextView
-        android:id="@+id/title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="13dp"
-        android:gravity="center"
-        android:text="@string/MultiselectForwardFragment__forward_to"
-        android:textAppearance="@style/TextAppearance.Signal.Body1.Bold" />
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/multiselect_container"

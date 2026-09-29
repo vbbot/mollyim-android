@@ -14,6 +14,7 @@ import assertk.assertions.hasSize
 import assertk.assertions.isFalse
 import assertk.assertions.isNotEqualTo
 import assertk.assertions.isNull
+import assertk.assertions.isSameInstanceAs
 import assertk.assertions.isTrue
 import io.mockk.every
 import io.mockk.mockk
@@ -23,6 +24,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.thoughtcrime.securesms.ContactSelectionListModels.ArbitraryRow
+import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.contacts.HeaderAction
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchConfiguration
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchData
 import org.thoughtcrime.securesms.recipients.Recipient
@@ -158,6 +161,65 @@ class LightContactItemTest {
     assertThat(row.kind).isEqualTo(LightContactItem.Kind.HEADER)
     assertThat(row.name).isEqualTo(row.name.uppercase())
     assertThat(row.clickable).isFalse()
+  }
+
+  @Test
+  fun `a section header action remains a distinct actionable row`() {
+    val action = HeaderAction(R.string.ContactSearchItems__story_settings, Runnable {})
+    val rows = map(ContactSearchData.Header(ContactSearchConfiguration.SectionKey.STORIES, action))
+
+    assertThat(rows.map { it.kind }).containsExactly(
+      LightContactItem.Kind.HEADER,
+      LightContactItem.Kind.ACTION
+    )
+    assertThat(rows[1].action).isEqualTo(LightContactItem.Action.HEADER)
+    assertThat(rows.map { it.sourceIndex }).containsExactly(0, 0)
+  }
+
+  @Test
+  fun `unknown functional rows are visible rather than paging placeholders`() {
+    val row = map(ContactSearchData.Arbitrary("not-registered")).single()
+
+    assertThat(row.kind).isEqualTo(LightContactItem.Kind.UNSUPPORTED)
+    assertThat(row.kind).isNotEqualTo(LightContactItem.Kind.PLACEHOLDER)
+  }
+
+  @Test
+  fun `an explicitly supported arbitrary type remains caller rendered`() {
+    val state = LightContactItem.map(
+      context = context,
+      data = listOf(ContactSearchData.Arbitrary("preview")),
+      selection = emptySet(),
+      supportedArbitraryTypes = setOf("preview")
+    )
+
+    assertThat(state.rows.single().kind).isEqualTo(LightContactItem.Kind.CUSTOM)
+    assertThat(state.rows.single().sourceIndex).isEqualTo(0)
+  }
+
+  @Test
+  fun `action dispatch resolves the latest payload when visible content is equal`() {
+    var actionOwner = "none"
+    val first = ContactSearchData.Header(
+      ContactSearchConfiguration.SectionKey.STORIES,
+      HeaderAction(R.string.ContactSearchItems__story_settings, Runnable { actionOwner = "first" })
+    )
+    val second = ContactSearchData.Header(
+      ContactSearchConfiguration.SectionKey.STORIES,
+      HeaderAction(R.string.ContactSearchItems__story_settings, Runnable { actionOwner = "second" })
+    )
+    val firstState = LightContactItem.map(context, listOf(first), emptySet())
+    val secondState = LightContactItem.map(context, listOf(second), emptySet())
+    val registry = LightContactPayloadRegistry()
+
+    assertThat(firstState.rows[1]).isEqualTo(secondState.rows[1])
+    registry.update(firstState)
+    registry.update(secondState)
+
+    val current = registry.resolve("header-action:STORIES")?.data as ContactSearchData.Header
+    assertThat(current).isSameInstanceAs(second)
+    current.action?.action?.run()
+    assertThat(actionOwner).isEqualTo("second")
   }
 
   @Test

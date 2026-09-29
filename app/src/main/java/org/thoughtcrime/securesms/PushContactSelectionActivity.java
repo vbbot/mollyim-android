@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import org.signal.core.util.logging.Log;
 import org.thoughtcrime.securesms.contacts.SelectedContact;
+import org.thoughtcrime.securesms.contacts.paged.light.LightContactSelectionHeader;
 import org.thoughtcrime.securesms.recipients.RecipientId;
 
 import java.util.ArrayList;
@@ -49,10 +50,7 @@ public class PushContactSelectionActivity extends ContactSelectionActivity {
   }
 
   protected void initializeToolbar() {
-    getToolbar().setNavigationIcon(R.drawable.ic_check_24);
-    getToolbar().setNavigationOnClickListener(v -> {
-      onFinishedSelection();
-    });
+    getHeader().setNavigation(LightContactSelectionHeader.NavigationMode.DONE, this::onFinishedSelection);
   }
 
   protected final void onFinishedSelection() {

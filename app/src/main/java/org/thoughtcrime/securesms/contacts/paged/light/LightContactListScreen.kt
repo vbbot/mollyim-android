@@ -135,9 +135,10 @@ fun LightContactListScreen(
   state: LightContactState,
   statusText: String = "",
   listState: LazyListState = rememberLazyListState(),
-  onClick: (LightContactItem) -> Unit = {},
-  onLongClick: (LightContactItem, Rect) -> Unit = { _, _ -> },
+  onClick: (String) -> Unit = {},
+  onLongClick: (String, Rect) -> Unit = { _, _ -> },
   onDataNeededAtSourceIndex: (Int) -> Unit = {},
+  customContent: @Composable (LightContactItem) -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   Box(
@@ -160,6 +161,12 @@ fun LightContactListScreen(
     // asks for data around itself. Mapping back through sourceIndex matters because the rendered
     // list is not the source list -- it keeps the source's unloaded holes but splits the contacts
     // permission banner into two rows, so the two indices drift apart in both directions.
+    //
+    // Keyed on the list state alone, deliberately. Restarting this flow on every emission -- which is
+    // what a "refresh token" would do -- cancels and re-subscribes the collector several times per
+    // keystroke, and each restart re-fires a burst of `onDataNeededAroundIndex` calls for rows that
+    // have not moved. `currentState` is a `rememberUpdatedState`, so a new projection is picked up
+    // by the *running* flow the next time the visible indices change.
     LaunchedEffect(listState) {
       snapshotFlow { listState.layoutInfo.visibleItemsInfo.map { it.index } }
         .distinctUntilChanged()
@@ -173,6 +180,21 @@ fun LightContactListScreen(
         }
     }
 
+    // [LightLazyScrollView] maps scroll position to thumb position by multiplying the number of rows
+    // by one assumed height, so the thumb is exact only while every row really is that tall. Two
+    // kinds of row here are not, and both are accepted rather than hidden:
+    //
+    // - **Message hits**, which are two lines tall: handled by [ROW_HEIGHT_WITH_SNIPPET_UNITS],
+    //   which switches the whole list to the taller figure whenever any hit is present. The thumb is
+    //   then approximate for the one-line rows around it, and exact for none of them.
+    // - **Caller-rendered rows** ([LightContactItem.Kind.CUSTOM], e.g. the stories' media preview
+    //   strip), whose height this list knows nothing about. A screen that mixes them with a long
+    //   contact list has a scrollbar that drifts as it is dragged.
+    //
+    // The alternative -- a scrollbar that stops pretending to be exact -- would mean abandoning
+    // [LightLazyScrollView] here and drawing the track by hand against real measured offsets, which
+    // is a larger change than this screen can justify. What is *not* acceptable is leaving it
+    // undocumented, so it is stated here and pinned by `LightSearchResultGeometryTest`.
     LightLazyScrollView(
       modifier = Modifier.fillMaxSize(),
       listState = listState,
@@ -183,7 +205,8 @@ fun LightContactListScreen(
           item = item,
           selectionMode = state.selectionMode,
           onClick = onClick,
-          onLongClick = onLongClick
+          onLongClick = onLongClick,
+          customContent = customContent
         )
       }
     }
@@ -208,8 +231,9 @@ fun LightContactListScreen(
 private fun LightContactRow(
   item: LightContactItem,
   selectionMode: Boolean,
-  onClick: (LightContactItem) -> Unit,
-  onLongClick: (LightContactItem, Rect) -> Unit
+  onClick: (String) -> Unit,
+  onLongClick: (String, Rect) -> Unit,
+  customContent: @Composable (LightContactItem) -> Unit
 ) {
   if (item.kind == LightContactItem.Kind.PLACEHOLDER) {
     // A page the paging controller has not filled in yet. Occupies exactly one row so indices and
@@ -222,28 +246,20 @@ private fun LightContactRow(
     return
   }
 
-  if (item.kind == LightContactItem.Kind.MESSAGE) {
-    Box(
-      modifier = Modifier
-        .fillMaxWidth()
-        .heightIn(min = ROW_HEIGHT_UNITS.gridUnitsAsDp())
-        .padding(horizontal = 2f.gridUnitsAsDp()),
-      contentAlignment = Alignment.Center
-    ) {
-      LightText(
-        text = item.name,
-        variant = LightTextVariant.Copy,
-        align = TextAlign.Center,
-        lighten = true
-      )
-    }
+  if (item.kind == LightContactItem.Kind.CUSTOM) {
+    customContent(item)
+    return
+  }
+
+  if (item.kind == LightContactItem.Kind.MESSAGE || item.kind == LightContactItem.Kind.UNSUPPORTED) {
+    LightContactCoverageFailure(item.name)
     return
   }
 
   val haptics = LocalHapticFeedback.current
   val currentOnClick by rememberUpdatedState(onClick)
   val currentOnLongClick by rememberUpdatedState(onLongClick)
-  val currentItem by rememberUpdatedState(item)
+  val itemKey = item.key
   val clickable = item.clickable
 
   // The row's position, kept in a plain array so that recording it costs no recomposition. A
@@ -268,12 +284,12 @@ private fun LightContactRow(
           // flinging the list never picks a contact. The long-press buzz mirrors what the old
           // RecyclerView rows got for free from View.setOnLongClickListener.
           Modifier
-            .pointerInput(Unit) {
+            .pointerInput(itemKey) {
               detectTapGestures(
-                onTap = { currentOnClick(currentItem) },
+                onTap = { currentOnClick(itemKey) },
                 onLongPress = {
                   haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                  currentOnLongClick(currentItem, Rect(bounds[0], bounds[1], bounds[2], bounds[3]))
+                  currentOnLongClick(itemKey, Rect(bounds[0], bounds[1], bounds[2], bounds[3]))
                 }
               )
             }
@@ -282,11 +298,11 @@ private fun LightContactRow(
             // setOnClickListener.
             .semantics(mergeDescendants = true) {
               role = Role.Button
-              if (selectionMode && currentItem.kind == LightContactItem.Kind.CONTACT) {
-                selected = currentItem.selected
+              if (selectionMode && item.kind == LightContactItem.Kind.CONTACT) {
+                selected = item.selected
               }
               onClick {
-                currentOnClick(currentItem)
+                currentOnClick(itemKey)
                 true
               }
             }
@@ -368,6 +384,38 @@ private fun LightContactRow(
         )
       }
     }
+  }
+}
+
+/**
+ * One centred line of `Copy` occupying exactly one row: how this list says "no results" and how it
+ * says "there is a row here this build cannot draw".
+ *
+ * The second job is the important one. Signal renders an unrecognised functional row as whatever
+ * its view holder says, and this list has no view holders, so anything the mapper does not recognise
+ * has nothing to fall back on. Falling back to [LightContactItem.Kind.PLACEHOLDER] would be wrong in
+ * a way that is invisible: a paging hole is legitimately blank for a moment, and a functional row
+ * that renders the same way looks like one forever. Every path that cannot name a row therefore ends
+ * up here, saying what it is, rather than drawing nothing.
+ *
+ * Public because the callers that own custom rows sit outside this file -- see
+ * [org.thoughtcrime.securesms.conversation.mutiselect.forward.SearchConfigurationProvider].
+ */
+@Composable
+fun LightContactCoverageFailure(text: String, modifier: Modifier = Modifier) {
+  Box(
+    modifier = modifier
+      .fillMaxWidth()
+      .heightIn(min = ROW_HEIGHT_UNITS.gridUnitsAsDp())
+      .padding(horizontal = 2f.gridUnitsAsDp()),
+    contentAlignment = Alignment.Center
+  ) {
+    LightText(
+      text = text,
+      variant = LightTextVariant.Copy,
+      align = TextAlign.Center,
+      lighten = true
+    )
   }
 }
 

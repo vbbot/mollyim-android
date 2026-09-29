@@ -5,41 +5,44 @@
 
 package org.thoughtcrime.securesms.conversation.mutiselect.forward
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.collections.immutable.persistentHashMapOf
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.horizontalGutters
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightIcons
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.LightTopBar
+import com.thelightphone.sdk.ui.LightTopBarCenter
+import com.thelightphone.sdk.ui.gridUnitsAsDp
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.contacts.paged.ContactSearch
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchAdapter
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchCallbacks
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchConfiguration
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchState
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchViewModel
-import org.thoughtcrime.securesms.conversation.RecipientSearchBar
-import org.thoughtcrime.securesms.util.adapter.mapping.compose.MappingEntryProvider
+import org.thoughtcrime.securesms.contacts.paged.light.LightContactCoverageFailure
+import org.thoughtcrime.securesms.contacts.paged.light.LightContactSearch
+import org.thoughtcrime.securesms.light.LightSearchField
+import org.thoughtcrime.securesms.light.MollyLightTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MultiselectForwardScreen(
   isSplitPane: Boolean,
@@ -47,86 +50,88 @@ fun MultiselectForwardScreen(
   contactSearchViewModel: ContactSearchViewModel,
   callback: MultiselectForwardFragment.Callback,
   mapStateToConfiguration: (ContactSearchState) -> ContactSearchConfiguration,
-  additionalEntries: MappingEntryProvider<Any> = persistentHashMapOf(),
+  searchConfigurationProvider: SearchConfigurationProvider?,
   contactSearchCallbacks: ContactSearchCallbacks,
   bottomContentPadding: Dp = 0.dp
 ) {
-  if (args.isWrappedInBottomSheet) {
-    MultiselectForwardContent(
-      isSplitPane = isSplitPane,
-      args = args,
-      contactSearchViewModel = contactSearchViewModel,
-      callback = callback,
-      mapStateToConfiguration = mapStateToConfiguration,
-      contactSearchCallbacks = contactSearchCallbacks,
-      additionalEntries = additionalEntries,
-      bottomContentPadding = bottomContentPadding
-    )
-  } else {
-    Scaffold(
-      topBar = {
-        if (args.isToolbarVisible) {
-          TopAppBar(
-            title = {
-              if (!isSplitPane) {
-                Text(text = stringResource(args.title))
-              }
-            },
-            navigationIcon = {
-              IconButton(
-                onClick = {
-                  callback.navigateUp()
-                }
-              ) {
-                Icon(
-                  imageVector = SignalIcons.ArrowStart.imageVector,
-                  contentDescription = stringResource(R.string.DSLSettingsToolbar__navigate_up)
-                )
-              }
-            }
-          )
-        }
-      }
+  MollyLightTheme {
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(LightThemeTokens.colors.background)
     ) {
-      MultiselectForwardContent(
+      if (args.isWrappedInBottomSheet) {
+        LightTopBar(
+          center = LightTopBarCenter.Text(stringResource(args.title)),
+          modifier = Modifier.fillMaxWidth()
+        )
+      } else if (args.isToolbarVisible) {
+        LightTopBar(
+          leftButton = LightBarButton.LightIcon(
+            icon = LightIcons.BACK,
+            onClick = callback::navigateUp,
+            contentDescription = stringResource(R.string.DSLSettingsToolbar__navigate_up)
+          ),
+          center = if (!isSplitPane) LightTopBarCenter.Text(stringResource(args.title)) else null,
+          modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.statusBars)
+        )
+      }
+
+      ForwardContent(
         isSplitPane = isSplitPane,
         args = args,
         contactSearchViewModel = contactSearchViewModel,
         callback = callback,
         mapStateToConfiguration = mapStateToConfiguration,
+        searchConfigurationProvider = searchConfigurationProvider,
         contactSearchCallbacks = contactSearchCallbacks,
-        modifier = Modifier.padding(it),
-        additionalEntries = additionalEntries,
-        bottomContentPadding = bottomContentPadding
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(bottom = bottomContentPadding)
       )
     }
   }
 }
 
 @Composable
-private fun MultiselectForwardContent(
+private fun ForwardContent(
   isSplitPane: Boolean,
   args: MultiselectForwardFragmentArgs,
   contactSearchViewModel: ContactSearchViewModel,
   callback: MultiselectForwardFragment.Callback,
   mapStateToConfiguration: (ContactSearchState) -> ContactSearchConfiguration,
+  searchConfigurationProvider: SearchConfigurationProvider?,
   contactSearchCallbacks: ContactSearchCallbacks,
-  additionalEntries: MappingEntryProvider<Any>,
-  bottomContentPadding: Dp = 0.dp,
   modifier: Modifier = Modifier
 ) {
+  // Remembered so that the identity does not change on every recomposition. The Light list reads it
+  // through `rememberUpdatedState` rather than as a `LaunchedEffect` key, so this is about not
+  // re-projecting the whole row list for nothing rather than about restarting a collector.
+  val displayOptions = remember(args.selectSingleRecipient) {
+    ContactSearchAdapter.DisplayOptions(
+      displayCheckBox = !args.selectSingleRecipient,
+      displaySecondaryInformation = ContactSearchAdapter.DisplaySecondaryInformation.NEVER,
+      // Kept for parity with the option bag the Material list took: the Light row draws a story's
+      // viewer count rather than an avatar ring, so nothing reads it. Left set rather than cleared
+      // so that the two presentations of this screen agree on what they asked for.
+      displayStoryRing = true
+    )
+  }
+
   Row(modifier = modifier) {
     if (isSplitPane) {
       Box(
         modifier = Modifier
           .weight(1f)
-          .horizontalGutters()
-          .padding(top = 4.dp)
+          .fillMaxSize()
+          .padding(horizontal = 1.5f.gridUnitsAsDp()),
+        contentAlignment = Alignment.TopStart
       ) {
-        Text(
+        LightText(
           text = stringResource(args.title),
-          style = MaterialTheme.typography.headlineMedium,
-          color = MaterialTheme.colorScheme.onBackground
+          variant = LightTextVariant.Title
         )
       }
     }
@@ -134,45 +139,39 @@ private fun MultiselectForwardContent(
     Column(
       modifier = Modifier
         .weight(1f)
-        .padding(bottom = bottomContentPadding)
+        .fillMaxSize()
     ) {
       if (args.isSearchEnabled) {
         val query by contactSearchViewModel.query.collectAsStateWithLifecycle()
-        RecipientSearchBar(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp)
-            .horizontalGutters(),
-          query = query ?: "",
-          onQueryChange = {
-            contactSearchViewModel.setQuery(it)
-          },
-          onSearch = {
-            contactSearchViewModel.setQuery(it)
-          },
-          onFocusChanged = {
-            if (it) {
-              callback.onSearchInputFocused()
-            }
-          }
+        LightSearchField(
+          query = query.orEmpty(),
+          // Only the query goes through: `LightSearchField` reads and writes the field itself, so a
+          // caller that also held it would rebuild everything below on every keystroke.
+          onQueryChange = contactSearchViewModel::setQuery,
+          onFocusChanged = { focused -> if (focused) callback.onSearchInputFocused() },
+          modifier = Modifier.fillMaxWidth()
         )
       }
 
-      ContactSearch(
+      val provider = searchConfigurationProvider
+      LightContactSearch(
         viewModel = contactSearchViewModel,
         mapStateToConfiguration = mapStateToConfiguration,
+        displayOptions = displayOptions,
+        callbacks = contactSearchCallbacks,
+        supportedArbitraryTypes = provider?.getLightArbitraryRowTypes().orEmpty(),
+        customContent = { arbitrary ->
+          // A provider is not guaranteed to exist, and a null one must not leave a blank row where
+          // the row's content was: this names the type instead.
+          if (provider != null) {
+            provider.LightArbitraryRow(arbitrary, Modifier.fillMaxWidth())
+          } else {
+            LightContactCoverageFailure(arbitrary.type, Modifier.fillMaxWidth())
+          }
+        },
         modifier = Modifier
           .fillMaxSize()
-          .weight(1f),
-        additionalEntries = additionalEntries,
-        displayOptions = remember {
-          ContactSearchAdapter.DisplayOptions(
-            displayCheckBox = !args.selectSingleRecipient,
-            displaySecondaryInformation = ContactSearchAdapter.DisplaySecondaryInformation.NEVER,
-            displayStoryRing = true
-          )
-        },
-        callbacks = contactSearchCallbacks
+          .weight(1f)
       )
     }
   }

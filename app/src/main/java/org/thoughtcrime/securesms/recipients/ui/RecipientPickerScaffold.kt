@@ -33,16 +33,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.thelightphone.sdk.ui.LightBarButton
 import com.thelightphone.sdk.ui.LightIcons
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
 import com.thelightphone.sdk.ui.LightThemeTokens
 import com.thelightphone.sdk.ui.LightTopBar
 import com.thelightphone.sdk.ui.LightTopBarCenter
+import com.thelightphone.sdk.ui.gridUnitsAsDp
 import org.signal.core.ui.compose.AllDevicePreviews
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.detailPaneMaxContentWidth
 import org.signal.core.ui.isSplitPane
 import org.signal.core.ui.rememberIsSplitPane
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.components.compose.ScreenTitlePane
 import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.window.AppScaffold
 import org.thoughtcrime.securesms.window.rememberAppScaffoldNavigator
@@ -105,10 +107,20 @@ fun RecipientPickerScaffold(
 
     secondaryContent = {
       if (isSplitPane) {
-        ScreenTitlePane(
-          title = title,
-          modifier = Modifier.fillMaxSize()
-        )
+        MollyLightTheme {
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .background(LightThemeTokens.colors.background)
+              .padding(horizontal = 1.5f.gridUnitsAsDp()),
+            contentAlignment = Alignment.TopStart
+          ) {
+            LightText(
+              text = title,
+              variant = LightTextVariant.Title
+            )
+          }
+        }
       } else {
         Box {
           primaryContent()

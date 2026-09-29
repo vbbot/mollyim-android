@@ -2,10 +2,9 @@ package org.thoughtcrime.securesms.search
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.View
 import org.thoughtcrime.securesms.ContactSelectionActivity
-import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.contacts.paged.ChatType
+import org.thoughtcrime.securesms.contacts.paged.light.LightContactSelectionHeader
 import org.thoughtcrime.securesms.recipients.RecipientId
 import java.util.Optional
 import java.util.function.Consumer
@@ -16,8 +15,7 @@ import java.util.function.Consumer
 class SingleContactSelectionActivity : ContactSelectionActivity() {
   override fun onCreate(icicle: Bundle?, ready: Boolean) {
     super.onCreate(icicle, ready)
-    toolbar.setNavigationIcon(R.drawable.ic_arrow_left_24)
-    toolbar.setNavigationOnClickListener { _: View? ->
+    header.setNavigation(LightContactSelectionHeader.NavigationMode.BACK) {
       setResult(RESULT_CANCELED, Intent(intent))
       finish()
     }

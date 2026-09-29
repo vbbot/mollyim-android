@@ -11,13 +11,11 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
-import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -25,8 +23,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -44,12 +42,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
-import kotlinx.collections.immutable.persistentHashMapOf
 import kotlinx.coroutines.launch
 import org.signal.core.ui.BottomSheetUtil
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.LocalFragmentManager
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.signal.core.ui.rememberIsSplitPane
 import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.core.util.getParcelableArrayListCompat
@@ -69,6 +65,7 @@ import org.thoughtcrime.securesms.contacts.paged.ContactSearchViewModel
 import org.thoughtcrime.securesms.database.RecipientTable
 import org.thoughtcrime.securesms.database.model.IdentityRecord
 import org.thoughtcrime.securesms.keyvalue.SignalStore
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.mediasend.v2.stories.ChooseGroupStoryBottomSheet
 import org.thoughtcrime.securesms.mediasend.v2.stories.ChooseStoryTypeBottomSheet
 import org.thoughtcrime.securesms.recipients.Recipient
@@ -133,6 +130,7 @@ class MultiselectForwardFragment :
   private var handler: Handler? = null
 
   private var bottomBarHeightPx by mutableIntStateOf(0)
+  private val bottomBarLifecycle = SiblingHostLifecycle()
 
   private val args: MultiselectForwardFragmentArgs by lazy {
     requireArguments().getParcelableCompat(ARGS, MultiselectForwardFragmentArgs::class.java)!!
@@ -156,7 +154,7 @@ class MultiselectForwardFragment :
         callback = callback,
         mapStateToConfiguration = this@MultiselectForwardFragment::getConfiguration,
         contactSearchCallbacks = remember { SearchCallbacks() },
-        additionalEntries = findListener<SearchConfigurationProvider>()?.getAdditionalEntries() ?: persistentHashMapOf(),
+        searchConfigurationProvider = findListener<SearchConfigurationProvider>(),
         bottomContentPadding = with(LocalDensity.current) { bottomBarHeightPx.toDp() }
       )
     }
@@ -171,8 +169,10 @@ class MultiselectForwardFragment :
     disposables.bindTo(viewLifecycleOwner.lifecycle)
 
     val container = callback.getContainer()
-    val title: TextView? = container.findViewById(R.id.title)
-    val bottomBar = ComposeView(requireContext())
+    removeBottomBarHost()
+    val bottomBar = ComposeView(requireContext()).apply {
+      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
     bottomBar.layoutParams = when (container) {
       is CoordinatorLayout -> CoordinatorLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { gravity = Gravity.BOTTOM }
       is FrameLayout -> FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.BOTTOM)
@@ -183,34 +183,26 @@ class MultiselectForwardFragment :
       val imeController = LocalSoftwareKeyboardController.current
       val isSplitPane = !args.isWrappedInBottomSheet && LocalResources.current.rememberIsSplitPane()
 
-      SignalTheme {
-        Surface(
-          color = remember { Color(callback.getDialogBackgroundColor()) }
-        ) {
-          MultiselectForwardBottomBar(
-            state = state,
-            events = {
-              when (it) {
-                is MultiselectForwardBottomBarEvent.AddMessageUpdate -> {
-                  viewModel.setMessage(it.message)
-                }
-                MultiselectForwardBottomBarEvent.SendClick -> {
-                  imeController?.hide()
-                  onSend()
-                }
+      MollyLightTheme {
+        MultiselectForwardBottomBar(
+          state = state,
+          events = {
+            when (it) {
+              is MultiselectForwardBottomBarEvent.AddMessageUpdate -> {
+                viewModel.setMessage(it.message)
               }
-            },
-            isSplitPane = isSplitPane,
-            modifier = Modifier
-              .fillMaxWidth()
-              .navigationBarsPadding()
-          )
-        }
+              MultiselectForwardBottomBarEvent.SendClick -> {
+                imeController?.hide()
+                onSend()
+              }
+            }
+          },
+          isSplitPane = isSplitPane,
+          modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+        )
       }
-    }
-
-    if (args.isWrappedInBottomSheet) {
-      title?.setText(args.title)
     }
 
     bottomBar.visible = false
@@ -220,6 +212,11 @@ class MultiselectForwardFragment :
     }
 
     container.addView(bottomBar)
+    bottomBarLifecycle.attach {
+      bottomBar.disposeComposition()
+      container.removeView(bottomBar)
+      bottomBarHeightPx = 0
+    }
 
     viewLifecycleOwner.lifecycleScope.launch {
       viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -233,9 +230,17 @@ class MultiselectForwardFragment :
             contactSelection.map { key ->
               val contact = key.requireShareContact()
               contact.recipientId
-                .map<MultiselectForwardBottomBarState.SelectedContact> { MultiselectForwardBottomBarState.SelectedContact.KnownRecipient(Recipient.resolved(it)) }
+                .map<MultiselectForwardBottomBarState.SelectedContact> { recipientId ->
+                  MultiselectForwardBottomBarState.SelectedContact.KnownRecipient(
+                    destination = key.requireRecipientSearchKey(),
+                    recipient = Recipient.resolved(recipientId)
+                  )
+                }
                 .orElseGet {
-                  MultiselectForwardBottomBarState.SelectedContact.UnknownRecipient(contact.number)
+                  MultiselectForwardBottomBarState.SelectedContact.UnknownRecipient(
+                    selectionKey = key,
+                    e164 = contact.number
+                  )
                 }
             }
           )
@@ -339,7 +344,13 @@ class MultiselectForwardFragment :
 
   override fun onDestroyView() {
     dismissibleDialog?.dismissNow()
+    removeBottomBarHost()
     super.onDestroyView()
+  }
+
+  private fun removeBottomBarHost() {
+    bottomBarLifecycle.clear()
+    bottomBarHeightPx = 0
   }
 
   private fun displayFirstSendConfirmation() {
@@ -618,5 +629,24 @@ class MultiselectForwardFragment :
 
       fragment.show(supportFragmentManager, BottomSheetUtil.STANDARD_BOTTOM_SHEET_FRAGMENT_TAG)
     }
+  }
+}
+
+/**
+ * Owns the teardown callback for a Compose host installed outside the fragment's own view tree.
+ * Replacing or clearing the host runs its teardown exactly once.
+ */
+internal class SiblingHostLifecycle {
+  private var teardown: (() -> Unit)? = null
+
+  fun attach(teardown: () -> Unit) {
+    clear()
+    this.teardown = teardown
+  }
+
+  fun clear() {
+    val current = teardown
+    teardown = null
+    current?.invoke()
   }
 }

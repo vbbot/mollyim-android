@@ -9,12 +9,15 @@ import android.content.Context
 import androidx.compose.runtime.Immutable
 import org.thoughtcrime.securesms.ContactSelectionListModels
 import org.thoughtcrime.securesms.R
+import org.signal.core.util.logging.Log
+import org.thoughtcrime.securesms.contacts.HeaderAction
 import org.thoughtcrime.securesms.contacts.paged.ChatType
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchConfiguration
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchData
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchKey
 import org.thoughtcrime.securesms.conversationlist.ConversationListSearchModels
 import org.thoughtcrime.securesms.conversationlist.light.LightRelativeTimestamp
+import org.thoughtcrime.securesms.database.model.DistributionListPrivacyMode
 import org.thoughtcrime.securesms.recipients.Recipient
 import java.util.Locale
 
@@ -35,6 +38,15 @@ import java.util.Locale
  * [ContactSearchData.Header], [ContactSearchData.Expand] and [ContactSearchData.Arbitrary] are plain
  * classes with identity equality, so including them would in fact recompose *every* such row on
  * every emission.
+ *
+ * Excluding [data] from equality is only safe because no gesture ever dispatches through a *row
+ * instance*. Every host -- [LightContactSearchView], `conversationlist/light/LightSearchResultsView`
+ * and [LightContactSearch] alike -- keeps a `key -> LightContactItem` map of the most recent
+ * projection ([LightContactPayloadRegistry]) and resolves a tap through that map by the row's
+ * stable [key]. A row that Compose has deliberately not recomposed therefore still invokes the
+ * callback belonging to the payload that is on screen now, and not the one that was current when it
+ * first composed. `LightContactItemTest.action dispatch resolves the latest payload when visible
+ * content is equal` is the regression test for that.
  */
 @Immutable
 class LightContactItem(
@@ -101,6 +113,12 @@ class LightContactItem(
     /** A line of centred copy inside the list, which is how Signal renders "no results". */
     MESSAGE,
 
+    /** A caller-owned functional row, rendered by the explicit custom-row provider. */
+    CUSTOM,
+
+    /** A visible coverage failure. Functional rows must never masquerade as unloaded paging holes. */
+    UNSUPPORTED,
+
     /** A page the paging controller has not filled in yet. Renders as blank space of row height. */
     PLACEHOLDER
   }
@@ -118,6 +136,9 @@ class LightContactItem(
     REFRESH_CONTACTS,
     FIND_BY_USERNAME,
     FIND_BY_PHONE_NUMBER,
+
+    /** A section-owned action such as "New story". The current [HeaderAction] is dispatched by key. */
+    HEADER,
 
     /** "View more" at the foot of a truncated section. Needs [data] for the section key. */
     EXPAND,
@@ -161,6 +182,7 @@ class LightContactItem(
   }
 
   companion object {
+    private val TAG = Log.tag(LightContactItem::class.java)
 
     /**
      * Projects the view model's `List<ContactSearchData>` onto the rows the Light picker draws.
@@ -182,7 +204,8 @@ class LightContactItem(
       data: List<ContactSearchData?>,
       selection: Set<ContactSearchKey>,
       fixedContacts: Set<ContactSearchKey> = emptySet(),
-      displayCheckBox: Boolean = false
+      displayCheckBox: Boolean = false,
+      supportedArbitraryTypes: Set<String> = emptySet()
     ): LightContactState {
       val rows = ArrayList<LightContactItem>(data.size)
 
@@ -204,15 +227,16 @@ class LightContactItem(
             displayCheckBox = displayCheckBox
           )
 
-          // Stories are out of scope for the picker and `ContactSelectionListFragment` never
-          // configures a stories section, but the row is mapped rather than dropped so that a host
-          // which does configure one gets a name instead of a silently missing row.
+          // A story is a *different destination* from the chat with the same recipient -- it selects
+          // `RecipientSearchKey(id, isStory = true)` -- and the two can sit in one list on the
+          // forwarding screen. Both are mapped, and both carry their viewer count, so that "post to
+          // Ada" and "forward to Ada" read as two things rather than one row twice.
           is ContactSearchData.Story -> rows += recipientRow(
             index = index,
             data = row,
             recipient = row.recipient,
             name = row.recipient.getDisplayName(context),
-            detail = "",
+            detail = storyDetailFor(context, row),
             selection = selection,
             fixedContacts = fixedContacts,
             displayCheckBox = displayCheckBox
@@ -260,17 +284,7 @@ class LightContactItem(
             data = row
           )
 
-          is ContactSearchData.Header -> rows += LightContactItem(
-            key = "header:${row.sectionKey}",
-            sourceIndex = index,
-            kind = Kind.HEADER,
-            name = headerName(context, row.sectionKey),
-            detail = "",
-            selected = false,
-            enabled = false,
-            action = null,
-            data = row
-          )
+          is ContactSearchData.Header -> rows += headerRows(context, index, row)
 
           is ContactSearchData.Expand -> rows += LightContactItem(
             key = "expand:${row.sectionKey}",
@@ -284,7 +298,12 @@ class LightContactItem(
             data = row
           )
 
-          is ContactSearchData.Arbitrary -> rows += arbitraryRows(context, index, row)
+          is ContactSearchData.Arbitrary -> rows += arbitraryRows(
+            context = context,
+            index = index,
+            row = row,
+            supportedArbitraryTypes = supportedArbitraryTypes
+          )
 
           // Signal renders this as an in-list line of copy rather than a whole-screen state,
           // because the "More" rows below it -- refresh, invite -- are part of the same empty state
@@ -307,7 +326,7 @@ class LightContactItem(
 
           is ContactSearchData.Message -> rows += messageRow(context, index, row)
 
-          is ContactSearchData.TestRow -> rows += placeholder(index)
+          is ContactSearchData.TestRow -> rows += unsupported(index, "test:${row.value}", row)
         }
       }
 
@@ -360,6 +379,70 @@ class LightContactItem(
     }
 
     /**
+     * The right-hand column of a story row: how many people can see it, and under what rule.
+     *
+     * Signal draws the same thing under the name (`StoryViewHolder.bindNumberField`), and the port
+     * had dropped it -- which left a story and the chat with the same recipient as two rows reading
+     * identically, in a list where they are different destinations.
+     *
+     * A group's story counts its participants rather than the viewer count the row carries, which is
+     * what `ContactSearchData.Story`'s own doc says and what Signal does.
+     *
+     * One Signal behaviour is deliberately not reproduced: before the user has chosen viewers for
+     * their own story, Signal swaps the count for "Tap to choose your viewers". That condition lives
+     * in `SignalStore`, and reading it here would make this projection depend on app state and stop
+     * it being a pure function of its arguments. The affordance itself survives without it -- tapping
+     * an unconfigured My Story already opens the membership sheet, via `DefaultClickCallbacks`.
+     */
+    @JvmStatic
+    fun storyDetailFor(context: Context, story: ContactSearchData.Story): String {
+      val recipient = story.recipient
+      val count = if (recipient.isGroup) recipient.participantIds.size else story.count
+
+      val label = when {
+        recipient.isGroup -> context.resources.getQuantityString(
+          R.plurals.ContactSearchItems__group_story_d_viewers,
+          count,
+          count
+        )
+
+        recipient.isMyStory -> {
+          val excluded = story.privacyMode == DistributionListPrivacyMode.ALL_EXCEPT
+          val mode = if (excluded) {
+            context.getString(R.string.ChooseInitialMyStoryMembershipFragment__all_except)
+          } else {
+            context.getString(privacyModeLabel(story.privacyMode))
+          }
+
+          context.resources.getQuantityString(
+            if (excluded) {
+              R.plurals.ContactSearchItems__my_story_s_dot_d_excluded
+            } else {
+              R.plurals.ContactSearchItems__my_story_s_dot_d_viewers
+            },
+            count,
+            mode,
+            count
+          )
+        }
+
+        else -> context.resources.getQuantityString(
+          R.plurals.ContactSearchItems__custom_story_d_viewers,
+          count,
+          count
+        )
+      }
+
+      return label.uppercase(Locale.getDefault())
+    }
+
+    private fun privacyModeLabel(privacyMode: DistributionListPrivacyMode): Int = when (privacyMode) {
+      DistributionListPrivacyMode.ONLY_WITH -> R.string.ContactSearchItems__only_share_with
+      DistributionListPrivacyMode.ALL_EXCEPT -> R.string.ChooseInitialMyStoryMembershipFragment__all_except
+      DistributionListPrivacyMode.ALL -> R.string.ChooseInitialMyStoryMembershipFragment__all_signal_connections
+    }
+
+    /**
      * A single matching message: the conversation it is in, when it was sent, and a snippet of it.
      *
      * `conversationRecipient` rather than `messageRecipient` is the name: the question a message
@@ -399,6 +482,21 @@ class LightContactItem(
       action = null,
       data = null
     )
+
+    private fun unsupported(index: Int, identity: String, data: ContactSearchData): LightContactItem {
+      Log.w(TAG, "Unsupported Light contact row: $identity")
+      return LightContactItem(
+        key = "unsupported:$identity:$index",
+        sourceIndex = index,
+        kind = Kind.UNSUPPORTED,
+        name = "Unsupported row: $identity",
+        detail = "",
+        selected = false,
+        enabled = false,
+        action = null,
+        data = data
+      )
+    }
 
     private fun recipientRow(
       index: Int,
@@ -461,6 +559,42 @@ class LightContactItem(
       )
     }
 
+    private fun headerRows(
+      context: Context,
+      index: Int,
+      row: ContactSearchData.Header
+    ): List<LightContactItem> {
+      val rows = mutableListOf(
+        LightContactItem(
+          key = "header:${row.sectionKey}",
+          sourceIndex = index,
+          kind = Kind.HEADER,
+          name = headerName(context, row.sectionKey),
+          detail = "",
+          selected = false,
+          enabled = false,
+          action = null,
+          data = row
+        )
+      )
+
+      row.action?.let { headerAction ->
+        rows += LightContactItem(
+          key = "header-action:${row.sectionKey}",
+          sourceIndex = index,
+          kind = Kind.ACTION,
+          name = context.getString(headerAction.label).uppercase(Locale.getDefault()),
+          detail = "",
+          selected = false,
+          enabled = true,
+          action = Action.HEADER,
+          data = row
+        )
+      }
+
+      return rows
+    }
+
     /**
      * The extra rows Molly hangs off the picker: new group, invite, find-by, refresh.
      *
@@ -469,7 +603,12 @@ class LightContactItem(
      * becomes the two rows it always was, so that the banner can still be dismissed and the screen
      * does not grow a second kind of row to hold buttons.
      */
-    private fun arbitraryRows(context: Context, index: Int, row: ContactSearchData.Arbitrary): List<LightContactItem> {
+    private fun arbitraryRows(
+      context: Context,
+      index: Int,
+      row: ContactSearchData.Arbitrary,
+      supportedArbitraryTypes: Set<String>
+    ): List<LightContactItem> {
       fun action(suffix: String, labelRes: Int, action: Action) = LightContactItem(
         key = "arbitrary:${row.type}:$suffix",
         sourceIndex = index,
@@ -486,7 +625,7 @@ class LightContactItem(
       // `ArbitraryRow.fromCode` is an `entries.first { }` -- it throws NoSuchElementException on
       // anything it does not know, which would take the whole list down the moment you searched with
       // the unread filter on. Matched before the picker's own rows for that reason, and anything
-      // still unrecognised becomes blank space rather than a crash.
+      // still unrecognised becomes a visible coverage failure rather than a crash or paging hole.
       val chatFilter = ConversationListSearchModels.ChatFilterOptions.entries.firstOrNull { it.code == row.type }
       if (chatFilter != null) {
         return listOf(
@@ -495,7 +634,23 @@ class LightContactItem(
       }
 
       if (ContactSelectionListModels.ArbitraryRow.entries.none { it.code == row.type }) {
-        return listOf(placeholder(index))
+        if (row.type in supportedArbitraryTypes) {
+          return listOf(
+            LightContactItem(
+              key = "custom:${row.type}:$index",
+              sourceIndex = index,
+              kind = Kind.CUSTOM,
+              name = row.type,
+              detail = "",
+              selected = false,
+              enabled = false,
+              action = null,
+              data = row
+            )
+          )
+        }
+
+        return listOf(unsupported(index, "arbitrary:${row.type}", row))
       }
 
       return when (ContactSelectionListModels.ArbitraryRow.fromCode(row.type)) {
