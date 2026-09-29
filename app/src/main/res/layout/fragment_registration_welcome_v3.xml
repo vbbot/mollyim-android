@@ -14,13 +14,21 @@
         app:layout_constraintBottom_toTopOf="@+id/title"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/light_top_bar" />
 
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
+    <!--
+      The welcome screen is the root of the registration graph, so the bar carries no back
+      affordance -- there is nothing behind it -- and no title. Its one job is the network/proxy
+      entry, which used to live in a Material overflow menu on a `Toolbar`. It is a visible Light
+      icon in the bar's right slot instead, because on a black screen an ellipsis that opens a
+      one-item Material popup is the only Material left on the first screen a user ever sees.
+    -->
+    <org.thoughtcrime.securesms.light.LightTopBarView
+        android:id="@+id/light_top_bar"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:title=""
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView

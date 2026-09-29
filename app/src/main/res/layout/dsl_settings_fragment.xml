@@ -1,21 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Light chrome for a `DSLSettingsFragment`.
+
+  Replaces the `<include layout="@layout/dsl_settings_toolbar" />` (a Material `DarkOverflowToolbar`)
+  with `LightTopBarView`, and paints the whole fragment true black. `dsl_settings_toolbar.xml`
+  itself is deliberately untouched: eighteen other layouts include it, and most of those are
+  destinations owned elsewhere.
+
+  The `Toolbar` is still here, zero-height and transparent, and is *not* chrome any more. Two things
+  still need a real one:
+
+    * `Toolbar` is the `MenuProvider` host the DSL menu contract is built on -- the destination
+      inflates its `menuId` into it and its `onOptionsItemSelected` reads the resulting `MenuItem`;
+    * destinations anchor their own popups to `R.id.toolbar` (`GroupStorySettingsFragment` does this
+      for its `SignalContextMenu`).
+
+  It draws nothing, sits under the Light bar, and is not touchable, so the Light bar owns the whole
+  visible surface. The action a menu declares is re-rendered as a Light glyph in the bar's right slot
+  by `DSLSettingsFragment`.
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     tools:viewBindingIgnore="true"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/dsl_settings_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/molly_surface_dark"
+    android:fitsSystemWindows="true">
 
-    <include layout="@layout/dsl_settings_toolbar" />
+    <org.thoughtcrime.securesms.light.LightTopBarView
+        android:id="@+id/light_top_bar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@null"
+        android:minHeight="0dp"
+        app:layout_constraintBottom_toBottomOf="@id/light_top_bar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/light_top_bar"
+        app:titleTextAppearance="@style/Signal.Text.TitleLarge"
+        tools:ignore="Autofill,LabelFor" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:background="@color/molly_surface_dark"
         android:orientation="vertical"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/toolbar" />
+        app:layout_constraintTop_toBottomOf="@id/light_top_bar" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

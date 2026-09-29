@@ -16,12 +16,28 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import org.signal.core.ui.logging.LoggingFragment
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.light.LightBarAction
+import org.thoughtcrime.securesms.light.LightTopBarView
 import org.thoughtcrime.securesms.util.Material3OnScrollHelper
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingAdapter
 
 /**
  * The DSL API can be completely replaced by compose.
  * See ComposeFragment or ComposeBottomSheetFragment for an alternative to this API
+ *
+ * ## Chrome
+ *
+ * The default layout (`dsl_settings_fragment`) now hosts [LightTopBarView] -- a back chevron,
+ * a centred title and at most one action -- in place of the Material toolbar, on a true-black
+ * surface. That is the frame every un-converted settings destination is sitting inside, so converting
+ * it here is what makes a Light list stop being a Light list in a Material frame.
+ *
+ * A destination may still hand this fragment its own `layoutId`; the ones that do today
+ * (`DonateToSignalFragment`, `ManageDonationsFragment`, `ConversationSettingsFragment`,
+ * `DonationReceiptDetailFragment`, and the stories ones) all include `dsl_settings_toolbar.xml` and
+ * so still carry a real Material toolbar. Those are destinations, not chrome, and they belong to
+ * other work: [lightTopBar] is null for them and they keep the previous path untouched. `dsl_settings_toolbar.xml`
+ * itself is not edited, because eighteen layouts outside this class include it.
  */
 abstract class DSLSettingsFragment(
   @StringRes private val titleId: Int = -1,
@@ -35,21 +51,21 @@ abstract class DSLSettingsFragment(
 
   private var toolbar: Toolbar? = null
 
+  /**
+   * Non-null only when the destination is on the default (Light) layout. Its presence is what
+   * selects the Light chrome path over the legacy Material one.
+   */
+  private var lightTopBar: LightTopBarView? = null
+
   @CallSuper
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     toolbar = view.findViewById(R.id.toolbar)
+    lightTopBar = view.findViewById(R.id.light_top_bar)
 
-    if (titleId != -1) {
-      toolbar?.setTitle(titleId)
-    }
-
-    toolbar?.setNavigationOnClickListener {
-      onToolbarNavigationClicked()
-    }
-
-    if (menuId != -1) {
-      toolbar?.inflateMenu(menuId)
-      toolbar?.setOnMenuItemClickListener { onOptionsItemSelected(it) }
+    if (lightTopBar != null) {
+      bindLightTopBar(lightTopBar!!)
+    } else {
+      bindMaterialToolbar(toolbar)
     }
 
     val config = ConcatAdapter.Config.Builder().setIsolateViewTypes(false).build()
@@ -65,8 +81,13 @@ abstract class DSLSettingsFragment(
       layoutManager = layoutManagerProducer(requireContext())
       adapter = settingsAdapter
 
-      getMaterial3OnScrollHelper(toolbar)?.let {
-        it.attach(this)
+      // A Light bar has no collapsing Material surface to tint, so the scroll helper has nothing to
+      // do and is deliberately not consulted. Skipping the call matters as much as skipping the
+      // attach: several destinations override this and do `toolbar!!`, which would throw.
+      if (lightTopBar == null) {
+        getMaterial3OnScrollHelper(toolbar)?.let {
+          it.attach(this)
+        }
       }
     }
 
@@ -74,6 +95,69 @@ abstract class DSLSettingsFragment(
       is ConcatAdapter -> bindAdapters(settingsAdapter)
       is MappingAdapter -> bindAdapter(settingsAdapter)
       else -> error("Illegal adapter subtype: ${settingsAdapter.javaClass.simpleName}")
+    }
+  }
+
+  /**
+   * The Light path. The bar owns the title, the back affordance and any menu action; the hidden
+   * toolbar underneath stays the `MenuProvider` host and the popup anchor the DSL menu contract
+   * depends on.
+   */
+  private fun bindLightTopBar(bar: LightTopBarView) {
+    bar.leftAction = LightTopBarView.backAction(
+      contentDescription = getString(R.string.DSLSettingsToolbar__navigate_up),
+      onClick = { onToolbarNavigationClicked() }
+    )
+
+    if (titleId != -1) {
+      bar.title = getString(titleId)
+    }
+
+    if (menuId != -1) {
+      toolbar?.inflateMenu(menuId)
+      toolbar?.setOnMenuItemClickListener { onOptionsItemSelected(it) }
+
+      // `Toolbar.getMenu()` hands back the same instance the inflate above filled, so the items read
+      // here are the very `MenuItem`s `onOptionsItemSelected` expects -- not a detached copy.
+      val actions = toolbar?.menu?.let { m ->
+        (0 until m.size()).map(m::getItem).filter { it.isVisible }
+      }.orEmpty()
+
+      when (actions.size) {
+        0 -> bar.rightAction = null
+        1 -> bar.rightAction = actions[0].icon?.let { icon ->
+          LightBarAction.Drawable(
+            contentDescription = actions[0].title?.toString(),
+            // A `MenuItem`'s icon is usually backed by a shared `ConstantState` -- the same instance
+            // the hidden toolbar is holding. Copy it, so recolouring the bar's glyph cannot
+            // recolour the drawable anywhere else that state is used from.
+            drawable = icon.constantState?.newDrawable(resources)?.mutate() ?: icon,
+            onClick = { onOptionsItemSelected(actions[0]) }
+          )
+        }
+        else -> {
+          // `LightTopBar` has one right slot. Rendering the first and dropping the rest would
+          // remove actions a user can currently reach, so the bar stays empty and the menu is
+          // left to the toolbar's own overflow instead -- no settings screen is in this state
+          // today, and when one is, the overflow is visible rather than a feature gone missing.
+          bar.clearAction()
+        }
+      }
+    }
+  }
+
+  private fun bindMaterialToolbar(toolbar: Toolbar?) {
+    if (titleId != -1) {
+      toolbar?.setTitle(titleId)
+    }
+
+    toolbar?.setNavigationOnClickListener {
+      onToolbarNavigationClicked()
+    }
+
+    if (menuId != -1) {
+      toolbar?.inflateMenu(menuId)
+      toolbar?.setOnMenuItemClickListener { onOptionsItemSelected(it) }
     }
   }
 
@@ -96,15 +180,18 @@ abstract class DSLSettingsFragment(
   override fun onDestroyView() {
     recyclerView = null
     toolbar = null
+    lightTopBar = null
     super.onDestroyView()
   }
 
   fun setTitle(@StringRes resId: Int) {
     toolbar?.setTitle(resId)
+    lightTopBar?.title = getString(resId)
   }
 
   fun setTitle(title: CharSequence) {
     toolbar?.title = title
+    lightTopBar?.title = title.toString()
   }
 
   open fun createAdapters(): Array<MappingAdapter> {

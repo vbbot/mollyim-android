@@ -1,9 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The nav host for a `DSLSettingsActivity`.
+
+  The background was `?attr/signal_background_primary`, which resolves to whatever the Signal/Molly
+  theme decided. A scoped Light theme does not paint surfaces -- the host has to -- and the Light
+  design language is true black, so the container is pinned to `@color/molly_surface_dark` rather
+  than to an attribute. Without this the nav host stays Signal-coloured behind every Light settings
+  screen, which is exactly the "Light list inside a Material frame" failure.
+-->
 <androidx.fragment.app.FragmentContainerView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     tools:viewBindingIgnore="true"
     android:id="@+id/nav_host_fragment"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/signal_background_primary"
+    android:background="@color/molly_surface_dark"
     android:transitionName="window_content" />

@@ -7,15 +7,9 @@ package org.thoughtcrime.securesms.registration.ui.welcome
 
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.view.Menu
-import android.view.MenuInflater
-import android.view.MenuItem
 import android.view.View
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.view.MenuProvider
 import androidx.fragment.app.activityViewModels
-import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.fragment.findNavController
 import org.signal.core.ui.logging.LoggingFragment
 import org.signal.core.util.getSerializableCompat
@@ -23,10 +17,13 @@ import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
 import org.thoughtcrime.securesms.databinding.FragmentRegistrationWelcomeV3Binding
+import org.thoughtcrime.securesms.light.LightBarAction
+import org.thoughtcrime.securesms.light.LightTopBarView
 import org.thoughtcrime.securesms.dependencies.AppDependencies
 import org.thoughtcrime.securesms.registration.fragments.RegistrationViewDelegate.setDebugLogSubmitMultiTapView
 import org.thoughtcrime.securesms.registration.fragments.WelcomePermissions
 import org.thoughtcrime.securesms.registration.ui.RegistrationCheckpoint
+import com.thelightphone.sdk.ui.LightIcons
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
 import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationContracts
 import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
@@ -53,11 +50,13 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
 
-    setDebugLogSubmitMultiTapView(binding.image)
-    setDebugLogSubmitMultiTapView(binding.title)
+    // The eight-tap debug-log gesture used to hang off the wordmark and the Signal headline. Both
+    // are hidden on the Light screen, and a GONE view cannot be tapped, so the gesture had quietly
+    // stopped working. The root is the only always-present surface here, and the buttons on top of
+    // it keep their own listeners, so they still take their own taps.
+    setDebugLogSubmitMultiTapView(binding.root)
 
     LightRegistrationViewStyle.surface(binding.root)
-    LightRegistrationViewStyle.toolbar(binding.toolbar)
     LightRegistrationViewStyle.action(binding.welcomeContinueButton)
     LightRegistrationViewStyle.action(binding.welcomeTransferOrRestore)
     LightRegistrationViewStyle.action(binding.link)
@@ -73,6 +72,8 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
     binding.welcomeTransferOrRestore.visible = !sharedViewModel.isReregister
 
     binding.link.setOnClickListener { onLinkDeviceClicked() }
+
+    bindLightTopBar(binding.lightTopBar)
 
     childFragmentManager.setFragmentResultListener(RestoreWelcomeBottomSheet.REQUEST_KEY, viewLifecycleOwner) { requestKey, bundle ->
       if (requestKey == RestoreWelcomeBottomSheet.REQUEST_KEY) {
@@ -96,13 +97,30 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
       }
     }
 
-    with(requireActivity() as AppCompatActivity) {
-      setSupportActionBar(binding.toolbar)
-      supportActionBar?.apply {
-        setDisplayShowTitleEnabled(false)
-      }
-      addMenuProvider(UseProxyMenuProvider(), viewLifecycleOwner)
-    }
+  }
+
+  /**
+   * Wires the Light top bar.
+   *
+   * This replaces `UseProxyMenuProvider` and the `Toolbar` it needed. That provider inflated
+   * `R.menu.enter_phone_number` -- a single, icon-less "Network settings" item -- into the support
+   * action bar, so reaching the proxy editor cost an ellipsis tap and then a Material popup on an
+   * otherwise black screen. The bar's right slot now carries that action directly, and the popup
+   * goes with it.
+   *
+   * No left action: welcome is the root of the registration graph, so a back chevron here would
+   * navigate to nothing.
+   */
+  private fun bindLightTopBar(topBar: LightTopBarView) {
+    topBar.rightAction = LightBarAction.Sdk(
+      contentDescription = getString(R.string.RegistrationActivity_network_settings),
+      icon = LightIcons.SETTINGS,
+      onClick = ::onUseProxyClicked
+    )
+  }
+
+  private fun onUseProxyClicked() {
+    findNavController().safeNavigate(WelcomeFragmentDirections.actionEditProxy())
   }
 
   private fun onLinkDeviceClicked() {
@@ -200,16 +218,4 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
     LightRegistrationContracts.WelcomeAction.RESTORE_WITHOUT_OLD_PHONE -> WelcomeUserSelection.RESTORE_WITH_NO_PHONE
   }
 
-  private inner class UseProxyMenuProvider : MenuProvider {
-    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-      menuInflater.inflate(R.menu.enter_phone_number, menu)
-    }
-
-    override fun onMenuItemSelected(menuItem: MenuItem): Boolean = if (menuItem.itemId == R.id.phone_menu_use_proxy) {
-      NavHostFragment.findNavController(this@WelcomeFragment).safeNavigate(WelcomeFragmentDirections.actionEditProxy())
-      true
-    } else {
-      false
-    }
-  }
 }
