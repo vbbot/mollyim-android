@@ -17,7 +17,28 @@
 
         The palettes are black on both sides regardless (see core/ui molly_colors.xml), so this is
         belt and braces rather than the only line of defence.
+
+        Eight Activities name a `*Light*` theme straight from the manifest and so never reach the
+        `Signal.DayNight*` names below, which is why the two light roots are re-pointed too:
+
+        - `TextSecure.BaseLightTheme` is the common ancestor of `TextSecure.LightTheme`,
+          `TextSecure.BaseLightNoActionBar` and `Theme.Signal.WallpaperCropper.Light`. Its item set
+          is a subset of `TextSecure.BaseDarkTheme`'s, and every value that differs is its own
+          light/dark counterpart, so the swap loses nothing. This is what darkens
+          BlockedUsersActivity, EditProfileActivity, NicknameActivity, ContactShareEditActivity and
+          ConversationPopupActivity (via `TextSecure.LightTheme` and `TextSecure.LightTheme.Popup`).
+        - `TextSecure.LightRegistrationTheme` needs its own entry because its body re-asserts
+          `android:windowLightStatusBar` as true, which would otherwise survive the swap above.
+          This is what darkens CreateSvrPinActivity, SvrMigrationActivity, CreateProfileActivity and
+          OldDeviceTransferActivity.
+
+        `TextSecure.LightIntroTheme` (PassphraseCreateActivity) is deliberately left alone: it
+        parents through `Signal.DayNight.Registration`, which is already dark.
     -->
+    <style name="TextSecure.BaseLightTheme" parent="@style/TextSecure.BaseDarkTheme" />
+
+    <style name="TextSecure.LightRegistrationTheme" parent="TextSecure.DarkRegistrationTheme" />
+
     <style name="Signal.DayNight" parent="TextSecure.DarkTheme" />
 
     <style name="Signal.DayNight.Registration" parent="TextSecure.DarkRegistrationTheme" />
