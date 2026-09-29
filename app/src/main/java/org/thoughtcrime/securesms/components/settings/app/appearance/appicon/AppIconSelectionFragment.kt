@@ -15,21 +15,16 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.ClickableText
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,12 +49,13 @@ import kotlinx.collections.immutable.toImmutableList
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.app.appearance.appicon.util.AppIconPreset
 import org.thoughtcrime.securesms.components.settings.app.appearance.appicon.util.AppIconUtility
+import org.thoughtcrime.securesms.light.LightConfirmationDialog
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 
 class AppIconSelectionFragment : ComposeFragment() {
@@ -72,15 +68,13 @@ class AppIconSelectionFragment : ComposeFragment() {
 
   @Composable
   override fun FragmentContent() {
-    Scaffolds.Settings(
-      title = stringResource(id = R.string.preferences__app_icon),
-      onNavigationClick = {
-        findNavController().popBackStack()
-      },
-      navigationIcon = SignalIcons.ArrowStart.imageVector,
-      navigationContentDescription = stringResource(id = R.string.Material3SearchToolbar__close)
-    ) { contentPadding: PaddingValues ->
-      IconSelectionScreen(appIconUtility.currentAppIcon, ::updateAppIcon, ::openLearnMore, Modifier.padding(contentPadding))
+    MollyLightTheme {
+      LightSettingsScreen(
+        title = stringResource(id = R.string.preferences__app_icon),
+        onBack = { findNavController().popBackStack() }
+      ) {
+        IconSelectionScreen(appIconUtility.currentAppIcon, ::updateAppIcon, ::openLearnMore)
+      }
     }
   }
 
@@ -127,7 +121,7 @@ fun IconSelectionScreen(activeIcon: AppIconPreset, onItemConfirmed: (AppIconPres
     )
   }
 
-  Column(modifier = modifier.verticalScroll(rememberScrollState())) {
+  Column(modifier = modifier) {
     Spacer(modifier = Modifier.size(12.dp))
     CaveatWarning(
       onClick = onWarningClick,
@@ -156,40 +150,18 @@ fun IconSelectionScreen(activeIcon: AppIconPreset, onItemConfirmed: (AppIconPres
 
 @Composable
 fun ChangeIconDialog(pendingIcon: AppIconPreset, onConfirm: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
-  AlertDialog(
-    modifier = modifier,
-    onDismissRequest = onDismiss,
-    confirmButton = {
-      TextButton(
-        onClick = onConfirm
-      ) {
-        Text(text = stringResource(id = R.string.preferences__app_icon_dialog_ok))
-      }
+  var confirmed by remember { mutableStateOf(false) }
+  LightConfirmationDialog(
+    title = stringResource(id = R.string.preferences__app_icon_dialog_title, stringResource(id = pendingIcon.labelResId)),
+    body = stringResource(id = R.string.preferences__app_icon_dialog_description),
+    confirmLabel = stringResource(id = R.string.preferences__app_icon_dialog_ok),
+    dismissLabel = stringResource(id = R.string.preferences__app_icon_dialog_cancel),
+    onConfirm = {
+      confirmed = true
+      onConfirm()
     },
-    dismissButton = {
-      TextButton(
-        onClick = onDismiss
-      ) {
-        Text(text = stringResource(id = R.string.preferences__app_icon_dialog_cancel))
-      }
-    },
-    icon = {
-      AppIcon(preset = pendingIcon, isSelected = false, onClick = {})
-    },
-    title = {
-      Text(
-        text = stringResource(id = R.string.preferences__app_icon_dialog_title, stringResource(id = pendingIcon.labelResId)),
-        textAlign = TextAlign.Center,
-        style = MaterialTheme.typography.headlineSmall
-      )
-    },
-    text = {
-      Text(
-        text = stringResource(id = R.string.preferences__app_icon_dialog_description),
-        textAlign = TextAlign.Center,
-        style = MaterialTheme.typography.bodyMedium
-      )
-    }
+    onDismiss = { if (!confirmed) onDismiss() },
+    modifier = modifier
   )
 }
 

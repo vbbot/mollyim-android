@@ -2,44 +2,24 @@ package org.thoughtcrime.securesms.components.settings.app.notifications.profile
 
 import android.os.Bundle
 import android.view.View
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.fragment.findNavController
 import com.google.android.material.snackbar.Snackbar
 import io.reactivex.rxjava3.kotlin.subscribeBy
 import kotlinx.coroutines.rx3.asFlow
-import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.Snackbars
-import org.signal.core.ui.compose.Texts
-import org.signal.core.ui.compose.horizontalGutters
 import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.emoji.EmojiStrings
 import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.AddAllowedMembersViewModel.NotificationProfileAndRecipients
-import org.thoughtcrime.securesms.compose.rememberStatusBarColorNestedScrollModifier
 import org.thoughtcrime.securesms.database.RecipientTable
 import org.thoughtcrime.securesms.notifications.profiles.NotificationProfile
 import org.thoughtcrime.securesms.notifications.profiles.NotificationProfileId
@@ -151,106 +131,54 @@ private interface AddAllowedMembersCallbacks {
 @Composable
 private fun AddAllowedMembersContent(
   state: NotificationProfileAndRecipients,
-  callbacks: AddAllowedMembersCallbacks,
-  snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
+  callbacks: AddAllowedMembersCallbacks
 ) {
-  Scaffolds.Settings(
-    title = "",
-    onNavigationClick = callbacks::onNavigationClick,
-    navigationIcon = SignalIcons.ArrowStart.imageVector,
-    snackbarHost = {
-      Snackbars.Host(snackbarHostState)
-    }
-  ) { contentPadding ->
-    Column(
-      modifier = Modifier.padding(contentPadding)
+  org.thoughtcrime.securesms.light.MollyLightTheme {
+    org.thoughtcrime.securesms.light.LightSettingsScreen(
+      title = "",
+      onBack = callbacks::onNavigationClick
     ) {
-      LazyColumn(
-        modifier = Modifier
-          .weight(1f)
-          .then(rememberStatusBarColorNestedScrollModifier())
-      ) {
-        item {
-          Text(
-            text = stringResource(R.string.AddAllowedMembers__allowed_notifications),
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-              .horizontalGutters()
-              .padding(top = 20.dp)
-              .fillMaxWidth()
-          )
+      org.thoughtcrime.securesms.light.LightSettingsSection(
+        stringResource(R.string.AddAllowedMembers__allowed_notifications)
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.AddAllowedMembers__add_people_and_groups_you_want_notifications_and_calls_from_when_this_profile_is_on),
+        onClick = null
+      )
 
-          Text(
-            text = stringResource(R.string.AddAllowedMembers__add_people_and_groups_you_want_notifications_and_calls_from_when_this_profile_is_on),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-              .horizontalGutters()
-              .padding(top = 12.dp, bottom = 24.dp)
-              .fillMaxWidth()
-          )
-        }
-
-        item {
-          Texts.SectionHeader(
-            text = stringResource(R.string.AddAllowedMembers__allowed_notifications)
-          )
-        }
-
-        item {
-          val callback = remember(state.profile.id, state.profile.allowedMembers) {
-            {
-              callbacks.onAddMembersClick(state.profile.id, state.profile.allowedMembers)
-            }
-          }
-
-          NotificationProfileAddMembers(onClick = callback)
-        }
-
-        for (member in state.recipients) {
-          item(key = member.id) {
-            NotificationProfileRecipient(
-              recipient = member,
-              onRemoveClick = callbacks::onRemoveMemberClick
-            )
-          }
-        }
-
-        item {
-          Texts.SectionHeader(
-            text = stringResource(R.string.AddAllowedMembers__exceptions)
-          )
-        }
-
-        item {
-          Rows.ToggleRow(
-            checked = state.profile.allowAllCalls,
-            text = stringResource(R.string.AddAllowedMembers__allow_all_calls),
-            icon = SignalIcons.Phone.imageVector,
-            onCheckChanged = callbacks::onAllowAllCallsChanged
-          )
-        }
-
-        item {
-          Rows.ToggleRow(
-            checked = state.profile.allowAllMentions,
-            text = stringResource(R.string.AddAllowedMembers__notify_for_all_mentions),
-            icon = SignalIcons.At.imageVector,
-            onCheckChanged = callbacks::onNotifyForAllMentionsChanged
-          )
+      val addMembers = remember(state.profile.id, state.profile.allowedMembers) {
+        {
+          callbacks.onAddMembersClick(state.profile.id, state.profile.allowedMembers)
         }
       }
+      NotificationProfileAddMembers(onClick = addMembers)
 
-      Buttons.LargeTonal(
-        onClick = callbacks::onNextClick,
-        modifier = Modifier
-          .align(Alignment.End)
-          .padding(16.dp)
-      ) {
-        Text(text = stringResource(R.string.EditNotificationProfileFragment__next))
+      for (member in state.recipients) {
+        NotificationProfileRecipient(
+          recipient = member,
+          onRemoveClick = callbacks::onRemoveMemberClick
+        )
       }
+
+      org.thoughtcrime.securesms.light.LightSettingsSection(
+        stringResource(R.string.AddAllowedMembers__exceptions)
+      )
+      org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+        checked = state.profile.allowAllCalls,
+        title = stringResource(R.string.AddAllowedMembers__allow_all_calls),
+        onCheckedChange = callbacks::onAllowAllCallsChanged
+      )
+      org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+        checked = state.profile.allowAllMentions,
+        title = stringResource(R.string.AddAllowedMembers__notify_for_all_mentions),
+        onCheckedChange = callbacks::onNotifyForAllMentionsChanged
+      )
+
+      org.thoughtcrime.securesms.light.LightSettingsDivider()
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.EditNotificationProfileFragment__next),
+        onClick = callbacks::onNextClick
+      )
     }
   }
 }

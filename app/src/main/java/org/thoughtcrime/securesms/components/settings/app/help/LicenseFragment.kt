@@ -5,17 +5,10 @@
 
 package org.thoughtcrime.securesms.components.settings.app.help
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.rxjava3.subscribeAsState
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.navigation.fragment.findNavController
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Single
@@ -23,10 +16,11 @@ import io.reactivex.rxjava3.schedulers.Schedulers
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.light.LightSettingsRow
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import java.io.InputStream
 
 class LicenseFragment : ComposeFragment() {
@@ -44,28 +38,28 @@ class LicenseFragment : ComposeFragment() {
       .observeOn(AndroidSchedulers.mainThread())
       .subscribeAsState(initial = emptyList())
 
-    Scaffolds.Settings(
-      title = stringResource(id = R.string.HelpSettingsFragment__licenses),
-      onNavigationClick = findNavController()::popBackStack,
-      navigationIcon = SignalIcons.ArrowStart.imageVector,
-      navigationContentDescription = stringResource(id = R.string.Material3SearchToolbar__close)
-    ) {
-      LicenseScreen(licenseTextLines = textState.value, modifier = Modifier.padding(it))
-    }
+    LicenseScreen(
+      licenseTextLines = textState.value,
+      onBack = findNavController()::popBackStack
+    )
   }
 }
 
 @Composable
-fun LicenseScreen(licenseTextLines: List<String>, modifier: Modifier = Modifier) {
-  Surface(modifier = modifier) {
-    LazyColumn(modifier = Modifier.padding(horizontal = 4.dp)) {
+fun LicenseScreen(
+  licenseTextLines: List<String>,
+  onBack: () -> Unit = {}
+) {
+  MollyLightTheme {
+    LightSettingsScreen(
+      title = stringResource(R.string.HelpSettingsFragment__licenses),
+      onBack = onBack
+    ) {
       licenseTextLines.forEach { line ->
-        item {
-          Text(
-            text = line,
-            style = MaterialTheme.typography.bodyMedium
-          )
-        }
+        LightSettingsRow(
+          title = line.ifEmpty { " " },
+          onClick = null
+        )
       }
     }
   }

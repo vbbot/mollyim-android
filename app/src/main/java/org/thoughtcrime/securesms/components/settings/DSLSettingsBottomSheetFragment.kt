@@ -31,7 +31,7 @@ abstract class DSLSettingsBottomSheetFragment(
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     recyclerView = view.findViewById(R.id.recycler)
     recyclerView.edgeEffectFactory = EdgeEffectFactory()
-    val adapter = DSLSettingsAdapter()
+    val adapter = createAdapter()
 
     recyclerView.layoutManager = layoutManagerProducer(requireContext())
     recyclerView.adapter = adapter
@@ -44,6 +44,8 @@ abstract class DSLSettingsBottomSheetFragment(
     super.onResume()
     WindowUtil.initializeScreenshotSecurity(requireContext(), dialog!!.window!!)
   }
+
+  protected open fun createAdapter(): DSLSettingsAdapter = DSLSettingsAdapter()
 
   abstract fun bindAdapter(adapter: DSLSettingsAdapter)
 

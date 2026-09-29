@@ -8,6 +8,7 @@ import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.widget.Toolbar
+import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
@@ -19,8 +20,10 @@ import org.signal.core.util.EditTextUtil
 import org.signal.core.util.concurrent.LifecycleDisposable
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.emoji.EmojiUtil
-import org.thoughtcrime.securesms.components.settings.DSLSettingsFragment
+import org.thoughtcrime.securesms.components.settings.LightDSLSettingsFragment
+import org.thoughtcrime.securesms.components.settings.registerLightPreference
 import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.EditNotificationProfileViewModel.SaveNotificationProfileResult
+import org.thoughtcrime.securesms.light.LightSettingsRow
 import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.models.NotificationProfileNamePreset
 import org.thoughtcrime.securesms.reactions.any.ReactWithAnyEmojiBottomSheetDialogFragment
 import org.thoughtcrime.securesms.util.ViewUtil
@@ -33,7 +36,7 @@ import org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton
  * Dual use Edit/Create notification profile fragment. Use to create in the create profile flow,
  * and then to edit from profile details. Responsible for naming and emoji.
  */
-class EditNotificationProfileFragment : DSLSettingsFragment(layoutId = R.layout.fragment_edit_notification_profile), ReactWithAnyEmojiBottomSheetDialogFragment.Callback {
+class EditNotificationProfileFragment : LightDSLSettingsFragment(layoutId = R.layout.fragment_edit_notification_profile), ReactWithAnyEmojiBottomSheetDialogFragment.Callback {
 
   private val viewModel: EditNotificationProfileViewModel by viewModels(factoryProducer = this::createFactory)
   private val lifecycleDisposable = LifecycleDisposable()
@@ -132,7 +135,12 @@ class EditNotificationProfileFragment : DSLSettingsFragment(layoutId = R.layout.
   }
 
   override fun bindAdapter(adapter: MappingAdapter) {
-    NotificationProfileNamePreset.register(adapter)
+    registerLightPreference(adapter, NotificationProfileNamePreset.Model::class.java) { model ->
+      LightSettingsRow(
+        title = "${model.emoji} ${LocalContext.current.getString(model.bodyResource)}",
+        onClick = { model.onClick(model) }
+      )
+    }
 
     val onClick = { preset: NotificationProfileNamePreset.Model ->
       nameView?.apply {

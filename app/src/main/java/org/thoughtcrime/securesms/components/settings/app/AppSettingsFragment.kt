@@ -6,19 +6,13 @@ import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.absoluteOffset
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -32,9 +26,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -85,10 +77,6 @@ import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.SignalE164Util
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
-import com.thelightphone.sdk.ui.LightBarButton
-import com.thelightphone.sdk.ui.LightIcons
-import com.thelightphone.sdk.ui.LightTextVariant
-import com.thelightphone.sdk.ui.LightTopBarCenter
 import org.signal.core.ui.R as CoreUiR
 
 class AppSettingsFragment : ComposeFragment(), Callbacks {
@@ -210,260 +198,184 @@ private fun AppSettingsContent(
   callbacks: Callbacks
 ) {
   val isRegisteredAndUpToDate by rememberUpdatedState(state.isRegisteredAndUpToDate())
+  val context = LocalContext.current
 
   org.thoughtcrime.securesms.light.MollyLightTheme {
-    Column(
-      modifier = Modifier
-        .background(com.thelightphone.sdk.ui.LightThemeColors.Dark.background)
-        .padding(
-          top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
-          bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        )
+    org.thoughtcrime.securesms.light.LightSettingsScreen(
+      title = stringResource(R.string.text_secure_normal__menu_settings),
+      onBack = callbacks::onNavigationClick
     ) {
-      com.thelightphone.sdk.ui.LightTopBar(
-        leftButton = LightBarButton.LightIcon(
-          icon = LightIcons.BACK,
-          onClick = callbacks::onNavigationClick,
-          contentDescription = stringResource(android.R.string.cancel),
-        ),
-        center = LightTopBarCenter.Text(
-          text = stringResource(R.string.text_secure_normal__menu_settings).uppercase(),
-        ),
-      )
       bannerManager.Banner()
 
-      com.thelightphone.sdk.ui.LightScrollView(
-        modifier = Modifier.weight(1f)
-      ) {
-        Column {
-          BioRow(
-            self = self,
-            callbacks = callbacks
-          )
+      LightProfileRow(self = self, callbacks = callbacks)
 
-        when (state.backupFailureState) {
-          BackupFailureState.SUBSCRIPTION_STATE_MISMATCH -> {
-              BackupsWarningRow(
-                text = stringResource(R.string.AppSettingsFragment__renew_your_signal_backups_subscription),
-                onClick = {
-                  callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote())
-                }
-              )
-          }
-          BackupFailureState.BACKUP_FAILED, BackupFailureState.COULD_NOT_COMPLETE_BACKUP -> {
-              BackupsWarningRow(
-                text = stringResource(R.string.AppSettingsFragment__couldnt_complete_backup),
-                onClick = {
-                  BackupRepository.markBackupFailedIndicatorClicked()
-                  callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote())
-                }
-              )
-          }
-          BackupFailureState.ALREADY_REDEEMED -> {
-              BackupsWarningRow(
-                text = stringResource(R.string.AppSettingsFragment__couldnt_redeem_your_backups_subscription),
-                onClick = {
-                  BackupRepository.markBackupAlreadyRedeemedIndicatorClicked()
-                  callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote())
-                }
-              )
-          }
-          BackupFailureState.OUT_OF_STORAGE_SPACE -> {
-              LightSettingsRow(
-            text = stringResource(R.string.AppSettingsFragment__backup_storage_limit_reached),
-            onClick = {
-                  callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote())
-                }
-          )
-          }
-          BackupFailureState.NONE -> Unit
-        }
-
-          LightSettingsRow(
-            text = stringResource(R.string.AccountSettingsFragment__account),
-            onClick = {
-              callbacks.navigate(AppSettingsRoute.AccountRoute.Account)
-            }
-          )
-
-          LightSettingsRow(
-            text = stringResource(R.string.preferences__linked_devices),
-            onClick = {
-              callbacks.navigate(AppSettingsRoute.LinkDeviceRoute.LinkDevice)
-            },
-            enabled = isRegisteredAndUpToDate
-          )
-
-          val context = LocalContext.current
-          val donateUrl = stringResource(R.string.donate_url)
-          LightSettingsRow(
-            text = stringResource(R.string.preferences__donate_to_signal),
-            onClick = {
-              CommunicationActions.openBrowserLink(context, donateUrl)
-            },
-          )
-
-          LightSettingsRow(
-            text = stringResource(R.string.preferences__appearance),
-            onClick = {
-              callbacks.navigate(AppSettingsRoute.AppearanceRoute.Appearance)
-            }
-          )
-
-          LightSettingsRow(
-            text = stringResource(R.string.preferences_chats__chats),
-            onClick = {
-              callbacks.navigate(AppSettingsRoute.ChatsRoute.Chats)
-            },
-            enabled = isRegisteredAndUpToDate
-          )
-
-          LightSettingsRow(
-            text = stringResource(R.string.preferences__stories),
-            onClick = {
-              callbacks.navigate(AppSettingsRoute.StoriesRoute.Privacy(titleId = R.string.preferences__stories))
-            },
-            enabled = isRegisteredAndUpToDate
-          )
-
-          LightSettingsRow(
-            text = stringResource(R.string.preferences__notifications),
-            onClick = {
-              callbacks.navigate(AppSettingsRoute.NotificationsRoute.Notifications)
-            },
-            enabled = isRegisteredAndUpToDate
-          )
-
-          LightSettingsRow(
-            text = stringResource(R.string.preferences__privacy),
-            onClick = {
-              callbacks.navigate(AppSettingsRoute.PrivacyRoute.Privacy)
-            },
-            enabled = isRegisteredAndUpToDate
-          )
-
-          LightSettingsRow(
-            text = stringResource(R.string.preferences_chats__backups),
-            onClick = {
-              callbacks.navigate(AppSettingsRoute.BackupsRoute.Backups())
-            },
-            onLongClick = {
-              callbacks.copyRemoteBackupsSubscriberIdToClipboard()
-            }
-          )
-
-          LightSettingsRow(
-            text = stringResource(R.string.preferences__network),
-            onClick = {
-              callbacks.navigate(AppSettingsRoute.DataAndStorageRoute.Proxy)
-            }
-          )
-
-          LightSettingsRow(
-            text = stringResource(R.string.preferences__data_and_storage),
-            onClick = {
-              callbacks.navigate(AppSettingsRoute.DataAndStorageRoute.DataAndStorage)
-            }
-          )
-
-        if (state.showAppUpdates) {
-            LightSettingsRow(
-            text = "App updates",
-            onClick = {
-                callbacks.navigate(AppSettingsRoute.AppUpdates)
-              }
+      when (state.backupFailureState) {
+        BackupFailureState.SUBSCRIPTION_STATE_MISMATCH -> {
+          org.thoughtcrime.securesms.light.LightSettingsRow(
+            title = stringResource(R.string.AppSettingsFragment__renew_your_signal_backups_subscription),
+            onClick = { callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote()) }
           )
         }
-
-          LightSettingsRow(
-            text = stringResource(R.string.preferences__help),
+        BackupFailureState.BACKUP_FAILED, BackupFailureState.COULD_NOT_COMPLETE_BACKUP -> {
+          org.thoughtcrime.securesms.light.LightSettingsRow(
+            title = stringResource(R.string.AppSettingsFragment__couldnt_complete_backup),
             onClick = {
-              callbacks.navigate(AppSettingsRoute.HelpRoute.Settings())
+              BackupRepository.markBackupFailedIndicatorClicked()
+              callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote())
             }
           )
-
-        if (state.showInternalPreferences) {
-            LightSettingsRow(
-            text = "Labs",
+        }
+        BackupFailureState.ALREADY_REDEEMED -> {
+          org.thoughtcrime.securesms.light.LightSettingsRow(
+            title = stringResource(R.string.AppSettingsFragment__couldnt_redeem_your_backups_subscription),
             onClick = {
-                callbacks.navigate(AppSettingsRoute.LabsRoute.Labs)
-              }
-          )
-
-            LightSettingsRow(
-            text = "Internal",
-            onClick = {
-                callbacks.navigate(AppSettingsRoute.InternalRoute.Internal)
-              }
+              BackupRepository.markBackupAlreadyRedeemedIndicatorClicked()
+              callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote())
+            }
           )
         }
+        BackupFailureState.OUT_OF_STORAGE_SPACE -> {
+          org.thoughtcrime.securesms.light.LightSettingsRow(
+            title = stringResource(R.string.AppSettingsFragment__backup_storage_limit_reached),
+            onClick = { callbacks.navigate(AppSettingsRoute.BackupsRoute.Remote()) }
+          )
         }
+        BackupFailureState.NONE -> Unit
       }
-    }
-  }
-}
 
-
-@Composable
-private fun BackupsWarningRow(
-  text: String,
-  onClick: () -> Unit
-) {
-  LightSettingsRow(
-    text = text,
-    onClick = onClick,
-    warning = true
-  )
-}
-
-
-@Composable
-private fun BioRow(
-  self: BioRecipientState,
-  callbacks: Callbacks
-) {
-  val hasUsername by rememberUpdatedState(self.username.isNotBlank())
-  val prettyPhoneNumber = remember(self.e164) {
-    SignalE164Util.prettyPrint(self.e164)
-  }
-
-  Row(
-    verticalAlignment = Alignment.CenterVertically,
-    modifier = Modifier
-      .clickable(
-        onClick = {
-          callbacks.navigate(AppSettingsRoute.AccountRoute.ManageProfile)
+      org.thoughtcrime.securesms.light.LightSettingsSection(stringResource(R.string.AccountSettingsFragment__account))
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.AccountSettingsFragment__account),
+        onClick = { callbacks.navigate(AppSettingsRoute.AccountRoute.Account) }
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences__linked_devices),
+        enabled = isRegisteredAndUpToDate,
+        onClick = { callbacks.navigate(AppSettingsRoute.LinkDeviceRoute.LinkDevice) }
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences__donate_to_signal),
+        onClick = { CommunicationActions.openBrowserLink(context, context.getString(R.string.donate_url)) },
+        trailing = {
+          com.thelightphone.sdk.ui.LightText(text = "↗", variant = com.thelightphone.sdk.ui.LightTextVariant.Copy)
         }
       )
-      .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 24.dp)
-  ) {
-    Column(
-      modifier = Modifier.weight(1f)
-    ) {
-      com.thelightphone.sdk.ui.LightText(
-        text = self.profileName.toString(),
-        variant = LightTextVariant.Title,
-        color = com.thelightphone.sdk.ui.LightThemeColors.Dark.content
-      )
 
-      com.thelightphone.sdk.ui.LightText(
-        text = prettyPhoneNumber,
-        variant = LightTextVariant.Copy,
-        color = com.thelightphone.sdk.ui.LightThemeColors.Dark.contentSecondary
+      org.thoughtcrime.securesms.light.LightSettingsDivider()
+      org.thoughtcrime.securesms.light.LightSettingsSection(stringResource(R.string.text_secure_normal__menu_settings))
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences__appearance),
+        onClick = { callbacks.navigate(AppSettingsRoute.AppearanceRoute.Appearance) }
       )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences_chats__chats),
+        enabled = isRegisteredAndUpToDate,
+        onClick = { callbacks.navigate(AppSettingsRoute.ChatsRoute.Chats) }
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences__stories),
+        enabled = isRegisteredAndUpToDate,
+        onClick = { callbacks.navigate(AppSettingsRoute.StoriesRoute.Privacy(titleId = R.string.preferences__stories)) }
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences__notifications),
+        enabled = isRegisteredAndUpToDate,
+        onClick = { callbacks.navigate(AppSettingsRoute.NotificationsRoute.Notifications) }
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences__privacy),
+        enabled = isRegisteredAndUpToDate,
+        onClick = { callbacks.navigate(AppSettingsRoute.PrivacyRoute.Privacy) }
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences_chats__backups),
+        onClick = { callbacks.navigate(AppSettingsRoute.BackupsRoute.Backups()) },
+        onLongClick = {
+          callbacks.copyRemoteBackupsSubscriberIdToClipboard()
+          true
+        }
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences__network),
+        onClick = { callbacks.navigate(AppSettingsRoute.DataAndStorageRoute.Proxy) }
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences__data_and_storage),
+        onClick = { callbacks.navigate(AppSettingsRoute.DataAndStorageRoute.DataAndStorage) }
+      )
+      if (state.showAppUpdates) {
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.preferences_app_updates__title),
+          onClick = { callbacks.navigate(AppSettingsRoute.AppUpdates) }
+        )
+      }
 
-      if (hasUsername) {
-        com.thelightphone.sdk.ui.LightText(
-          text = self.username,
-          variant = LightTextVariant.Copy,
-          color = com.thelightphone.sdk.ui.LightThemeColors.Dark.contentSecondary
+      org.thoughtcrime.securesms.light.LightSettingsDivider()
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences__help),
+        onClick = { callbacks.navigate(AppSettingsRoute.HelpRoute.Settings()) }
+      )
+      if (state.showInternalPreferences) {
+        org.thoughtcrime.securesms.light.LightSettingsDivider()
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = "Labs",
+          onClick = { callbacks.navigate(AppSettingsRoute.LabsRoute.Labs) }
+        )
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.preferences__internal_preferences),
+          onClick = { callbacks.navigate(AppSettingsRoute.InternalRoute.Internal) }
         )
       }
     }
   }
 }
 
+@Composable
+private fun LightProfileRow(self: BioRecipientState, callbacks: Callbacks) {
+  val prettyPhoneNumber = if (LocalInspectionMode.current) {
+    self.e164
+  } else {
+    remember(self.e164) { SignalE164Util.prettyPrint(self.e164) }
+  }
+  val details = buildList {
+    add(prettyPhoneNumber)
+    self.username.takeIf { it.isNotBlank() }?.let(::add)
+    self.combinedAboutAndEmoji?.let(::add)
+  }.joinToString(" · ")
+
+  org.thoughtcrime.securesms.light.LightSettingsRow(
+    title = self.profileName.toString(),
+    summary = details,
+    onClick = { callbacks.navigate(AppSettingsRoute.AccountRoute.ManageProfile) },
+    leading = {
+      Box {
+        AvatarImage(
+          recipient = self.recipient,
+          modifier = Modifier.size(28.dp)
+        )
+        if (self.featuredBadge != null) {
+          BadgeImageMedium(
+            badge = self.featuredBadge,
+            modifier = Modifier
+              .size(10.dp)
+              .align(Alignment.BottomEnd)
+          )
+        }
+      }
+    }
+  )
+
+  if (self.username.isNotBlank()) {
+    org.thoughtcrime.securesms.light.LightSettingsRow(
+      title = self.username,
+      summary = stringResource(R.string.UsernameLinkSettings_qr_description),
+      onClick = { callbacks.navigate(AppSettingsRoute.UsernameLinkRoute.UsernameLink) },
+      trailing = {
+        com.thelightphone.sdk.ui.LightText(text = "QR", variant = com.thelightphone.sdk.ui.LightTextVariant.Fine)
+      }
+    )
+  }
+}
 
 @DayNightPreviews
 @Composable
@@ -537,7 +449,7 @@ private fun AppSettingsContentUnregisteredPreview() {
 @Composable
 private fun BioRowPreview() {
   Previews.Preview {
-    BioRow(
+    LightProfileRow(
       self = BioRecipientState(
         Recipient(
           systemContactName = "Miles Morales",
@@ -578,37 +490,6 @@ private class TestBanner : Banner<Unit>() {
         Action(android.R.string.ok) {}
       ),
       paddingValues = contentPadding
-    )
-  }
-}
-
-@Composable
-private fun LightSettingsRow(
-  text: String,
-  onClick: () -> Unit,
-  enabled: Boolean = true,
-  warning: Boolean = false,
-  onLongClick: (() -> Unit)? = null
-) {
-  val haptics = LocalHapticFeedback.current
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 12.dp)
-      .combinedClickable(
-          enabled = enabled,
-          onClick = onClick,
-          onLongClick = onLongClick?.let { {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            it()
-          } }
-      ),
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    com.thelightphone.sdk.ui.LightText(
-      text = text,
-      color = if (warning) MaterialTheme.colorScheme.error else if (enabled) com.thelightphone.sdk.ui.LightThemeColors.Dark.content else com.thelightphone.sdk.ui.LightThemeColors.Dark.contentSecondary,
-      variant = LightTextVariant.Copy
     )
   }
 }

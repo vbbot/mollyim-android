@@ -30,7 +30,7 @@ import org.signal.ringrtc.CallManager
 import org.thoughtcrime.securesms.BuildConfig
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.DSLConfiguration
-import org.thoughtcrime.securesms.components.settings.DSLSettingsFragment
+import org.thoughtcrime.securesms.components.settings.LightDSLSettingsFragment
 import org.thoughtcrime.securesms.components.settings.DSLSettingsText
 import org.thoughtcrime.securesms.components.settings.app.privacy.advanced.AdvancedPrivacySettingsRepository
 import org.thoughtcrime.securesms.components.settings.app.subscription.InAppPaymentsRepository
@@ -76,7 +76,7 @@ import kotlin.math.max
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
-class InternalSettingsFragment : DSLSettingsFragment(R.string.preferences__internal_preferences, R.menu.internal_settings) {
+class InternalSettingsFragment : LightDSLSettingsFragment(R.string.preferences__internal_preferences, R.menu.internal_settings) {
 
   companion object {
     private val TAG = Log.tag(InternalSettingsFragment::class.java)

@@ -19,6 +19,8 @@ data class LocalBackupsSettingsState(
   val lastBackupLabel: String? = null,
   val folderDisplayName: String? = null,
   val scheduleTimeLabel: String? = null,
+  val scheduleHour: Int = 0,
+  val scheduleMinute: Int = 0,
   val progress: LocalBackupCreationProgress = LocalBackupCreationProgress(idle = LocalBackupCreationProgress.Idle()),
   val isDeleting: Boolean = false,
   val deleteCompleted: Int = 0,

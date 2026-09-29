@@ -1,25 +1,35 @@
 package org.thoughtcrime.securesms.components.settings.app.notifications.manual
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.viewModels
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.lightClickable
 import org.signal.core.ui.BottomSheetUtil
 import org.signal.core.util.DimensionUnit
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.DSLConfiguration
 import org.thoughtcrime.securesms.components.settings.DSLSettingsAdapter
-import org.thoughtcrime.securesms.components.settings.DSLSettingsBottomSheetFragment
 import org.thoughtcrime.securesms.components.settings.DSLSettingsText
+import org.thoughtcrime.securesms.components.settings.LightDSLSettingsBottomSheetFragment
+import org.thoughtcrime.securesms.components.settings.registerLightPreference
 import org.thoughtcrime.securesms.components.settings.app.AppSettingsActivity
 import org.thoughtcrime.securesms.components.settings.app.notifications.manual.models.NotificationProfileSelection
 import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.NotificationProfilesRepository
 import org.thoughtcrime.securesms.components.settings.configure
 import org.thoughtcrime.securesms.notifications.profiles.NotificationProfile
 import org.thoughtcrime.securesms.notifications.profiles.NotificationProfiles
+import org.thoughtcrime.securesms.light.LightSettingsRow
+import org.thoughtcrime.securesms.util.formatHours
+import java.time.LocalTime
 
 /**
  * BottomSheetDialogFragment that allows a user to select a notification profile to manually enable/disable.
  */
-class NotificationProfileSelectionFragment : DSLSettingsBottomSheetFragment() {
+class NotificationProfileSelectionFragment : LightDSLSettingsBottomSheetFragment() {
 
   private val viewModel: NotificationProfileSelectionViewModel by viewModels(
     factoryProducer = {
@@ -28,7 +38,47 @@ class NotificationProfileSelectionFragment : DSLSettingsBottomSheetFragment() {
   )
 
   override fun bindAdapter(adapter: DSLSettingsAdapter) {
-    NotificationProfileSelection.register(adapter)
+    registerLightPreference(adapter, NotificationProfileSelection.Entry::class.java) { model ->
+      val context = LocalContext.current
+      val profile = model.notificationProfile
+      Column {
+        LightSettingsRow(
+          title = "${profile.emoji.ifBlank { "☾" }} ${profile.name}",
+          summary = model.summary.resolve(context),
+          onClick = { model.onRowClick(profile) },
+          trailing = {
+            LightText(
+              text = if (model.isExpanded) "⌃" else "⌄",
+              variant = LightTextVariant.Copy,
+              modifier = Modifier.lightClickable { model.onToggleClick(profile) }
+            )
+          }
+        )
+        if (model.isExpanded) {
+          LightSettingsRow(
+            title = context.getString(R.string.NotificationProfileSelection__for_1_hour),
+            onClick = { model.onTimeSlotAClick(profile) }
+          )
+          LightSettingsRow(
+            title = context.getString(
+              R.string.NotificationProfileSelection__until_s,
+              LocalTime.from(model.timeSlotB).formatHours(context)
+            ),
+            onClick = { model.onTimeSlotBClick(profile, model.timeSlotB) }
+          )
+          LightSettingsRow(
+            title = context.getString(R.string.NotificationProfileSelection__view_settings),
+            onClick = { model.onViewSettingsClick(profile) }
+          )
+        }
+      }
+    }
+    registerLightPreference(adapter, NotificationProfileSelection.New::class.java) { model ->
+      LightSettingsRow(
+        title = LocalContext.current.getString(R.string.NotificationProfileSelection__new_profile),
+        onClick = model.onClick
+      )
+    }
 
     recyclerView.itemAnimator = null
 

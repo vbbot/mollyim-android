@@ -1,46 +1,19 @@
 package org.thoughtcrime.securesms.components.settings.app.notifications.profiles
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.fragment.findNavController
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.Texts
-import org.signal.core.ui.compose.horizontalGutters
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.emoji.EmojiStrings
 import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.models.NotificationProfileRow
-import org.thoughtcrime.securesms.conversation.colors.AvatarColor
 import org.thoughtcrime.securesms.notifications.profiles.NotificationProfile
 import org.thoughtcrime.securesms.notifications.profiles.NotificationProfileId
 import org.thoughtcrime.securesms.notifications.profiles.NotificationProfileSchedule
@@ -94,54 +67,28 @@ fun NotificationProfilesScreen(
     stringResource(R.string.NotificationsSettingsFragment__notification_profiles)
   }
 
-  Scaffolds.Settings(
-    title = title,
-    onNavigationClick = callbacks::onNavigationClick,
-    navigationIcon = SignalIcons.ArrowStart.imageVector,
-    navigationContentDescription = stringResource(R.string.Material3SearchToolbar__close)
-  ) { paddingValues ->
-    if (state.profiles.isEmpty()) {
-      NoNotificationProfilesEmpty(
-        onCreateProfileClick = callbacks::onCreateNewProfile,
-        modifier = Modifier.padding(paddingValues)
-      )
-    } else {
-      LazyColumn(
-        modifier = Modifier.padding(paddingValues)
-      ) {
-        item {
-          Texts.SectionHeader(
-            text = stringResource(R.string.NotificationProfilesFragment__profiles)
-          )
-        }
-
-        item {
-          Rows.TextRow(
-            text = {
-              Text(text = stringResource(R.string.NotificationProfilesFragment__new_profile))
-            },
-            icon = {
-              Icon(
-                imageVector = SignalIcons.Plus.imageVector,
-                contentDescription = null,
-                modifier = Modifier
-                  .size(40.dp)
-                  .background(color = MaterialTheme.colorScheme.secondaryContainer, shape = CircleShape)
-                  .padding(8.dp)
-              )
-            },
-            onClick = callbacks::onCreateNewProfile
-          )
-        }
+  org.thoughtcrime.securesms.light.MollyLightTheme {
+    org.thoughtcrime.securesms.light.LightSettingsScreen(
+      title = title,
+      onBack = callbacks::onNavigationClick
+    ) {
+      if (state.profiles.isEmpty()) {
+        NoNotificationProfilesEmpty(onCreateProfileClick = callbacks::onCreateNewProfile)
+      } else {
+        org.thoughtcrime.securesms.light.LightSettingsSection(
+          stringResource(R.string.NotificationProfilesFragment__profiles)
+        )
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.NotificationProfilesFragment__new_profile),
+          onClick = callbacks::onCreateNewProfile
+        )
 
         state.profiles.sortedDescending().forEach { profile ->
-          item {
-            NotificationProfileRow(
-              profile = profile,
-              isActiveProfile = profile == state.activeProfile,
-              onClick = callbacks::onProfileClick
-            )
-          }
+          NotificationProfileRow(
+            profile = profile,
+            isActiveProfile = profile == state.activeProfile,
+            onClick = callbacks::onProfileClick
+          )
         }
       }
     }
@@ -153,62 +100,18 @@ private fun NoNotificationProfilesEmpty(
   onCreateProfileClick: () -> Unit,
   modifier: Modifier = Modifier
 ) {
-  Column(
+  org.thoughtcrime.securesms.light.LightSettingsSection(
+    title = stringResource(R.string.NotificationProfilesFragment__notification_profiles),
     modifier = modifier
-      .fillMaxSize()
-      .horizontalGutters(),
-    horizontalAlignment = Alignment.CenterHorizontally
-  ) {
-    Spacer(modifier = Modifier.height(96.dp))
-
-    Box(
-      modifier = Modifier
-        .size(88.dp)
-        .background(
-          color = Color(AvatarColor.A100.colorInt()),
-          shape = CircleShape
-        )
-        .padding(20.dp),
-      contentAlignment = Alignment.Center
-    ) {
-      Image(
-        painter = painterResource(R.drawable.ic_sleeping_face),
-        contentDescription = null,
-        modifier = Modifier.fillMaxSize()
-      )
-    }
-
-    Spacer(modifier = Modifier.height(20.dp))
-
-    Text(
-      text = stringResource(R.string.NotificationProfilesFragment__notification_profiles),
-      style = MaterialTheme.typography.headlineMedium,
-      textAlign = TextAlign.Center,
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 24.dp)
-    )
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    Text(
-      text = stringResource(R.string.NotificationProfilesFragment__create_a_profile_to_receive_notifications_and_calls_only_from_the_people_and_groups_you_want_to_hear_from),
-      style = MaterialTheme.typography.bodyLarge,
-      textAlign = TextAlign.Center,
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 24.dp)
-    )
-
-    Spacer(modifier = Modifier.weight(1f))
-
-    Button(
-      onClick = onCreateProfileClick,
-      modifier = Modifier.fillMaxWidth()
-    ) {
-      Text(text = stringResource(R.string.NotificationProfilesFragment__create_profile))
-    }
-  }
+  )
+  org.thoughtcrime.securesms.light.LightSettingsRow(
+    title = stringResource(R.string.NotificationProfilesFragment__create_a_profile_to_receive_notifications_and_calls_only_from_the_people_and_groups_you_want_to_hear_from),
+    onClick = null
+  )
+  org.thoughtcrime.securesms.light.LightSettingsRow(
+    title = stringResource(R.string.NotificationProfilesFragment__create_profile),
+    onClick = onCreateProfileClick
+  )
 }
 
 @DayNightPreviews

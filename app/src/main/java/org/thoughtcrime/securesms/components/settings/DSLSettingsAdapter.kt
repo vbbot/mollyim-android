@@ -30,7 +30,7 @@ import org.thoughtcrime.securesms.util.views.LearnMoreTextView
 import org.thoughtcrime.securesms.util.visible
 
 @Discouraged("The DSL API can be completely replaced by compose. See ComposeFragment or ComposeBottomSheetFragment for an alternative to this API")
-class DSLSettingsAdapter : MappingAdapter() {
+open class DSLSettingsAdapter : MappingAdapter() {
   init {
     registerFactory(ClickPreference::class.java, LayoutFactory(::ClickPreferenceViewHolder, R.layout.dsl_preference_item))
     registerFactory(LongClickPreference::class.java, LayoutFactory(::LongClickPreferenceViewHolder, R.layout.dsl_preference_item))

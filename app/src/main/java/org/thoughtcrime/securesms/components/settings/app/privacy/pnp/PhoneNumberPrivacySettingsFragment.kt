@@ -2,40 +2,41 @@ package org.thoughtcrime.securesms.components.settings.app.privacy.pnp
 
 import android.content.res.Configuration
 import android.os.Bundle
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
 import kotlinx.coroutines.launch
 import org.signal.core.ui.compose.ComposeFragment
-import org.signal.core.ui.compose.Dividers
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.ui.compose.Snackbars
-import org.signal.core.ui.compose.Texts
 import org.signal.core.ui.compose.showSnackbar
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.compose.StatusBarColorNestedScrollConnection
-import org.signal.core.ui.R as CoreUiR
+import org.thoughtcrime.securesms.light.LightConfirmationDialog
+import org.thoughtcrime.securesms.light.LightSettingsDivider
+import org.thoughtcrime.securesms.light.LightSettingsRow
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.LightSettingsSection
+import org.thoughtcrime.securesms.light.MollyLightTheme
 
 class PhoneNumberPrivacySettingsFragment : ComposeFragment() {
 
@@ -57,6 +58,7 @@ class PhoneNumberPrivacySettingsFragment : ComposeFragment() {
     val state: PhoneNumberPrivacySettingsState by viewModel.state
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarMessage = stringResource(id = R.string.PhoneNumberPrivacySettingsFragment__to_change_this_setting)
+    var showNobodyCanFindMeConfirmation by rememberSaveable { mutableStateOf(false) }
 
     Screen(
       state = state,
@@ -68,7 +70,7 @@ class PhoneNumberPrivacySettingsFragment : ComposeFragment() {
       onEveryoneCanFindMeByNumberClicked = viewModel::setEveryoneCanFindMeByMyNumber,
       onNobodyCanFindMeByNumberClicked = {
         if (!state.phoneNumberSharing) {
-          onNobodyCanFindMeByNumberClicked()
+          showNobodyCanFindMeConfirmation = true
         } else {
           lifecycleScope.launch {
             snackbarHostState.showSnackbar(
@@ -79,15 +81,17 @@ class PhoneNumberPrivacySettingsFragment : ComposeFragment() {
         }
       }
     )
-  }
 
-  private fun onNobodyCanFindMeByNumberClicked() {
-    MaterialAlertDialogBuilder(requireContext())
-      .setTitle(R.string.PhoneNumberPrivacySettingsFragment__nobody_can_find_me_warning_title)
-      .setMessage(getString(R.string.PhoneNumberPrivacySettingsFragment__nobody_can_find_me_warning_message))
-      .setNegativeButton(getString(R.string.PhoneNumberPrivacySettingsFragment__cancel), null)
-      .setPositiveButton(android.R.string.ok) { _, _ -> viewModel.setNobodyCanFindMeByMyNumber() }
-      .show()
+    if (showNobodyCanFindMeConfirmation) {
+      LightConfirmationDialog(
+        title = stringResource(R.string.PhoneNumberPrivacySettingsFragment__nobody_can_find_me_warning_title),
+        body = stringResource(R.string.PhoneNumberPrivacySettingsFragment__nobody_can_find_me_warning_message),
+        confirmLabel = stringResource(android.R.string.ok),
+        dismissLabel = stringResource(R.string.PhoneNumberPrivacySettingsFragment__cancel),
+        onConfirm = viewModel::setNobodyCanFindMeByMyNumber,
+        onDismiss = { showNobodyCanFindMeConfirmation = false }
+      )
+    }
   }
 }
 
@@ -102,101 +106,98 @@ private fun Screen(
   onEveryoneCanFindMeByNumberClicked: () -> Unit = {},
   onNobodyCanFindMeByNumberClicked: () -> Unit = {}
 ) {
-  Scaffolds.Settings(
-    title = stringResource(id = R.string.preferences_app_protection__phone_number),
-    onNavigationClick = onNavigationClick,
-    navigationIcon = SignalIcons.ArrowStart.imageVector,
-    navigationContentDescription = stringResource(id = R.string.Material3SearchToolbar__close),
-    snackbarHost = {
-      SnackbarHost(snackbarHostState)
-    },
-    modifier = statusBarNestedScrollConnection?.let { Modifier.nestedScroll(it) } ?: Modifier
-  ) { contentPadding ->
-    Box(modifier = Modifier.padding(contentPadding)) {
-      LazyColumn {
-        item {
-          Texts.SectionHeader(
-            text = stringResource(id = R.string.PhoneNumberPrivacySettingsFragment_who_can_see_my_number_heading)
-          )
-        }
+  MollyLightTheme {
+    Box {
+      LightSettingsScreen(
+        title = stringResource(id = R.string.preferences_app_protection__phone_number),
+        onBack = onNavigationClick,
+        modifier = statusBarNestedScrollConnection?.let { Modifier.nestedScroll(it) } ?: Modifier
+      ) {
+        LightSettingsSection(
+          stringResource(id = R.string.PhoneNumberPrivacySettingsFragment_who_can_see_my_number_heading)
+        )
+        LightPrivacyRadioRow(
+          selected = state.phoneNumberSharing,
+          title = stringResource(id = R.string.PhoneNumberPrivacy_everyone),
+          onClick = onEveryoneCanSeeMyNumberClicked
+        )
+        LightPrivacyRadioRow(
+          selected = !state.phoneNumberSharing,
+          title = stringResource(id = R.string.PhoneNumberPrivacy_nobody),
+          onClick = onNobodyCanSeeMyNumberClicked
+        )
+        LightSettingsRow(
+          title = stringResource(
+            id = if (state.phoneNumberSharing) {
+              R.string.PhoneNumberPrivacySettingsFragment_sharing_on_description
+            } else if (state.discoverableByPhoneNumber) {
+              R.string.PhoneNumberPrivacySettingsFragment_sharing_off_discovery_on_description
+            } else {
+              R.string.PhoneNumberPrivacySettingsFragment_sharing_off_discovery_off_description
+            }
+          ),
+          onClick = null
+        )
 
-        item {
-          Rows.RadioRow(
-            selected = state.phoneNumberSharing,
-            text = stringResource(id = R.string.PhoneNumberPrivacy_everyone),
-            modifier = Modifier.clickable(onClick = onEveryoneCanSeeMyNumberClicked)
-          )
-        }
-
-        item {
-          Rows.RadioRow(
-            selected = !state.phoneNumberSharing,
-            text = stringResource(id = R.string.PhoneNumberPrivacy_nobody),
-            modifier = Modifier.clickable(onClick = onNobodyCanSeeMyNumberClicked)
-          )
-        }
-
-        item {
-          Text(
-            text = stringResource(
-              id = if (state.phoneNumberSharing) {
-                R.string.PhoneNumberPrivacySettingsFragment_sharing_on_description
-              } else {
-                if (state.discoverableByPhoneNumber) {
-                  R.string.PhoneNumberPrivacySettingsFragment_sharing_off_discovery_on_description
-                } else {
-                  R.string.PhoneNumberPrivacySettingsFragment_sharing_off_discovery_off_description
-                }
-              }
-            ),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = dimensionResource(id = CoreUiR.dimen.gutter), vertical = 16.dp)
-          )
-        }
-
-        item {
-          Dividers.Default()
-        }
-
-        item {
-          Texts.SectionHeader(text = stringResource(id = R.string.PhoneNumberPrivacySettingsFragment_who_can_find_me_by_number_heading))
-        }
-
-        item {
-          Rows.RadioRow(
-            selected = state.discoverableByPhoneNumber,
-            text = stringResource(id = R.string.PhoneNumberPrivacy_everyone),
-            modifier = Modifier.clickable(onClick = onEveryoneCanFindMeByNumberClicked)
-          )
-        }
-
-        item {
-          Rows.RadioRow(
-            enabled = !state.phoneNumberSharing,
-            selected = !state.discoverableByPhoneNumber,
-            text = stringResource(id = R.string.PhoneNumberPrivacy_nobody),
-            modifier = Modifier.clickable(onClick = onNobodyCanFindMeByNumberClicked)
-          )
-        }
-
-        item {
-          Text(
-            text = stringResource(
-              id = if (state.discoverableByPhoneNumber) {
-                R.string.PhoneNumberPrivacySettingsFragment_discovery_on_description
-              } else {
-                R.string.PhoneNumberPrivacySettingsFragment_discovery_off_description
-              }
-            ),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = dimensionResource(id = CoreUiR.dimen.gutter), vertical = 16.dp)
-          )
-        }
+        LightSettingsDivider()
+        LightSettingsSection(
+          stringResource(id = R.string.PhoneNumberPrivacySettingsFragment_who_can_find_me_by_number_heading)
+        )
+        LightPrivacyRadioRow(
+          selected = state.discoverableByPhoneNumber,
+          title = stringResource(id = R.string.PhoneNumberPrivacy_everyone),
+          onClick = onEveryoneCanFindMeByNumberClicked
+        )
+        LightPrivacyRadioRow(
+          enabled = !state.phoneNumberSharing,
+          selected = !state.discoverableByPhoneNumber,
+          title = stringResource(id = R.string.PhoneNumberPrivacy_nobody),
+          onClick = onNobodyCanFindMeByNumberClicked,
+          onDisabledClick = onNobodyCanFindMeByNumberClicked
+        )
+        LightSettingsRow(
+          title = stringResource(
+            id = if (state.discoverableByPhoneNumber) {
+              R.string.PhoneNumberPrivacySettingsFragment_discovery_on_description
+            } else {
+              R.string.PhoneNumberPrivacySettingsFragment_discovery_off_description
+            }
+          ),
+          onClick = null
+        )
       }
+
+      SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.BottomCenter)
+      )
     }
   }
+}
+
+@Composable
+private fun LightPrivacyRadioRow(
+  selected: Boolean,
+  title: CharSequence,
+  onClick: () -> Unit,
+  enabled: Boolean = true,
+  onDisabledClick: (() -> Unit)? = null
+) {
+  LightSettingsRow(
+    title = title,
+    enabled = enabled,
+    onClick = onClick,
+    onDisabledClick = onDisabledClick,
+    role = Role.RadioButton,
+    modifier = Modifier.semantics { this.selected = selected },
+    trailing = {
+      LightText(
+        text = if (selected) "●" else "○",
+        variant = LightTextVariant.Copy,
+        lighten = !enabled
+      )
+    }
+  )
 }
 
 @Preview(name = "Light Theme", group = "Screen", uiMode = Configuration.UI_MODE_NIGHT_NO)

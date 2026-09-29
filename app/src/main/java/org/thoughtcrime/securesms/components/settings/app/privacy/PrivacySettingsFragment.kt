@@ -5,12 +5,11 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import android.text.SpannableStringBuilder
-import android.view.View
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.Navigation
 import androidx.navigation.fragment.NavHostFragment
@@ -23,13 +22,13 @@ import org.thoughtcrime.securesms.ScreenLockController
 import org.thoughtcrime.securesms.biometric.BiometricDialogFragment
 import org.thoughtcrime.securesms.components.TimeDurationPickerDialog
 import org.thoughtcrime.securesms.components.settings.ClickPreference
-import org.thoughtcrime.securesms.components.settings.ClickPreferenceViewHolder
 import org.thoughtcrime.securesms.components.settings.DSLConfiguration
-import org.thoughtcrime.securesms.components.settings.DSLSettingsFragment
+import org.thoughtcrime.securesms.components.settings.LightDSLSettingsFragment
 import org.thoughtcrime.securesms.components.settings.DSLSettingsText
 import org.thoughtcrime.securesms.components.settings.PreferenceModel
-import org.thoughtcrime.securesms.components.settings.PreferenceViewHolder
 import org.thoughtcrime.securesms.components.settings.configure
+import org.thoughtcrime.securesms.components.settings.registerLightPreference
+import org.thoughtcrime.securesms.light.LightSettingsValueRow
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.preferences.widgets.PassphraseLockTriggerPreference
 import org.thoughtcrime.securesms.util.CommunicationActions
@@ -38,14 +37,13 @@ import org.thoughtcrime.securesms.util.ExpirationUtil
 import org.thoughtcrime.securesms.util.SecurePreferenceManager
 import org.thoughtcrime.securesms.util.SpanUtil
 import org.thoughtcrime.securesms.util.WindowUtil
-import org.thoughtcrime.securesms.util.adapter.mapping.LayoutFactory
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingAdapter
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 import kotlin.time.Duration.Companion.seconds
 
 private val TAG = Log.tag(PrivacySettingsFragment::class.java)
 
-class PrivacySettingsFragment : DSLSettingsFragment(R.string.preferences__privacy) {
+class PrivacySettingsFragment : LightDSLSettingsFragment(R.string.preferences__privacy) {
 
   private val passphraseLockTriggerValues by lazy { resources.getStringArray(R.array.pref_passphrase_lock_trigger_entries) }
   private val passphraseLockTriggerLabels by lazy { resources.getStringArray(R.array.pref_passphrase_lock_trigger_values) }
@@ -68,7 +66,19 @@ class PrivacySettingsFragment : DSLSettingsFragment(R.string.preferences__privac
   }
 
   override fun bindAdapter(adapter: MappingAdapter) {
-    adapter.registerFactory(ValueClickPreference::class.java, LayoutFactory(::ValueClickPreferenceViewHolder, R.layout.value_click_preference_item))
+    registerLightPreference(adapter, ValueClickPreference::class.java) { model ->
+      val context = LocalContext.current
+      LightSettingsValueRow(
+        title = model.clickPreference.title.resolve(context),
+        summary = model.clickPreference.summary?.resolve(context),
+        value = model.value.resolve(context),
+        valueContentDescription = model.contentDescription.resolve(context),
+        enabled = model.clickPreference.isEnabled,
+        onClick = model.clickPreference.onClick,
+        onDisabledClick = model.clickPreference.onDisabledClicked,
+        onLongClick = model.clickPreference.onLongClick?.let { action -> { action() } }
+      )
+    }
 
     val sharedPreferences = SecurePreferenceManager.getSecurePreferences(requireContext())
     val repository = PrivacySettingsRepository()
@@ -355,15 +365,4 @@ class PrivacySettingsFragment : DSLSettingsFragment(R.string.preferences__privac
     }
   }
 
-  private class ValueClickPreferenceViewHolder(itemView: View) : PreferenceViewHolder<ValueClickPreference>(itemView) {
-    private val clickPreferenceViewHolder = ClickPreferenceViewHolder(itemView)
-    private val valueText: TextView = findViewById(R.id.value_client_preference_value)
-
-    override fun bind(model: ValueClickPreference) {
-      super.bind(model)
-      clickPreferenceViewHolder.bind(model.clickPreference)
-      valueText.text = model.value.resolve(context)
-      valueText.contentDescription = model.contentDescription.resolve(context)
-    }
-  }
 }

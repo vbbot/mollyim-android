@@ -6,28 +6,15 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.os.Bundle
+import android.text.SpannableStringBuilder
 import android.view.View
 import android.widget.Toast
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.text.InlineTextContent
-import androidx.compose.foundation.text.appendInlineContent
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.LinkAnnotation
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withLink
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -35,17 +22,20 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dividers
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.Texts
+import org.signal.core.util.requireDrawable
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.compose.rememberStatusBarColorNestedScrollModifier
+import org.thoughtcrime.securesms.light.LightSettingsDivider
+import org.thoughtcrime.securesms.light.LightSettingsRow
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.LightSettingsSection
+import org.thoughtcrime.securesms.light.LightSettingsToggleRow
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.SecurePreferenceManager
+import org.thoughtcrime.securesms.util.SpanUtil
 import org.thoughtcrime.securesms.util.viewModel
+import com.thelightphone.sdk.ui.LightThemeTokens
 
 /**
  * Displays advanced privacy controls such as call relaying and
@@ -185,146 +175,84 @@ private fun AdvancedPrivacySettingsScreen(
   state: AdvancedPrivacySettingsState,
   callbacks: AdvancedPrivacySettingsCallbacks
 ) {
-  Scaffolds.Settings(
-    title = stringResource(R.string.preferences__advanced),
-    onNavigationClick = callbacks::onNavigationClick,
-    navigationIcon = SignalIcons.ArrowStart.imageVector
-  ) { paddingValues ->
-    LazyColumn(
-      modifier = Modifier
-        .padding(paddingValues)
-        .then(rememberStatusBarColorNestedScrollModifier())
+  MollyLightTheme {
+    val context = LocalContext.current
+    val secondaryContentColor = LightThemeTokens.colors.contentSecondary.toArgb()
+    val sealedSenderTitle = remember(context, secondaryContentColor) {
+      SpannableStringBuilder(context.getString(R.string.AdvancedPrivacySettingsFragment__show_status_icon)).apply {
+        val drawable = context.requireDrawable(R.drawable.ic_unidentified_delivery).mutate().apply {
+          setTint(secondaryContentColor)
+        }
+        SpanUtil.appendCenteredImageSpan(this, drawable, 20, 15)
+      }
+    }
+    val sealedSenderLearnMore = remember(context, secondaryContentColor, callbacks) {
+      SpanUtil.learnMore(context, secondaryContentColor) { callbacks.onSealedSenderLearnMoreClick() }
+    }
+    val automaticVerificationSummary = remember(context, secondaryContentColor, callbacks) {
+      SpannableStringBuilder(context.getString(R.string.preferences_automatic_key_verification_body))
+        .append(" ")
+        .append(SpanUtil.learnMore(context, secondaryContentColor) { callbacks.onAutomaticVerificationLearnMoreClick() })
+    }
+
+    LightSettingsScreen(
+      title = stringResource(R.string.preferences__advanced),
+      onBack = callbacks::onNavigationClick
     ) {
-      item {
-        Rows.ToggleRow(
-          checked = state.alwaysRelayCalls || state.proxyEnabled,
-          enabled = !state.proxyEnabled,
-          text = stringResource(R.string.preferences_advanced__always_relay_calls),
-          label = stringResource(R.string.preferences_advanced__relay_all_calls_through_the_signal_server_to_avoid_revealing_your_ip_address),
-          onCheckChanged = callbacks::onAlwaysRelayCallsChanged
-        )
+      LightSettingsToggleRow(
+        checked = state.alwaysRelayCalls || state.proxyEnabled,
+        enabled = !state.proxyEnabled,
+        title = stringResource(R.string.preferences_advanced__always_relay_calls),
+        summary = stringResource(R.string.preferences_advanced__relay_all_calls_through_the_signal_server_to_avoid_revealing_your_ip_address),
+        onCheckedChange = callbacks::onAlwaysRelayCallsChanged
+      )
+
+      LightSettingsDivider()
+      LightSettingsSection(stringResource(R.string.preferences_communication__category_censorship_circumvention))
+
+      val censorshipSummaryResId: Int = when (state.censorshipCircumventionState) {
+        CensorshipCircumventionState.AVAILABLE -> R.string.preferences_communication__censorship_circumvention_if_enabled_signal_will_attempt_to_circumvent_censorship
+        CensorshipCircumventionState.AVAILABLE_MANUALLY_DISABLED -> R.string.preferences_communication__censorship_circumvention_you_have_manually_disabled
+        CensorshipCircumventionState.AVAILABLE_AUTOMATICALLY_ENABLED -> R.string.preferences_communication__censorship_circumvention_has_been_activated_based_on_your_accounts_phone_number
+        CensorshipCircumventionState.UNAVAILABLE_CONNECTED -> R.string.preferences_communication__censorship_circumvention_is_not_necessary_you_are_already_connected
+        CensorshipCircumventionState.UNAVAILABLE_NO_INTERNET -> R.string.preferences_communication__censorship_circumvention_can_only_be_activated_when_connected_to_the_internet
       }
+      LightSettingsToggleRow(
+        title = stringResource(R.string.preferences_communication__censorship_circumvention),
+        summary = stringResource(censorshipSummaryResId),
+        checked = state.censorshipCircumventionEnabled,
+        enabled = state.censorshipCircumventionState.available,
+        onCheckedChange = callbacks::onCensorshipCircumventionChanged
+      )
 
-      item {
-        Dividers.Default()
-      }
-
-      item {
-        Texts.SectionHeader(text = stringResource(R.string.preferences_communication__category_censorship_circumvention))
-      }
-
-      item {
-        val censorshipSummaryResId: Int = when (state.censorshipCircumventionState) {
-          CensorshipCircumventionState.AVAILABLE -> R.string.preferences_communication__censorship_circumvention_if_enabled_signal_will_attempt_to_circumvent_censorship
-          CensorshipCircumventionState.AVAILABLE_MANUALLY_DISABLED -> R.string.preferences_communication__censorship_circumvention_you_have_manually_disabled
-          CensorshipCircumventionState.AVAILABLE_AUTOMATICALLY_ENABLED -> R.string.preferences_communication__censorship_circumvention_has_been_activated_based_on_your_accounts_phone_number
-          CensorshipCircumventionState.UNAVAILABLE_CONNECTED -> R.string.preferences_communication__censorship_circumvention_is_not_necessary_you_are_already_connected
-          CensorshipCircumventionState.UNAVAILABLE_NO_INTERNET -> R.string.preferences_communication__censorship_circumvention_can_only_be_activated_when_connected_to_the_internet
-        }
-
-        Rows.ToggleRow(
-          text = stringResource(R.string.preferences_communication__censorship_circumvention),
-          label = stringResource(censorshipSummaryResId),
-          checked = state.censorshipCircumventionEnabled,
-          enabled = state.censorshipCircumventionState.available,
-          onCheckChanged = callbacks::onCensorshipCircumventionChanged
-        )
-      }
-
-      item {
-        Dividers.Default()
-      }
-
-      item {
-        Texts.SectionHeader(
-          text = stringResource(R.string.preferences_communication__category_sealed_sender)
-        )
-      }
-
-      item {
-        val imageId = "sealed-sender-image"
-        val text = buildAnnotatedString {
-          append(stringResource(R.string.AdvancedPrivacySettingsFragment__show_status_icon))
-          append(" ")
-          appendInlineContent(imageId, "[image]")
-        }
-
-        val inlineContentMap = mapOf(
-          imageId to InlineTextContent(
-            placeholder = Placeholder(
-              width = 20.sp,
-              height = 15.sp,
-              placeholderVerticalAlign = PlaceholderVerticalAlign.Center
-            )
-          ) {
-            Icon(
-              imageVector = ImageVector.vectorResource(R.drawable.ic_unidentified_delivery),
-              contentDescription = null,
-              tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-          }
-        )
-
-        Rows.ToggleRow(
-          text = text,
-          inlineContent = inlineContentMap,
-          label = AnnotatedString(stringResource(R.string.AdvancedPrivacySettingsFragment__show_an_icon)),
-          checked = state.showSealedSenderStatusIcon,
-          onCheckChanged = callbacks::onShowStatusIconForSealedSenderChanged
-        )
-      }
-
+      LightSettingsDivider()
+      LightSettingsSection(stringResource(R.string.preferences_communication__category_sealed_sender))
+      LightSettingsToggleRow(
+        title = sealedSenderTitle,
+        summary = stringResource(R.string.AdvancedPrivacySettingsFragment__show_an_icon),
+        checked = state.showSealedSenderStatusIcon,
+        onCheckedChange = callbacks::onShowStatusIconForSealedSenderChanged
+      )
       if (state.isPrimaryDevice) {
-        item {
-          Rows.ToggleRow(
-            checked = state.allowSealedSenderFromAnyone,
-            text = stringResource(R.string.preferences_communication__sealed_sender_allow_from_anyone),
-            label = stringResource(R.string.preferences_communication__sealed_sender_allow_from_anyone_description),
-            onCheckChanged = callbacks::onAllowSealedSenderFromAnyoneChanged
-          )
-        }
-      }
-
-      item {
-        val sealedSenderSummary = buildAnnotatedString {
-          withLink(
-            LinkAnnotation.Clickable("learn-more", linkInteractionListener = {
-              callbacks.onSealedSenderLearnMoreClick()
-            })
-          ) {
-            append(stringResource(R.string.LearnMoreTextView_learn_more))
-          }
-        }
-
-        Rows.TextRow(
-          text = sealedSenderSummary
+        LightSettingsToggleRow(
+          checked = state.allowSealedSenderFromAnyone,
+          title = stringResource(R.string.preferences_communication__sealed_sender_allow_from_anyone),
+          summary = stringResource(R.string.preferences_communication__sealed_sender_allow_from_anyone_description),
+          onCheckedChange = callbacks::onAllowSealedSenderFromAnyoneChanged
         )
       }
+      LightSettingsRow(
+        title = sealedSenderLearnMore,
+        onClick = null
+      )
 
-      item {
-        Dividers.Default()
-      }
-
-      item {
-        val label = buildAnnotatedString {
-          append(stringResource(R.string.preferences_automatic_key_verification_body))
-          append(" ")
-          withLink(
-            LinkAnnotation.Clickable("learn-more", linkInteractionListener = {
-              callbacks.onAutomaticVerificationLearnMoreClick()
-            })
-          ) {
-            append(stringResource(R.string.LearnMoreTextView_learn_more))
-          }
-        }
-
-        Rows.ToggleRow(
-          checked = state.allowAutomaticKeyVerification,
-          text = AnnotatedString(stringResource(R.string.preferences_automatic_key_verification)),
-          label = label,
-          onCheckChanged = callbacks::onAllowAutomaticVerificationChanged
-        )
-      }
+      LightSettingsDivider()
+      LightSettingsToggleRow(
+        checked = state.allowAutomaticKeyVerification,
+        title = stringResource(R.string.preferences_automatic_key_verification),
+        summary = automaticVerificationSummary,
+        onCheckedChange = callbacks::onAllowAutomaticVerificationChanged
+      )
     }
   }
 }

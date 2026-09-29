@@ -3,6 +3,17 @@ package org.thoughtcrime.securesms.components.settings.app.notifications.profile
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.widget.Toolbar
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModelProvider
@@ -14,7 +25,8 @@ import org.signal.core.util.concurrent.LifecycleDisposable
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.emoji.EmojiUtil
 import org.thoughtcrime.securesms.components.settings.DSLConfiguration
-import org.thoughtcrime.securesms.components.settings.DSLSettingsFragment
+import org.thoughtcrime.securesms.components.settings.LightDSLSettingsFragment
+import org.thoughtcrime.securesms.components.settings.LightResolvedSettingsIcon
 import org.thoughtcrime.securesms.components.settings.DSLSettingsIcon
 import org.thoughtcrime.securesms.components.settings.DSLSettingsText
 import org.thoughtcrime.securesms.components.settings.NO_TINT
@@ -22,7 +34,14 @@ import org.thoughtcrime.securesms.components.settings.app.notifications.profiles
 import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.models.NotificationProfilePreference
 import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.models.NotificationProfileRecipient
 import org.thoughtcrime.securesms.components.settings.configure
+import org.thoughtcrime.securesms.components.settings.registerLightPreference
 import org.thoughtcrime.securesms.components.settings.conversation.preferences.LargeIconClickPreference
+import org.thoughtcrime.securesms.avatar.AvatarImage
+import org.thoughtcrime.securesms.light.LightSettingsRow
+import org.thoughtcrime.securesms.light.LightSettingsToggleRow
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.lightClickable
 import org.thoughtcrime.securesms.components.settings.conversation.preferences.RecipientPreference
 import org.thoughtcrime.securesms.notifications.profiles.NotificationProfile
 import org.thoughtcrime.securesms.notifications.profiles.NotificationProfileSchedule
@@ -41,7 +60,7 @@ import org.signal.core.ui.R as CoreUiR
 
 private const val MEMBER_COUNT_TO_SHOW_EXPAND: Int = 5
 
-class NotificationProfileDetailsFragment : DSLSettingsFragment() {
+class NotificationProfileDetailsFragment : LightDSLSettingsFragment() {
 
   private val viewModel: NotificationProfileDetailsViewModel by viewModels(factoryProducer = this::createFactory)
 
@@ -67,10 +86,74 @@ class NotificationProfileDetailsFragment : DSLSettingsFragment() {
   }
 
   override fun bindAdapter(adapter: MappingAdapter) {
-    NotificationProfilePreference.register(adapter)
-    NotificationProfileAddMembers.register(adapter)
-    NotificationProfileRecipient.register(adapter)
-    LargeIconClickPreference.register(adapter)
+    registerLightPreference(adapter, NotificationProfilePreference.Model::class.java) { model ->
+      val context = LocalContext.current
+      val leading: (@Composable () -> Unit)? = model.icon?.let { icon ->
+        {
+          Box(
+            modifier = Modifier
+              .size(28.dp)
+              .background(Color(model.color.colorInt()), CircleShape),
+            contentAlignment = Alignment.Center
+          ) {
+            LightResolvedSettingsIcon(icon)
+          }
+        }
+      }
+      if (model.showSwitch) {
+        LightSettingsToggleRow(
+          title = model.title.resolve(context),
+          summary = model.summary?.resolve(context),
+          checked = model.isOn,
+          onCheckedChange = { model.onClick() },
+          leading = leading
+        )
+      } else {
+        LightSettingsRow(
+          title = model.title.resolve(context),
+          summary = model.summary?.resolve(context),
+          onClick = model.onClick,
+          leading = leading
+        )
+      }
+    }
+    registerLightPreference(adapter, NotificationProfileAddMembers.Model::class.java) { model ->
+      val context = LocalContext.current
+      LightSettingsRow(
+        title = model.title.resolve(context),
+        onClick = { model.onClick(model.profileId, model.currentSelection) },
+        leading = { LightResolvedSettingsIcon(model.icon) }
+      )
+    }
+    registerLightPreference(adapter, NotificationProfileRecipient.Model::class.java) { model ->
+      val context = LocalContext.current
+      val recipient = model.recipientModel.recipient
+      LightSettingsRow(
+        title = if (recipient.isSelf) stringResource(R.string.Recipient_you) else recipient.getDisplayName(context),
+        summary = recipient.combinedAboutAndEmoji,
+        onClick = model.recipientModel.onRowClick,
+        leading = {
+          AvatarImage(recipient = recipient, modifier = Modifier.size(28.dp))
+        },
+        trailing = {
+          LightText(
+            text = stringResource(R.string.AddGroupDetailsFragment__remove).uppercase(),
+            variant = LightTextVariant.Fine,
+            modifier = Modifier.lightClickable { model.onRemoveClick(recipient.id) }
+          )
+        }
+      )
+    }
+    registerLightPreference(adapter, LargeIconClickPreference.Model::class.java) { model ->
+      val context = LocalContext.current
+      LightSettingsRow(
+        title = model.title?.resolve(context) ?: "",
+        summary = model.summary?.resolve(context),
+        enabled = model.isEnabled,
+        onClick = model.onClick,
+        leading = { LightResolvedSettingsIcon(model.icon) }
+      )
+    }
 
     viewModel.state.observe(viewLifecycleOwner) { state ->
       when (state) {

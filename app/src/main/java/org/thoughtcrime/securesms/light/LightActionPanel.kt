@@ -40,6 +40,8 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.thelightphone.sdk.ui.LightGrid
 import com.thelightphone.sdk.ui.LightLazyScrollView
 import com.thelightphone.sdk.ui.LightScrollBarPosition
@@ -204,6 +206,38 @@ fun LightReactionKeys(
             }
           }
         }
+      }
+    }
+  }
+}
+
+/** Window-level host used when the caller's own layout is smaller than the panel. */
+@Composable
+fun LightActionPanelDialog(
+  actions: List<LightPanelAction>,
+  onDismiss: () -> Unit
+) {
+  Dialog(
+    onDismissRequest = onDismiss,
+    properties = DialogProperties(
+      usePlatformDefaultWidth = false,
+      decorFitsSystemWindows = false
+    )
+  ) {
+    MollyLightTheme {
+      Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+          modifier = Modifier
+            .align(Alignment.TopCenter)
+            .fillMaxWidth()
+            .fillMaxHeight(1f - PANEL_HEIGHT_FRACTION)
+            .pointerInput(Unit) { detectTapGestures(onTap = { onDismiss() }) }
+        )
+        LightActionPanel(
+          actions = actions,
+          onDismiss = onDismiss,
+          modifier = Modifier.align(Alignment.BottomCenter)
+        )
       }
     }
   }

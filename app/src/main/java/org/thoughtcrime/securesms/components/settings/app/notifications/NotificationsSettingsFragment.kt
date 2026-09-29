@@ -13,24 +13,18 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.colorResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -45,6 +39,8 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
 import im.molly.unifiedpush.UnifiedPushDefaultDistributorLinkActivity
 import im.molly.unifiedpush.components.settings.app.notifications.MollySocketQrScannerActivity
 import kotlinx.coroutines.launch
@@ -54,18 +50,12 @@ import org.greenrobot.eventbus.ThreadMode
 import org.signal.core.ui.BottomSheetUtil
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dividers
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.Texts
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.PromptBatterySaverDialogFragment
 import org.thoughtcrime.securesms.components.settings.app.routes.AppSettingsRoute
 import org.thoughtcrime.securesms.components.settings.app.routes.AppSettingsRouter
-import org.thoughtcrime.securesms.components.settings.models.Banner
 import org.thoughtcrime.securesms.conversation.v2.registerForLifecycle
 import org.thoughtcrime.securesms.events.PushServiceEvent
 import org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod
@@ -429,278 +419,198 @@ fun NotificationsSettingsScreen(
   callbacks: NotificationsSettingsCallbacks,
   deviceState: DeviceState = remember { DeviceState() }
 ) {
-  Scaffolds.Settings(
-    title = stringResource(R.string.preferences__notifications),
-    onNavigationClick = callbacks::onNavigationClick,
-    navigationIcon = SignalIcons.ArrowStart.imageVector
-  ) {
-    val errorCode = state.playServicesErrorCode
-    val hasPlayServicesError = errorCode != null && errorCode != ConnectionResult.SUCCESS
-
-    LaunchedEffect(errorCode) {
-      if (hasPlayServicesError) {
-        callbacks.onPlayServicesError(errorCode)
-      }
-    }
-
-    LazyColumn(
-      state = rememberLazyListState(initialFirstVisibleItemIndex = if (hasPlayServicesError) 99 else 0),
-      modifier = Modifier.padding(it)
+  org.thoughtcrime.securesms.light.MollyLightTheme {
+    org.thoughtcrime.securesms.light.LightSettingsScreen(
+      title = stringResource(R.string.preferences__notifications),
+      onBack = callbacks::onNavigationClick
     ) {
-      if (!state.messageNotificationsState.canEnableNotifications) {
-        item {
-          Banner(
-            text = stringResource(R.string.NotificationSettingsFragment__to_enable_notifications),
-            action = stringResource(R.string.NotificationSettingsFragment__turn_on),
-            onActionClick = callbacks::onTurnOnNotificationsActionClick
-          )
+      val errorCode = state.playServicesErrorCode
+      val hasPlayServicesError = errorCode != null && errorCode != ConnectionResult.SUCCESS
+
+      LaunchedEffect(errorCode) {
+        if (hasPlayServicesError) {
+          callbacks.onPlayServicesError(errorCode)
         }
       }
 
-      item {
-        Texts.SectionHeader(stringResource(R.string.NotificationsSettingsFragment__messages))
-      }
-
-      item {
-        Rows.ToggleRow(
-          text = stringResource(R.string.preferences__notifications),
-          enabled = state.messageNotificationsState.canEnableNotifications,
-          checked = state.messageNotificationsState.notificationsEnabled,
-          onCheckChanged = callbacks::setMessageNotificationsEnabled
+      if (!state.messageNotificationsState.canEnableNotifications) {
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.NotificationSettingsFragment__to_enable_notifications),
+          summary = stringResource(R.string.NotificationSettingsFragment__turn_on),
+          onClick = callbacks::onTurnOnNotificationsActionClick
         )
       }
+
+      org.thoughtcrime.securesms.light.LightSettingsSection(
+        stringResource(R.string.NotificationsSettingsFragment__messages)
+      )
+      org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+        title = stringResource(R.string.preferences__notifications),
+        enabled = state.messageNotificationsState.canEnableNotifications,
+        checked = state.messageNotificationsState.notificationsEnabled,
+        onCheckedChange = callbacks::setMessageNotificationsEnabled
+      )
 
       if (deviceState.apiLevel >= 30) {
-        item {
-          Rows.TextRow(
-            text = stringResource(R.string.preferences__customize),
-            label = stringResource(R.string.preferences__change_sound_and_vibration),
-            enabled = state.messageNotificationsState.notificationsEnabled,
-            onClick = callbacks::onCustomizeClick
-          )
-        }
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.preferences__customize),
+          summary = stringResource(R.string.preferences__change_sound_and_vibration),
+          enabled = state.messageNotificationsState.notificationsEnabled,
+          onClick = callbacks::onCustomizeClick
+        )
       } else {
-        item {
-          Rows.TextRow(
-            text = stringResource(R.string.preferences__sound),
-            label = remember(state.messageNotificationsState.sound) {
-              callbacks.getRingtoneSummary(state.messageNotificationsState.sound)
-            },
-            enabled = state.messageNotificationsState.notificationsEnabled,
-            onClick = callbacks::launchMessageSoundSelectionIntent
-          )
-        }
-
-        item {
-          Rows.ToggleRow(
-            text = stringResource(R.string.preferences__vibrate),
-            checked = state.messageNotificationsState.vibrateEnabled,
-            enabled = state.messageNotificationsState.notificationsEnabled,
-            onCheckChanged = callbacks::setMessageNotificationsEnabled
-          )
-        }
-
-        item {
-          Rows.RadioListRow(
-            text = {
-              Box(
-                modifier = Modifier
-                  .clip(CircleShape)
-                  .size(24.dp)
-                  .background(color = getLedColor(state.messageNotificationsState.ledColor))
-              )
-
-              Spacer(modifier = Modifier.size(10.dp))
-
-              Text(text = stringResource(R.string.preferences__led_color))
-            },
-            dialogTitle = stringResource(R.string.preferences__led_color),
-            labels = stringArrayResource(R.array.pref_led_color_entries),
-            values = stringArrayResource(R.array.pref_led_color_values),
-            selectedValue = state.messageNotificationsState.ledColor,
-            enabled = state.messageNotificationsState.notificationsEnabled,
-            onSelected = callbacks::setMessasgeNotificationLedColor
-          )
-        }
-
-        if (!deviceState.supportsNotificationChannels) {
-          item {
-            Rows.RadioListRow(
-              text = stringResource(R.string.preferences__pref_led_blink_title),
-              labels = stringArrayResource(R.array.pref_led_blink_pattern_entries),
-              values = stringArrayResource(R.array.pref_led_blink_pattern_values),
-              selectedValue = state.messageNotificationsState.ledBlink,
-              enabled = state.messageNotificationsState.notificationsEnabled,
-              onSelected = callbacks::setMessasgeNotificationLedBlink
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.preferences__sound),
+          summary = remember(state.messageNotificationsState.sound) {
+            callbacks.getRingtoneSummary(state.messageNotificationsState.sound)
+          },
+          enabled = state.messageNotificationsState.notificationsEnabled,
+          onClick = callbacks::launchMessageSoundSelectionIntent
+        )
+        org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+          title = stringResource(R.string.preferences__vibrate),
+          checked = state.messageNotificationsState.vibrateEnabled,
+          enabled = state.messageNotificationsState.notificationsEnabled,
+          onCheckedChange = callbacks::setMessageNotificationVibration
+        )
+        LightRadioListSetting(
+          title = stringResource(R.string.preferences__led_color),
+          labels = stringArrayResource(R.array.pref_led_color_entries),
+          values = stringArrayResource(R.array.pref_led_color_values),
+          selectedValue = state.messageNotificationsState.ledColor,
+          enabled = state.messageNotificationsState.notificationsEnabled,
+          onSelected = callbacks::setMessasgeNotificationLedColor,
+          leading = {
+            Box(
+              modifier = Modifier
+                .clip(CircleShape)
+                .size(24.dp)
+                .background(color = getLedColor(state.messageNotificationsState.ledColor))
             )
           }
-        }
-      }
-
-      item {
-        Rows.ToggleRow(
-          text = stringResource(R.string.preferences_notifications__in_chat_sounds),
-          checked = state.messageNotificationsState.inChatSoundsEnabled,
-          enabled = state.messageNotificationsState.notificationsEnabled,
-          onCheckChanged = callbacks::setMessageNotificationInChatSoundsEnabled
         )
-      }
-
-      item {
-        Rows.RadioListRow(
-          text = stringResource(R.string.preferences__repeat_alerts),
-          labels = stringArrayResource(R.array.pref_repeat_alerts_entries),
-          values = stringArrayResource(R.array.pref_repeat_alerts_values),
-          selectedValue = state.messageNotificationsState.repeatAlerts.toString(),
-          enabled = state.messageNotificationsState.notificationsEnabled,
-          onSelected = callbacks::setMessageRepeatAlerts
-        )
-      }
-
-      item {
-        Rows.RadioListRow(
-          text = stringResource(R.string.preferences_notifications__show),
-          labels = stringArrayResource(R.array.pref_notification_privacy_entries),
-          values = stringArrayResource(R.array.pref_notification_privacy_values),
-          selectedValue = state.messageNotificationsState.messagePrivacy,
-          enabled = state.messageNotificationsState.notificationsEnabled,
-          onSelected = callbacks::setMessageNotificationPrivacy
-        )
-      }
-
-      if (deviceState.apiLevel >= 23 && state.messageNotificationsState.troubleshootNotifications) {
-        item {
-          Rows.TextRow(
-            text = stringResource(R.string.preferences_notifications__troubleshoot),
-            onClick = callbacks::onTroubleshootNotificationsClick
+        if (!deviceState.supportsNotificationChannels) {
+          LightRadioListSetting(
+            title = stringResource(R.string.preferences__pref_led_blink_title),
+            labels = stringArrayResource(R.array.pref_led_blink_pattern_entries),
+            values = stringArrayResource(R.array.pref_led_blink_pattern_values),
+            selectedValue = state.messageNotificationsState.ledBlink,
+            enabled = state.messageNotificationsState.notificationsEnabled,
+            onSelected = callbacks::setMessasgeNotificationLedBlink
           )
         }
+      }
+
+      org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+        title = stringResource(R.string.preferences_notifications__in_chat_sounds),
+        checked = state.messageNotificationsState.inChatSoundsEnabled,
+        enabled = state.messageNotificationsState.notificationsEnabled,
+        onCheckedChange = callbacks::setMessageNotificationInChatSoundsEnabled
+      )
+      LightRadioListSetting(
+        title = stringResource(R.string.preferences__repeat_alerts),
+        labels = stringArrayResource(R.array.pref_repeat_alerts_entries),
+        values = stringArrayResource(R.array.pref_repeat_alerts_values),
+        selectedValue = state.messageNotificationsState.repeatAlerts.toString(),
+        enabled = state.messageNotificationsState.notificationsEnabled,
+        onSelected = callbacks::setMessageRepeatAlerts
+      )
+      LightRadioListSetting(
+        title = stringResource(R.string.preferences_notifications__show),
+        labels = stringArrayResource(R.array.pref_notification_privacy_entries),
+        values = stringArrayResource(R.array.pref_notification_privacy_values),
+        selectedValue = state.messageNotificationsState.messagePrivacy,
+        enabled = state.messageNotificationsState.notificationsEnabled,
+        onSelected = callbacks::setMessageNotificationPrivacy
+      )
+
+      if (deviceState.apiLevel >= 23 && state.messageNotificationsState.troubleshootNotifications) {
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.preferences_notifications__troubleshoot),
+          onClick = callbacks::onTroubleshootNotificationsClick
+        )
       }
 
       if (deviceState.apiLevel < 30) {
         if (deviceState.supportsNotificationChannels) {
-          item {
-            Rows.TextRow(
-              text = stringResource(R.string.preferences_notifications__priority),
-              enabled = state.messageNotificationsState.notificationsEnabled,
-              onClick = callbacks::launchNotificationPriorityIntent
-            )
-          }
+          org.thoughtcrime.securesms.light.LightSettingsRow(
+            title = stringResource(R.string.preferences_notifications__priority),
+            enabled = state.messageNotificationsState.notificationsEnabled,
+            onClick = callbacks::launchNotificationPriorityIntent
+          )
         } else {
-          item {
-            Rows.RadioListRow(
-              text = stringResource(R.string.preferences_notifications__priority),
-              labels = stringArrayResource(R.array.pref_notification_priority_entries),
-              values = stringArrayResource(R.array.pref_notification_priority_values),
-              selectedValue = state.messageNotificationsState.priority.toString(),
-              enabled = state.messageNotificationsState.notificationsEnabled,
-              onSelected = callbacks::setMessageNotificationPriority
-            )
-          }
+          LightRadioListSetting(
+            title = stringResource(R.string.preferences_notifications__priority),
+            labels = stringArrayResource(R.array.pref_notification_priority_entries),
+            values = stringArrayResource(R.array.pref_notification_priority_values),
+            selectedValue = state.messageNotificationsState.priority.toString(),
+            enabled = state.messageNotificationsState.notificationsEnabled,
+            onSelected = callbacks::setMessageNotificationPriority
+          )
         }
       }
 
-      item {
-        Dividers.Default()
-      }
-
-      item {
-        Texts.SectionHeader(stringResource(R.string.NotificationsSettingsFragment__calls))
-      }
-
-      item {
-        Rows.ToggleRow(
-          text = stringResource(R.string.preferences__notifications),
-          enabled = state.callNotificationsState.canEnableNotifications,
-          checked = state.callNotificationsState.notificationsEnabled,
-          onCheckChanged = callbacks::setCallNotificationsEnabled
-        )
-      }
-
-      item {
-        val ringtoneSummary = remember(state.callNotificationsState.ringtone) {
+      org.thoughtcrime.securesms.light.LightSettingsDivider()
+      org.thoughtcrime.securesms.light.LightSettingsSection(
+        stringResource(R.string.NotificationsSettingsFragment__calls)
+      )
+      org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+        title = stringResource(R.string.preferences__notifications),
+        enabled = state.callNotificationsState.canEnableNotifications,
+        checked = state.callNotificationsState.notificationsEnabled,
+        onCheckedChange = callbacks::setCallNotificationsEnabled
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences_notifications__ringtone),
+        summary = remember(state.callNotificationsState.ringtone) {
           callbacks.getRingtoneSummary(state.callNotificationsState.ringtone)
+        },
+        enabled = state.callNotificationsState.notificationsEnabled,
+        onClick = callbacks::launchCallsSoundSelectionIntent
+      )
+      org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+        title = stringResource(R.string.preferences__vibrate),
+        checked = state.callNotificationsState.vibrateEnabled,
+        enabled = state.callNotificationsState.notificationsEnabled,
+        onCheckedChange = callbacks::setCallVibrateEnabled
+      )
+
+      org.thoughtcrime.securesms.light.LightSettingsDivider()
+      org.thoughtcrime.securesms.light.LightSettingsSection(
+        stringResource(R.string.NotificationsSettingsFragment__notification_profiles)
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.NotificationsSettingsFragment__profiles),
+        summary = stringResource(R.string.NotificationsSettingsFragment__create_a_profile_to_receive_notifications_only_from_people_and_groups_you_choose),
+        onClick = callbacks::onNavigationProfilesClick
+      )
+
+      org.thoughtcrime.securesms.light.LightSettingsDivider()
+      org.thoughtcrime.securesms.light.LightSettingsSection(
+        stringResource(R.string.NotificationsSettingsFragment__notify_when)
+      )
+      org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+        title = stringResource(R.string.NotificationsSettingsFragment__new_activity_while_locked),
+        summary = stringResource(R.string.NotificationsSettingsFragment__receive_notifications_for_messages_or_missed_calls_when_the_app_is_locked),
+        checked = state.notifyWhileLocked,
+        onCheckedChange = { enabled ->
+          callbacks.setNotifyNewActivityWhileLocked(enabled, state.canEnableNotifyWhileLocked)
         }
+      )
+      org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+        title = stringResource(R.string.NotificationsSettingsFragment__contact_joins_signal),
+        checked = state.notifyWhenContactJoinsSignal,
+        onCheckedChange = callbacks::setNotifyWhenContactJoinsSignal
+      )
 
-        Rows.TextRow(
-          text = stringResource(R.string.preferences_notifications__ringtone),
-          label = ringtoneSummary,
-          enabled = state.callNotificationsState.notificationsEnabled,
-          onClick = callbacks::launchCallsSoundSelectionIntent
-        )
-      }
-
-      item {
-        Rows.ToggleRow(
-          text = stringResource(R.string.preferences__vibrate),
-          checked = state.callNotificationsState.vibrateEnabled,
-          enabled = state.callNotificationsState.notificationsEnabled,
-          onCheckChanged = callbacks::setCallVibrateEnabled
-        )
-      }
-
-      item {
-        Dividers.Default()
-      }
-
-      item {
-        Texts.SectionHeader(stringResource(R.string.NotificationsSettingsFragment__notification_profiles))
-      }
-
-      item {
-        Rows.TextRow(
-          text = stringResource(R.string.NotificationsSettingsFragment__profiles),
-          label = stringResource(R.string.NotificationsSettingsFragment__create_a_profile_to_receive_notifications_only_from_people_and_groups_you_choose),
-          onClick = callbacks::onNavigationProfilesClick
-        )
-      }
-
-      item {
-        Dividers.Default()
-      }
-
-      item {
-        Texts.SectionHeader(stringResource(R.string.NotificationsSettingsFragment__notify_when))
-      }
-
-      item {
-        Rows.ToggleRow(
-          text = stringResource(R.string.NotificationsSettingsFragment__new_activity_while_locked),
-          label = stringResource(R.string.NotificationsSettingsFragment__receive_notifications_for_messages_or_missed_calls_when_the_app_is_locked),
-          checked = state.notifyWhileLocked,
-          onCheckChanged = { enabled ->
-            callbacks.setNotifyNewActivityWhileLocked(enabled, state.canEnableNotifyWhileLocked)
-          }
-        )
-      }
-
-      item {
-        Rows.ToggleRow(
-          text = stringResource(R.string.NotificationsSettingsFragment__contact_joins_signal),
-          checked = state.notifyWhenContactJoinsSignal,
-          onCheckChanged = callbacks::setNotifyWhenContactJoinsSignal
-        )
-      }
-
-      item {
-        Dividers.Default()
-      }
-
-      item {
-        Texts.SectionHeader(stringResource(R.string.NotificationsSettingsFragment__push_notifications))
-      }
-
-      item {
-        Rows.TextRow(
-          text = {
-            Text(
-              text = stringResource(R.string.NotificationsSettingsFragment__select_your_preferred_service_for_push_notifications),
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-        )
-      }
+      org.thoughtcrime.securesms.light.LightSettingsDivider()
+      org.thoughtcrime.securesms.light.LightSettingsSection(
+        stringResource(R.string.NotificationsSettingsFragment__push_notifications)
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.NotificationsSettingsFragment__select_your_preferred_service_for_push_notifications),
+        onClick = null
+      )
 
       val notificationMethods = NotificationDeliveryMethod.entries.filter { method ->
         when (method) {
@@ -709,48 +619,73 @@ fun NotificationsSettingsScreen(
           NotificationDeliveryMethod.UNIFIEDPUSH -> !state.isLinkedDevice
         }
       }
-
       val showAlertIcon = when (state.preferredNotificationMethod) {
         NotificationDeliveryMethod.FCM -> !state.canReceiveFcm
         NotificationDeliveryMethod.WEBSOCKET -> false
         NotificationDeliveryMethod.UNIFIEDPUSH -> !state.canReceiveUnifiedPush
       }
-
-      item {
-        Rows.RadioListRow(
-          text = stringResource(R.string.NotificationsSettingsFragment__delivery_service),
-          labels = notificationMethods.map { method -> stringResource(method.stringId) }.toTypedArray(),
-          values = notificationMethods.map { method -> method.serialize() }.toTypedArray(),
-          selectedValue = state.preferredNotificationMethod.name,
-          trailingIcon = if (showAlertIcon) {
-            {
-              Icon(
-                painter = painterResource(android.R.drawable.ic_dialog_alert),
-                contentDescription = null,
-                tint = colorResource(R.color.signal_alert_primary)
-              )
-            }
-          } else {
-            null
-          },
-          onSelected = { selected ->
-            callbacks.onNotificationMethodChanged(
-              state.preferredNotificationMethod to NotificationDeliveryMethod.deserialize(selected)
-            )
-          },
-        )
-      }
-
-      if (!state.isLinkedDevice) {
-        item {
-          Rows.TextRow(
-            text = stringResource(R.string.NotificationsSettingsFragment__configure_unifiedpush),
-            enabled = state.preferredNotificationMethod == NotificationDeliveryMethod.UNIFIEDPUSH,
-            onClick = callbacks::onNavigationUnifiedPushSettings
+      LightRadioListSetting(
+        title = stringResource(R.string.NotificationsSettingsFragment__delivery_service),
+        labels = notificationMethods.map { method -> stringResource(method.stringId) }.toTypedArray(),
+        values = notificationMethods.map { method -> method.serialize() }.toTypedArray(),
+        selectedValue = state.preferredNotificationMethod.name,
+        trailing = if (showAlertIcon) {
+          {
+            LightText(text = "!", variant = LightTextVariant.Copy)
+          }
+        } else {
+          null
+        },
+        onSelected = { selected ->
+          callbacks.onNotificationMethodChanged(
+            state.preferredNotificationMethod to NotificationDeliveryMethod.deserialize(selected)
           )
         }
+      )
+
+      if (!state.isLinkedDevice) {
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.NotificationsSettingsFragment__configure_unifiedpush),
+          enabled = state.preferredNotificationMethod == NotificationDeliveryMethod.UNIFIEDPUSH,
+          onClick = callbacks::onNavigationUnifiedPushSettings
+        )
       }
     }
+  }
+}
+
+@Composable
+private fun LightRadioListSetting(
+  title: String,
+  labels: Array<String>,
+  values: Array<String>,
+  selectedValue: String,
+  enabled: Boolean = true,
+  onSelected: (String) -> Unit,
+  leading: (@Composable () -> Unit)? = null,
+  trailing: (@Composable () -> Unit)? = null
+) {
+  var showingDialog by remember { mutableStateOf(false) }
+  val selectedIndex = values.indexOf(selectedValue)
+
+  org.thoughtcrime.securesms.light.LightSettingsRow(
+    title = title,
+    summary = labels.getOrNull(selectedIndex),
+    enabled = enabled,
+    onClick = { showingDialog = true },
+    leading = leading,
+    trailing = trailing
+  )
+
+  if (showingDialog) {
+    org.thoughtcrime.securesms.light.LightSingleChoiceDialog(
+      title = title,
+      items = labels.toList(),
+      selected = selectedIndex,
+      confirmAction = false,
+      onSelected = { index -> values.getOrNull(index)?.let(onSelected) },
+      onDismiss = { showingDialog = false }
+    )
   }
 }
 

@@ -109,7 +109,7 @@ class DSLConfiguration {
     isEnabled: Boolean = true,
     onClick: () -> Unit,
     onLongClick: (() -> Boolean)? = null,
-    onDisabledClicked: () -> Unit = {}
+    onDisabledClicked: (() -> Unit)? = null
   ) {
     val preference = ClickPreference(title, summary, icon, iconEnd, isEnabled, onClick, onLongClick, onDisabledClicked)
     children.add(preference)
@@ -343,7 +343,7 @@ class SwitchPreference(
 }
 
 class RadioPreference(
-  title: DSLSettingsText,
+  override val title: DSLSettingsText,
   summary: DSLSettingsText? = null,
   isEnabled: Boolean,
   val isChecked: Boolean,
@@ -362,7 +362,7 @@ class ClickPreference(
   override val isEnabled: Boolean = true,
   val onClick: () -> Unit,
   val onLongClick: (() -> Boolean)? = null,
-  val onDisabledClicked: () -> Unit = {}
+  val onDisabledClicked: (() -> Unit)? = null
 ) : PreferenceModel<ClickPreference>()
 
 class LongClickPreference(

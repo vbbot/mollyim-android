@@ -9,17 +9,22 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.os.bundleOf
 import androidx.fragment.app.FragmentManager
+import com.thelightphone.sdk.ui.LightThemeTokens
 import org.signal.core.ui.BottomSheetUtil
 import org.signal.core.ui.FixedRoundedCornerBottomSheetDialogFragment
-import org.signal.core.ui.util.ThemeUtil
-import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.databinding.PromptBatterySaverBottomSheetBinding
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.notifications.DeviceSpecificNotificationConfig
+import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.LocalMetrics
 import org.thoughtcrime.securesms.util.PowerManagerCompat
 
@@ -46,33 +51,51 @@ class PromptBatterySaverDialogFragment : FixedRoundedCornerBottomSheetDialogFrag
   override val peekHeightPercentage: Float = 0.66f
   override val themeResId: Int = R.style.Widget_Signal_FixedRoundedCorners_Messages
 
-  private val binding by ViewBinderDelegate(PromptBatterySaverBottomSheetBinding::bind)
-
-  private val disposables: LifecycleDisposable = LifecycleDisposable()
-
   override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-    return inflater.inflate(R.layout.prompt_battery_saver_bottom_sheet, container, false)
-  }
-
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    disposables.bindTo(viewLifecycleOwner)
-
     val learnMoreLink = arguments?.getString(ARG_LEARN_MORE_LINK) ?: getString(R.string.PromptBatterySaverBottomSheet__learn_more_url)
-    binding.message.setLearnMoreVisible(true)
-    binding.message.setLinkColor(ThemeUtil.getThemedColor(requireContext(), com.google.android.material.R.attr.colorPrimary))
-    binding.message.setLink(learnMoreLink)
 
-    binding.continueButton.setOnClickListener {
-      PowerManagerCompat.requestIgnoreBatteryOptimizations(requireContext())
-      Log.i(TAG, "Requested to ignore battery optimizations, clearing local metrics.")
-      LocalMetrics.clear()
-      SignalStore.uiHints.markDismissedBatterySaverPrompt()
-      dismiss()
-    }
-    binding.dismissButton.setOnClickListener {
-      Log.i(TAG, "User denied request to ignore battery optimizations.")
-      SignalStore.uiHints.markDismissedBatterySaverPrompt()
-      dismiss()
+    return ComposeView(requireContext()).apply {
+      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+      setContent {
+        org.thoughtcrime.securesms.light.MollyLightTheme {
+          Column(
+            modifier = Modifier
+              .fillMaxWidth()
+              .background(LightThemeTokens.colors.background)
+          ) {
+            org.thoughtcrime.securesms.light.LightSettingsSection(
+              getString(R.string.PromptBatterySaverBottomSheet__title)
+            )
+            org.thoughtcrime.securesms.light.LightSettingsRow(
+              title = getString(R.string.PromptBatterySaverBottomSheet__message),
+              onClick = null
+            )
+            org.thoughtcrime.securesms.light.LightSettingsRow(
+              title = getString(R.string.LearnMoreTextView_learn_more),
+              onClick = { CommunicationActions.openBrowserLink(requireContext(), learnMoreLink) }
+            )
+            org.thoughtcrime.securesms.light.LightSettingsDivider()
+            org.thoughtcrime.securesms.light.LightSettingsRow(
+              title = getString(R.string.PromptBatterySaverBottomSheet__no_thanks),
+              onClick = {
+                Log.i(TAG, "User denied request to ignore battery optimizations.")
+                SignalStore.uiHints.markDismissedBatterySaverPrompt()
+                dismiss()
+              }
+            )
+            org.thoughtcrime.securesms.light.LightSettingsRow(
+              title = getString(R.string.PromptBatterySaverBottomSheet__continue),
+              onClick = {
+                PowerManagerCompat.requestIgnoreBatteryOptimizations(requireContext())
+                Log.i(TAG, "Requested to ignore battery optimizations, clearing local metrics.")
+                LocalMetrics.clear()
+                SignalStore.uiHints.markDismissedBatterySaverPrompt()
+                dismiss()
+              }
+            )
+          }
+        }
+      }
     }
   }
 }

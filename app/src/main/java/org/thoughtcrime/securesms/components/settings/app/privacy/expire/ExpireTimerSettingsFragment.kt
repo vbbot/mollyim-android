@@ -5,12 +5,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,27 +15,26 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.NavHostFragment
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightBottomBar
+import com.thelightphone.sdk.ui.LightThemeTokens
 import kotlinx.coroutines.delay
-import org.signal.core.ui.compose.Buttons
-import org.signal.core.ui.compose.CircularProgressWrapper
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.horizontalGutters
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.groups.ui.GroupChangeFailureReason
 import org.thoughtcrime.securesms.groups.ui.GroupErrors
+import org.thoughtcrime.securesms.light.LightSettingsProgressRow
+import org.thoughtcrime.securesms.light.LightSettingsRadioRow
+import org.thoughtcrime.securesms.light.LightSettingsRow
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.util.ExpirationUtil
 import org.thoughtcrime.securesms.util.livedata.ProcessState
 import org.thoughtcrime.securesms.util.livedata.distinctUntilChanged
@@ -86,12 +82,10 @@ class ExpireTimerSettingsFragment : ComposeFragment() {
     val state by viewModel.state.observeAsState(ExpireTimerSettingsState())
     val callback = remember { DefaultExpireTimerSettingsScreenCallback(viewModel) }
 
-    SignalTheme {
-      ExpireTimerSettingsScreen(
-        state = state,
-        callback = callback
-      )
-    }
+    ExpireTimerSettingsScreen(
+      state = state,
+      callback = callback
+    )
   }
 
   inner class DefaultExpireTimerSettingsScreenCallback(
@@ -127,74 +121,65 @@ fun ExpireTimerSettingsScreen(
   val context = LocalContext.current
   val labels = context.resources.getStringArray(R.array.ExpireTimerSettingsFragment__labels)
   val values = context.resources.getIntArray(R.array.ExpireTimerSettingsFragment__values)
+  val saveLabel = stringResource(R.string.ExpireTimerSettingsFragment__save)
 
-  Scaffolds.Settings(
-    title = stringResource(R.string.PrivacySettingsFragment__disappearing_messages),
-    onNavigationClick = callback::onNavigationClick,
-    navigationIcon = SignalIcons.ArrowStart.imageVector
-  ) { paddingValues ->
-    Box(
+  MollyLightTheme {
+    Column(
       modifier = Modifier
         .fillMaxSize()
-        .padding(paddingValues)
+        .background(LightThemeTokens.colors.background)
     ) {
-      LazyColumn() {
-        item {
-          Rows.TextRow(
-            label = stringResource(
-              if (state.isForRecipient) {
-                R.string.ExpireTimerSettingsFragment__when_enabled_new_messages_sent_and_received_in_this_chat_will_disappear_after_they_have_been_seen
-              } else {
-                R.string.ExpireTimerSettingsFragment__when_enabled_new_messages_sent_and_received_in_new_chats_started_by_you_will_disappear_after_they_have_been_seen
-              }
-            )
-          )
-        }
-
-        items(labels.size) { index ->
-          val label = labels[index]
-          val seconds = values[index]
-
-          Rows.RadioRow(
-            selected = state.currentTimer == seconds,
-            text = label,
-            modifier = Modifier.clickable { callback.onTimerSelected(seconds) },
-            enabled = true
-          )
-        }
-
-        item {
-          val hasCustomValue = values.none { it == state.currentTimer }
-          val customSummary = if (hasCustomValue) {
-            ExpirationUtil.getExpirationDisplayValue(context, state.currentTimer)
-          } else {
-            null
-          }
-
-          Rows.RadioRow(
-            selected = hasCustomValue,
-            text = stringResource(R.string.ExpireTimerSettingsFragment__custom_time),
-            label = customSummary,
-            modifier = Modifier.clickable { callback.onCustomTimerClick() },
-            enabled = true
-          )
-        }
-      }
-
-      CircularProgressWrapper(
-        isLoading = state.saveState is ProcessState.Working,
-        modifier = Modifier
-          .align(Alignment.BottomEnd)
-          .horizontalGutters()
-          .padding(bottom = 16.dp)
+      LightSettingsScreen(
+        title = stringResource(R.string.PrivacySettingsFragment__disappearing_messages),
+        onBack = callback::onNavigationClick,
+        modifier = Modifier.weight(1f)
       ) {
-        Buttons.LargeTonal(
-          onClick = callback::onSaveClick,
-          enabled = state.saveState is ProcessState.Idle
-        ) {
-          Text(text = stringResource(R.string.ExpireTimerSettingsFragment__save))
+        LightSettingsRow(
+          title = stringResource(
+            if (state.isForRecipient) {
+              R.string.ExpireTimerSettingsFragment__when_enabled_new_messages_sent_and_received_in_this_chat_will_disappear_after_they_have_been_seen
+            } else {
+              R.string.ExpireTimerSettingsFragment__when_enabled_new_messages_sent_and_received_in_new_chats_started_by_you_will_disappear_after_they_have_been_seen
+            }
+          ),
+          onClick = null
+        )
+
+        labels.forEachIndexed { index, label ->
+          val seconds = values[index]
+          LightSettingsRadioRow(
+            selected = state.currentTimer == seconds,
+            title = label,
+            onClick = { callback.onTimerSelected(seconds) }
+          )
+        }
+
+        val hasCustomValue = values.none { it == state.currentTimer }
+        val customSummary = if (hasCustomValue) {
+          ExpirationUtil.getExpirationDisplayValue(context, state.currentTimer)
+        } else {
+          null
+        }
+        LightSettingsRadioRow(
+          selected = hasCustomValue,
+          title = stringResource(R.string.ExpireTimerSettingsFragment__custom_time),
+          summary = customSummary,
+          onClick = callback::onCustomTimerClick
+        )
+
+        if (state.saveState is ProcessState.Working) {
+          LightSettingsProgressRow(title = saveLabel)
         }
       }
+
+      LightBottomBar(
+        items = listOf(
+          LightBarButton.Text(
+            text = saveLabel.uppercase(),
+            onClick = if (state.saveState is ProcessState.Idle) callback::onSaveClick else null
+          )
+        )
+      )
     }
   }
 }

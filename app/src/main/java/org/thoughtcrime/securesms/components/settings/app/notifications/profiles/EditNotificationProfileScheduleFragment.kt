@@ -7,28 +7,28 @@ import android.text.SpannableString
 import android.text.format.DateFormat
 import android.text.style.AbsoluteSizeSpan
 import android.view.View
-import android.widget.CheckedTextView
-import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.widget.Toolbar
-import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.DrawableCompat
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.fragment.findNavController
-import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import io.reactivex.rxjava3.kotlin.subscribeBy
-import org.signal.core.ui.logging.LoggingFragment
+import kotlinx.coroutines.rx3.asFlow
+import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.util.concurrent.LifecycleDisposable
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.EditNotificationProfileScheduleViewModel.SaveScheduleResult
+import org.thoughtcrime.securesms.notifications.profiles.NotificationProfileSchedule
 import org.thoughtcrime.securesms.util.ViewUtil
 import org.thoughtcrime.securesms.util.formatHours
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 import org.thoughtcrime.securesms.util.orderOfDaysInWeek
-import org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton
-import org.thoughtcrime.securesms.util.visible
 import java.time.DayOfWeek
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -47,7 +47,7 @@ private val DAY_TO_STARTING_LETTER: Map<DayOfWeek, Int> = mapOf(
 /**
  * Can edit existing or use during create flow to setup a profile schedule.
  */
-class EditNotificationProfileScheduleFragment : LoggingFragment(R.layout.fragment_edit_notification_profile_schedule) {
+class EditNotificationProfileScheduleFragment : ComposeFragment() {
 
   private val viewModel: EditNotificationProfileScheduleViewModel by viewModels(factoryProducer = { EditNotificationProfileScheduleViewModel.Factory(profileId, createMode) })
   private val lifecycleDisposable = LifecycleDisposable()
@@ -57,88 +57,48 @@ class EditNotificationProfileScheduleFragment : LoggingFragment(R.layout.fragmen
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
-    val toolbar: Toolbar = view.findViewById(R.id.toolbar)
-    toolbar.setNavigationOnClickListener { findNavController().navigateUp() }
-
-    val title: View = view.findViewById(R.id.edit_notification_profile_schedule_title)
-    val description: View = view.findViewById(R.id.edit_notification_profile_schedule_description)
-
-    toolbar.title = if (!createMode) getString(R.string.EditNotificationProfileSchedule__schedule) else null
-    title.visible = createMode
-    description.visible = createMode
-
     lifecycleDisposable.bindTo(viewLifecycleOwner.lifecycle)
+  }
 
-    val enableToggle: MaterialSwitch = view.findViewById(R.id.edit_notification_profile_schedule_switch)
-    enableToggle.setOnClickListener { viewModel.setEnabled(enableToggle.isChecked) }
+  @Composable
+  override fun FragmentContent() {
+    val schedule by remember(viewModel) { viewModel.schedule().asFlow() }
+      .collectAsStateWithLifecycle(initialValue = null)
+    var saving by remember { mutableStateOf(false) }
 
-    val startTime: TextView = view.findViewById(R.id.edit_notification_profile_schedule_start_time)
-    val endTime: TextView = view.findViewById(R.id.edit_notification_profile_schedule_end_time)
-
-    val next: CircularProgressMaterialButton = view.findViewById(R.id.edit_notification_profile_schedule__next)
-    next.setOnClickListener {
-      lifecycleDisposable += viewModel.save(createMode)
-        .subscribeBy(
-          onSuccess = { result ->
-            when (result) {
-              SaveScheduleResult.Success -> {
-                if (createMode) {
-                  findNavController().safeNavigate(EditNotificationProfileScheduleFragmentDirections.actionEditNotificationProfileScheduleFragmentToNotificationProfileCreatedFragment(profileId))
-                } else {
-                  findNavController().navigateUp()
+    ScheduleContent(
+      schedule = schedule,
+      createMode = createMode,
+      saving = saving,
+      onBack = { findNavController().navigateUp() },
+      onEnabledChanged = viewModel::setEnabled,
+      onDayChanged = viewModel::toggleDay,
+      onStartTimeClick = { time -> showTimeSelector(true, time) },
+      onEndTimeClick = { time -> showTimeSelector(false, time) },
+      onSave = {
+        if (!saving) {
+          saving = true
+          lifecycleDisposable += viewModel.save(createMode)
+            .doFinally { saving = false }
+            .subscribeBy(
+              onSuccess = { result ->
+                when (result) {
+                  SaveScheduleResult.Success -> {
+                    if (createMode) {
+                      findNavController().safeNavigate(EditNotificationProfileScheduleFragmentDirections.actionEditNotificationProfileScheduleFragmentToNotificationProfileCreatedFragment(profileId))
+                    } else {
+                      findNavController().navigateUp()
+                    }
+                  }
+                  SaveScheduleResult.NoDaysSelected -> {
+                    Toast.makeText(requireContext(), R.string.EditNotificationProfileSchedule__schedule_must_have_at_least_one_day, Toast.LENGTH_LONG).show()
+                  }
                 }
               }
-              SaveScheduleResult.NoDaysSelected -> {
-                Toast.makeText(requireContext(), R.string.EditNotificationProfileSchedule__schedule_must_have_at_least_one_day, Toast.LENGTH_LONG).show()
-              }
-            }
-          }
-        )
-    }
-
-    val day1: CheckedTextView = view.findViewById(R.id.edit_notification_profile_schedule_day_1)
-    val day2: CheckedTextView = view.findViewById(R.id.edit_notification_profile_schedule_day_2)
-    val day3: CheckedTextView = view.findViewById(R.id.edit_notification_profile_schedule_day_3)
-    val day4: CheckedTextView = view.findViewById(R.id.edit_notification_profile_schedule_day_4)
-    val day5: CheckedTextView = view.findViewById(R.id.edit_notification_profile_schedule_day_5)
-    val day6: CheckedTextView = view.findViewById(R.id.edit_notification_profile_schedule_day_6)
-    val day7: CheckedTextView = view.findViewById(R.id.edit_notification_profile_schedule_day_7)
-
-    val days: Map<CheckedTextView, DayOfWeek> = listOf(day1, day2, day3, day4, day5, day6, day7).zip(Locale.getDefault().orderOfDaysInWeek()).toMap()
-
-    days.forEach { (view, day) ->
-      DrawableCompat.setTintList(view.background, ContextCompat.getColorStateList(view.context, R.color.notification_profile_schedule_background_tint))
-      view.setOnClickListener { viewModel.toggleDay(day) }
-      view.setText(DAY_TO_STARTING_LETTER[day]!!)
-    }
-
-    lifecycleDisposable += viewModel.schedule()
-      .subscribeBy(
-        onNext = { schedule ->
-          enableToggle.isChecked = schedule.enabled
-          enableToggle.isEnabled = true
-
-          days.forEach { (view, day) ->
-            view.isChecked = schedule.daysEnabled.contains(day)
-            view.isEnabled = schedule.enabled
-          }
-
-          startTime.text = schedule.startTime().formatTime(view.context)
-          startTime.setOnClickListener { showTimeSelector(true, schedule.startTime()) }
-          startTime.isEnabled = schedule.enabled
-
-          endTime.text = schedule.endTime().formatTime(view.context)
-          endTime.setOnClickListener { showTimeSelector(false, schedule.endTime()) }
-          endTime.isEnabled = schedule.enabled
-
-          if (createMode) {
-            next.setText(if (schedule.enabled) R.string.EditNotificationProfileSchedule__next else R.string.EditNotificationProfileSchedule__skip)
-          } else {
-            next.setText(R.string.EditNotificationProfileSchedule__save)
-          }
-          next.isEnabled = true
+            )
         }
-      )
+      }
+    )
   }
 
   private fun showTimeSelector(isStart: Boolean, time: LocalTime) {
@@ -168,6 +128,104 @@ class EditNotificationProfileScheduleFragment : LoggingFragment(R.layout.fragmen
 
     timePickerFragment.show(childFragmentManager, "TIME_PICKER")
   }
+}
+
+@Composable
+private fun ScheduleContent(
+  schedule: NotificationProfileSchedule?,
+  createMode: Boolean,
+  saving: Boolean,
+  onBack: () -> Unit,
+  onEnabledChanged: (Boolean) -> Unit,
+  onDayChanged: (DayOfWeek) -> Unit,
+  onStartTimeClick: (LocalTime) -> Unit,
+  onEndTimeClick: (LocalTime) -> Unit,
+  onSave: () -> Unit
+) {
+  org.thoughtcrime.securesms.light.MollyLightTheme {
+    org.thoughtcrime.securesms.light.LightSettingsScreen(
+      title = if (createMode) "" else androidx.compose.ui.res.stringResource(R.string.EditNotificationProfileSchedule__schedule),
+      onBack = onBack
+    ) {
+      if (createMode) {
+        org.thoughtcrime.securesms.light.LightSettingsSection(
+          androidx.compose.ui.res.stringResource(R.string.EditNotificationProfileSchedule__add_a_schedule)
+        )
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = androidx.compose.ui.res.stringResource(R.string.EditNotificationProfileSchedule__set_up_a_schedule_to_enable_this_notification_profile_automatically),
+          onClick = null
+        )
+      }
+
+      if (schedule == null) {
+        org.thoughtcrime.securesms.light.LightSettingsProgressRow(
+          title = androidx.compose.ui.res.stringResource(R.string.EditNotificationProfileSchedule__schedule)
+        )
+      } else {
+        org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+          title = androidx.compose.ui.res.stringResource(R.string.EditNotificationProfileSchedule__schedule),
+          checked = schedule.enabled,
+          enabled = !saving,
+          onCheckedChange = onEnabledChanged
+        )
+
+        org.thoughtcrime.securesms.light.LightSettingsSection(
+          androidx.compose.ui.res.stringResource(R.string.EditNotificationProfileSchedule__start)
+        )
+        val startTime = schedule.startTime().formatTime(androidx.compose.ui.platform.LocalContext.current)
+        org.thoughtcrime.securesms.light.LightSettingsValueRow(
+          title = androidx.compose.ui.res.stringResource(R.string.EditNotificationProfileSchedule__start),
+          value = startTime,
+          valueContentDescription = startTime,
+          enabled = schedule.enabled && !saving,
+          onClick = { onStartTimeClick(schedule.startTime()) }
+        )
+
+        val endTime = schedule.endTime().formatTime(androidx.compose.ui.platform.LocalContext.current)
+        org.thoughtcrime.securesms.light.LightSettingsValueRow(
+          title = androidx.compose.ui.res.stringResource(R.string.EditNotificationProfileSchedule__end),
+          value = endTime,
+          valueContentDescription = endTime,
+          enabled = schedule.enabled && !saving,
+          onClick = { onEndTimeClick(schedule.endTime()) }
+        )
+
+        org.thoughtcrime.securesms.light.LightSettingsSection(
+          androidx.compose.ui.res.stringResource(R.string.EditNotificationProfileSchedule__schedule)
+        )
+        Locale.getDefault().orderOfDaysInWeek().forEach { day ->
+          org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+            title = androidx.compose.ui.res.stringResource(DAY_TO_STARTING_LETTER.getValue(day)),
+            checked = schedule.daysEnabled.contains(day),
+            enabled = schedule.enabled && !saving,
+            onCheckedChange = { onDayChanged(day) }
+          )
+        }
+
+        org.thoughtcrime.securesms.light.LightSettingsDivider()
+        if (saving) {
+          org.thoughtcrime.securesms.light.LightSettingsProgressRow(
+            title = saveLabel(createMode, schedule.enabled)
+          )
+        } else {
+          org.thoughtcrime.securesms.light.LightSettingsRow(
+            title = saveLabel(createMode, schedule.enabled),
+            onClick = onSave
+          )
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun saveLabel(createMode: Boolean, scheduleEnabled: Boolean): String {
+  val label = when {
+    !createMode -> R.string.EditNotificationProfileSchedule__save
+    scheduleEnabled -> R.string.EditNotificationProfileSchedule__next
+    else -> R.string.EditNotificationProfileSchedule__skip
+  }
+  return androidx.compose.ui.res.stringResource(label)
 }
 
 private fun LocalTime.formatTime(context: Context): SpannableString {

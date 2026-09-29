@@ -5,6 +5,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.Toolbar
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
@@ -20,7 +25,6 @@ import org.thoughtcrime.securesms.contacts.selection.ContactSelectionArguments
 import org.thoughtcrime.securesms.groups.SelectionLimits
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.util.ViewUtil
-import org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton
 import java.util.Optional
 import java.util.function.Consumer
 
@@ -32,7 +36,8 @@ class SelectRecipientsFragment : LoggingFragment(), ContactSelectionListFragment
   private val viewModel: SelectRecipientsViewModel by viewModels(factoryProducer = this::createFactory)
   private val lifecycleDisposable = LifecycleDisposable()
 
-  private var addToProfile: CircularProgressMaterialButton? = null
+  private var addEnabled by mutableStateOf(false)
+  private var adding by mutableStateOf(false)
 
   private fun createFactory(): ViewModelProvider.Factory {
     val args = SelectRecipientsFragmentArgs.fromBundle(requireArguments())
@@ -82,20 +87,35 @@ class SelectRecipientsFragment : LoggingFragment(), ContactSelectionListFragment
       }
     }
 
-    addToProfile = view.findViewById(R.id.select_recipients_add)
-    addToProfile?.setOnClickListener {
-      lifecycleDisposable += viewModel.updateAllowedMembers()
-        .doOnSubscribe { addToProfile?.setSpinning() }
-        .doOnTerminate { addToProfile?.cancelSpinning() }
-        .subscribeBy(onSuccess = { findNavController().navigateUp() })
+    view.findViewById<ComposeView>(R.id.select_recipients_add).apply {
+      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+      setContent {
+        org.thoughtcrime.securesms.light.MollyLightTheme {
+          if (adding) {
+            org.thoughtcrime.securesms.light.LightSettingsProgressRow(
+              title = getString(R.string.SelectRecipientsFragment__add)
+            )
+          } else {
+            org.thoughtcrime.securesms.light.LightSettingsRow(
+              title = getString(R.string.SelectRecipientsFragment__add),
+              enabled = addEnabled,
+              onClick = { addSelectedRecipients() }
+            )
+          }
+        }
+      }
     }
 
     updateAddToProfile()
   }
 
-  override fun onDestroyView() {
-    super.onDestroyView()
-    addToProfile = null
+  private fun addSelectedRecipients() {
+    if (!addEnabled || adding) return
+
+    lifecycleDisposable += viewModel.updateAllowedMembers()
+      .doOnSubscribe { adding = true }
+      .doFinally { adding = false }
+      .subscribeBy(onSuccess = { findNavController().navigateUp() })
   }
 
   private fun getDefaultDisplayMode(): Int {
@@ -127,8 +147,6 @@ class SelectRecipientsFragment : LoggingFragment(), ContactSelectionListFragment
   override fun onSelectionChanged() = Unit
 
   private fun updateAddToProfile() {
-    val enabled = viewModel.recipients.isNotEmpty()
-    addToProfile?.isEnabled = enabled
-    addToProfile?.alpha = if (enabled) 1f else 0.5f
+    addEnabled = viewModel.recipients.isNotEmpty()
   }
 }

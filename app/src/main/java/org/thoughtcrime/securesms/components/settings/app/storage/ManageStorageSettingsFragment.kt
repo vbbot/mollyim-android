@@ -9,17 +9,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -38,7 +30,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
@@ -54,14 +45,7 @@ import org.signal.core.ui.BottomSheetUtil
 import org.signal.core.ui.compose.Animations
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dialogs
-import org.signal.core.ui.compose.Dividers
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.Rows.TextAndLabel
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.Texts
 import org.signal.core.ui.compose.theme.SignalTheme
 import org.signal.core.util.bytes
 import org.thoughtcrime.securesms.R
@@ -70,6 +54,15 @@ import org.thoughtcrime.securesms.billing.upgrade.UpgradeToPaidTierBottomSheet
 import org.thoughtcrime.securesms.database.MediaTable
 import org.thoughtcrime.securesms.keyvalue.KeepMessagesDuration
 import org.thoughtcrime.securesms.keyvalue.SignalStore
+import org.thoughtcrime.securesms.light.LightConfirmationDialog
+import org.thoughtcrime.securesms.light.LightSettingsDivider
+import org.thoughtcrime.securesms.light.LightSettingsRadioRow
+import org.thoughtcrime.securesms.light.LightSettingsRow
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.LightSettingsSection
+import org.thoughtcrime.securesms.light.LightSettingsToggleRow
+import org.thoughtcrime.securesms.light.LightSettingsValueRow
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.mediaoverview.MediaOverviewActivity
 import org.thoughtcrime.securesms.preferences.widgets.StorageGraphView
 import org.thoughtcrime.securesms.util.viewModel
@@ -157,34 +150,52 @@ class ManageStorageSettingsFragment : ComposeFragment() {
         }
 
         dialog("confirm-delete-chat-history") {
-          Dialogs.SimpleAlertDialog(
+          var advancing by remember { mutableStateOf(false) }
+          LightConfirmationDialog(
             title = stringResource(id = R.string.preferences_storage__delete_message_history),
             body = if (SignalStore.account.isMultiDevice) {
               stringResource(id = R.string.preferences_storage__this_will_delete_all_message_history_and_media_from_your_device_linked_device)
             } else {
               stringResource(id = R.string.preferences_storage__this_will_delete_all_message_history_and_media_from_your_device)
             },
-            confirm = stringResource(id = R.string.delete),
-            confirmColor = MaterialTheme.colorScheme.error,
-            dismiss = stringResource(id = android.R.string.cancel),
-            onConfirm = { navController.navigate("double-confirm-delete-chat-history") },
-            onDismiss = { navController.popBackStack() }
+            confirmLabel = stringResource(id = R.string.delete),
+            dismissLabel = stringResource(id = android.R.string.cancel),
+            onConfirm = { advancing = true },
+            onDismiss = {
+              if (advancing) {
+                advancing = false
+                navController.navigate("double-confirm-delete-chat-history")
+              } else {
+                navController.popBackStack()
+              }
+            },
+            destructive = true
           )
         }
 
         dialog("double-confirm-delete-chat-history", dialogProperties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)) {
-          Dialogs.SimpleAlertDialog(
+          var confirmed by remember { mutableStateOf(false) }
+          LightConfirmationDialog(
             title = stringResource(id = R.string.preferences_storage__are_you_sure_you_want_to_delete_all_message_history),
             body = if (SignalStore.account.isMultiDevice) {
               stringResource(id = R.string.preferences_storage__all_message_history_will_be_permanently_removed_this_action_cannot_be_undone_linked_device)
             } else {
               stringResource(id = R.string.preferences_storage__all_message_history_will_be_permanently_removed_this_action_cannot_be_undone)
             },
-            confirm = stringResource(id = R.string.preferences_storage__delete_all_now),
-            confirmColor = MaterialTheme.colorScheme.error,
-            dismiss = stringResource(id = android.R.string.cancel),
-            onConfirm = { viewModel.deleteChatHistory() },
-            onDismiss = { navController.popBackStack() }
+            confirmLabel = stringResource(id = R.string.preferences_storage__delete_all_now),
+            dismissLabel = stringResource(id = android.R.string.cancel),
+            onConfirm = {
+              confirmed = true
+              viewModel.deleteChatHistory()
+            },
+            onDismiss = {
+              if (confirmed) {
+                navController.popBackStack("manage", inclusive = false)
+              } else {
+                navController.popBackStack()
+              }
+            },
+            destructive = true
           )
         }
 
@@ -194,13 +205,14 @@ class ManageStorageSettingsFragment : ComposeFragment() {
         ) {
           val newDuration = KeepMessagesDuration.fromId(it.arguments!!.getInt("keepMessagesId"))
 
-          Dialogs.SimpleAlertDialog(
+          LightConfirmationDialog(
             title = stringResource(id = R.string.preferences_storage__delete_older_messages),
             body = stringResource(id = R.string.preferences_storage__this_will_permanently_delete_all_message_history_and_media, stringResource(id = newDuration.stringResource)),
-            confirm = stringResource(id = R.string.delete),
-            dismiss = stringResource(id = android.R.string.cancel),
+            confirmLabel = stringResource(id = R.string.delete),
+            dismissLabel = stringResource(id = android.R.string.cancel),
             onConfirm = { viewModel.setKeepMessagesDuration(newDuration) },
-            onDismiss = { navController.popBackStack() }
+            onDismiss = { navController.popBackStack() },
+            destructive = true
           )
         }
 
@@ -210,17 +222,18 @@ class ManageStorageSettingsFragment : ComposeFragment() {
         ) {
           val newLengthLimit = it.arguments!!.getInt("lengthLimit")
 
-          Dialogs.SimpleAlertDialog(
+          LightConfirmationDialog(
             title = stringResource(id = R.string.preferences_storage__delete_older_messages),
             body = pluralStringResource(
               id = R.plurals.preferences_storage__this_will_permanently_trim_all_conversations_to_the_d_most_recent_messages,
               count = newLengthLimit,
               NumberFormat.getInstance().format(newLengthLimit)
             ),
-            confirm = stringResource(id = R.string.delete),
-            dismiss = stringResource(id = android.R.string.cancel),
+            confirmLabel = stringResource(id = R.string.delete),
+            dismissLabel = stringResource(id = android.R.string.cancel),
             onConfirm = { viewModel.setChatLengthLimit(newLengthLimit) },
-            onDismiss = { navController.popBackStack() }
+            onDismiss = { navController.popBackStack() },
+            destructive = true
           )
         }
 
@@ -241,26 +254,35 @@ class ManageStorageSettingsFragment : ComposeFragment() {
         }
 
         dialog("confirm-optimize-with-local-backup") {
-          Dialogs.SimpleAlertDialog(
+          LightConfirmationDialog(
             title = stringResource(id = R.string.ManageStorageSettingsFragment__media_will_be_removed_from_your_on_device_backup),
             body = stringResource(id = R.string.ManageStorageSettingsFragment__turning_on_optimize_signal_storage_will_offload),
-            confirm = stringResource(id = R.string.ManageStorageSettingsFragment__turn_on),
-            dismiss = stringResource(id = android.R.string.cancel),
+            confirmLabel = stringResource(id = R.string.ManageStorageSettingsFragment__turn_on),
+            dismissLabel = stringResource(id = android.R.string.cancel),
             onConfirm = { viewModel.setOptimizeStorage(true) },
             onDismiss = { navController.popBackStack() }
           )
         }
 
         dialog(
-          route = "paid-tier-pending"
+          route = "paid-tier-pending",
+          dialogProperties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-          Dialogs.SimpleAlertDialog(
-            title = "",
-            body = stringResource(R.string.ManageStorageSettingsFragment__storage_optimization_can_only_be_used),
-            confirm = stringResource(android.R.string.ok),
-            onConfirm = {},
-            onDismiss = { navController.popBackStack() }
-          )
+          MollyLightTheme {
+            LightSettingsScreen(
+              title = stringResource(R.string.preferences__storage),
+              onBack = { navController.popBackStack() }
+            ) {
+              LightSettingsRow(
+                title = stringResource(R.string.ManageStorageSettingsFragment__storage_optimization_can_only_be_used),
+                onClick = null
+              )
+              LightSettingsRow(
+                title = stringResource(android.R.string.ok),
+                onClick = { navController.popBackStack() }
+              )
+            }
+          }
         }
       }
     }
@@ -283,68 +305,63 @@ private fun ManageStorageSettingsScreen(
   onDeleteChatHistory: () -> Unit = {},
   onToggleOnDeviceStorageOptimization: (Boolean) -> Unit = {}
 ) {
-  Scaffolds.Settings(
-    title = stringResource(id = R.string.preferences__storage),
-    onNavigationClick = onNavigationClick,
-    navigationIcon = SignalIcons.ArrowStart.imageVector
-  ) { contentPadding ->
-    Column(
-      modifier = Modifier
-        .padding(contentPadding)
-        .verticalScroll(rememberScrollState())
+  MollyLightTheme {
+    LightSettingsScreen(
+      title = stringResource(id = R.string.preferences__storage),
+      onBack = onNavigationClick
     ) {
-      Texts.SectionHeader(text = stringResource(id = R.string.preferences_storage__storage_usage))
+      LightSettingsSection(stringResource(id = R.string.preferences_storage__storage_usage))
 
       StorageOverview(state.breakdown, onReviewStorage)
 
       if (state.onDeviceStorageOptimizationState > ManageStorageSettingsViewModel.OnDeviceStorageOptimizationState.FEATURE_NOT_AVAILABLE) {
-        Dividers.Default()
-
-        Texts.SectionHeader(text = stringResource(id = R.string.ManageStorageSettingsFragment__on_device_storage))
-
-        Rows.ToggleRow(
+        LightSettingsDivider()
+        LightSettingsSection(stringResource(id = R.string.ManageStorageSettingsFragment__on_device_storage))
+        LightSettingsToggleRow(
           checked = state.onDeviceStorageOptimizationState == ManageStorageSettingsViewModel.OnDeviceStorageOptimizationState.ENABLED,
-          text = stringResource(id = R.string.ManageStorageSettingsFragment__optimize_on_device_storage),
-          label = stringResource(id = R.string.ManageStorageSettingsFragment__unused_media_will_be_offloaded),
-          onCheckChanged = onToggleOnDeviceStorageOptimization
+          title = stringResource(id = R.string.ManageStorageSettingsFragment__optimize_on_device_storage),
+          summary = stringResource(id = R.string.ManageStorageSettingsFragment__unused_media_will_be_offloaded),
+          onCheckedChange = onToggleOnDeviceStorageOptimization
         )
       }
 
-      Dividers.Default()
+      LightSettingsDivider()
+      LightSettingsSection(stringResource(id = R.string.ManageStorageSettingsFragment_chat_limit))
 
-      Texts.SectionHeader(text = stringResource(id = R.string.ManageStorageSettingsFragment_chat_limit))
-
-      Rows.TextRow(
-        text = stringResource(id = R.string.preferences__keep_messages),
-        label = stringResource(id = state.keepMessagesDuration.stringResource),
+      val keepMessagesLabel = stringResource(id = state.keepMessagesDuration.stringResource)
+      LightSettingsValueRow(
+        title = stringResource(id = R.string.preferences__keep_messages),
+        value = keepMessagesLabel,
+        valueContentDescription = keepMessagesLabel,
         onClick = onSetKeepMessages
       )
 
-      Rows.TextRow(
-        text = stringResource(id = R.string.preferences__conversation_length_limit),
-        label = if (state.lengthLimit != ManageStorageSettingsViewModel.ManageStorageState.NO_LIMIT) {
-          pluralStringResource(
-            id = R.plurals.preferences_storage__s_messages_plural,
-            count = state.lengthLimit,
-            NumberFormat.getInstance().format(state.lengthLimit)
-          )
-        } else {
-          stringResource(id = R.string.preferences_storage__none)
-        },
+      val lengthLimitLabel = if (state.lengthLimit != ManageStorageSettingsViewModel.ManageStorageState.NO_LIMIT) {
+        pluralStringResource(
+          id = R.plurals.preferences_storage__s_messages_plural,
+          count = state.lengthLimit,
+          NumberFormat.getInstance().format(state.lengthLimit)
+        )
+      } else {
+        stringResource(id = R.string.preferences_storage__none)
+      }
+      LightSettingsValueRow(
+        title = stringResource(id = R.string.preferences__conversation_length_limit),
+        value = lengthLimitLabel,
+        valueContentDescription = lengthLimitLabel,
         onClick = onSetChatLengthLimit
       )
 
-      Rows.ToggleRow(
-        text = stringResource(id = R.string.ManageStorageSettingsFragment_apply_limits_title),
-        label = stringResource(id = R.string.ManageStorageSettingsFragment_apply_limits_description),
+      LightSettingsToggleRow(
+        title = stringResource(id = R.string.ManageStorageSettingsFragment_apply_limits_title),
+        summary = stringResource(id = R.string.ManageStorageSettingsFragment_apply_limits_description),
         checked = state.syncTrimDeletes,
-        onCheckChanged = onSyncTrimThreadDeletes
+        onCheckedChange = onSyncTrimThreadDeletes
       )
 
-      Dividers.Default()
-
-      Rows.TextRow(
-        text = stringResource(id = R.string.ManageStorageSettingsFragment_delete_message_history),
+      LightSettingsDivider()
+      LightSettingsRow(
+        title = stringResource(id = R.string.ManageStorageSettingsFragment_delete_message_history),
         onClick = onDeleteChatHistory
       )
     }
@@ -388,34 +405,22 @@ private fun SetKeepMessagesScreen(
   onNavigationClick: () -> Unit = {},
   onSelectionChanged: (KeepMessagesDuration) -> Unit = {}
 ) {
-  Scaffolds.Settings(
-    title = stringResource(id = R.string.preferences__keep_messages),
-    onNavigationClick = onNavigationClick,
-    navigationIcon = SignalIcons.ArrowStart.imageVector
-  ) { contentPadding ->
-    Column(
-      modifier = Modifier
-        .padding(contentPadding)
-        .verticalScroll(rememberScrollState())
+  MollyLightTheme {
+    LightSettingsScreen(
+      title = stringResource(id = R.string.preferences__keep_messages),
+      onBack = onNavigationClick
     ) {
-      KeepMessagesDuration
-        .entries
-        .forEach {
-          Rows.RadioRow(
-            text = stringResource(id = it.stringResource),
-            selected = it == selection,
-            modifier = Modifier.clickable { onSelectionChanged(it) }
-          )
-        }
+      KeepMessagesDuration.entries.forEach { duration ->
+        LightSettingsRadioRow(
+          title = stringResource(id = duration.stringResource),
+          selected = duration == selection,
+          onClick = { onSelectionChanged(duration) }
+        )
+      }
 
-      Rows.TextRow(
-        text = {
-          Text(
-            text = stringResource(id = R.string.ManageStorageSettingsFragment_keep_messages_duration_warning),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-        }
+      LightSettingsRow(
+        title = stringResource(id = R.string.ManageStorageSettingsFragment_keep_messages_duration_warning),
+        onClick = null
       )
     }
   }
@@ -428,76 +433,48 @@ private fun SetChatLengthLimitScreen(
   onOptionSelected: (Int) -> Unit = {},
   onCustomSelected: (Int) -> Unit = {}
 ) {
-  Scaffolds.Settings(
-    title = stringResource(id = R.string.preferences__conversation_length_limit),
-    onNavigationClick = onNavigationClick,
-    navigationIcon = SignalIcons.ArrowStart.imageVector
-  ) { contentPadding ->
-    Column(
-      modifier = Modifier
-        .padding(contentPadding)
-        .verticalScroll(rememberScrollState())
+  val options = integerArrayResource(id = R.array.conversation_length_limit)
+  val customSelected = currentLimit !in options
+
+  MollyLightTheme {
+    LightSettingsScreen(
+      title = stringResource(id = R.string.preferences__conversation_length_limit),
+      onBack = onNavigationClick
     ) {
-      val options = integerArrayResource(id = R.array.conversation_length_limit)
-      var customSelected = true
-
-      for (option in options) {
-        val isSelected = option == currentLimit
-
-        Rows.RadioRow(
-          selected = isSelected,
-          text = if (option == 0) {
+      options.forEach { option ->
+        LightSettingsRadioRow(
+          selected = option == currentLimit,
+          title = if (option == 0) {
             stringResource(id = R.string.preferences_storage__none)
           } else {
-            pluralStringResource(id = R.plurals.preferences_storage__s_messages_plural, count = option, NumberFormat.getInstance().format(option.toLong()))
+            pluralStringResource(
+              id = R.plurals.preferences_storage__s_messages_plural,
+              count = option,
+              NumberFormat.getInstance().format(option.toLong())
+            )
           },
-          modifier = Modifier.clickable { onOptionSelected(option) }
+          onClick = { onOptionSelected(option) }
         )
-
-        if (isSelected) {
-          customSelected = false
-        }
       }
 
-      Rows.RadioRow(
-        content = {
-          TextAndLabel(
-            text = stringResource(id = R.string.preferences_storage__custom),
-            label = if (customSelected) {
-              pluralStringResource(id = R.plurals.preferences_storage__s_messages_plural, count = currentLimit, NumberFormat.getInstance().format(currentLimit))
-            } else {
-              null
-            }
+      LightSettingsRadioRow(
+        title = stringResource(id = R.string.preferences_storage__custom),
+        summary = if (customSelected) {
+          pluralStringResource(
+            id = R.plurals.preferences_storage__s_messages_plural,
+            count = currentLimit,
+            NumberFormat.getInstance().format(currentLimit)
           )
-
-          if (customSelected) {
-            Dividers.Vertical(
-              modifier = Modifier
-                .padding(horizontal = 8.dp)
-                .height(48.dp)
-            )
-
-            Icon(
-              painter = SignalIcons.Settings.painter,
-              contentDescription = null,
-              modifier = Modifier
-                .clickable { onCustomSelected(currentLimit) }
-                .padding(12.dp)
-            )
-          }
+        } else {
+          null
         },
         selected = customSelected,
-        modifier = Modifier.clickable { onCustomSelected(currentLimit) }
+        onClick = { onCustomSelected(currentLimit) }
       )
 
-      Rows.TextRow(
-        text = {
-          Text(
-            text = stringResource(id = R.string.ManageStorageSettingsFragment_chat_length_limit_warning),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-        }
+      LightSettingsRow(
+        title = stringResource(id = R.string.ManageStorageSettingsFragment_chat_length_limit_warning),
+        onClick = null
       )
     }
   }

@@ -5,10 +5,6 @@
 
 package org.thoughtcrime.securesms.components.settings.app.updates
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -23,12 +19,13 @@ import im.molly.app.base.ApkInfo
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
 import org.thoughtcrime.securesms.BuildConfig
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.compose.rememberStatusBarColorNestedScrollModifier
+import org.thoughtcrime.securesms.light.LightSettingsRow
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.LightSettingsToggleRow
+import org.thoughtcrime.securesms.light.LightSettingsValueRow
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.util.DateUtils
 import java.util.Locale
 
@@ -87,75 +84,57 @@ private fun AppUpdatesSettingsScreen(
   state: AppUpdatesSettingsState,
   callbacks: AppUpdatesSettingsCallbacks
 ) {
-  Scaffolds.Settings(
-    title = stringResource(R.string.preferences_app_updates__title),
-    onNavigationClick = callbacks::onNavigationClick,
-    navigationIcon = SignalIcons.ArrowStart.imageVector
-  ) { paddingValues ->
-
-    LazyColumn(
-      modifier = Modifier
-        .padding(paddingValues)
-        .then(rememberStatusBarColorNestedScrollModifier())
+  MollyLightTheme {
+    LightSettingsScreen(
+      title = stringResource(R.string.preferences_app_updates__title),
+      onBack = callbacks::onNavigationClick
     ) {
       if (!BuildConfig.MANAGE_MOLLY_UPDATES) {
-        item {
-          Rows.TextRow(
-            text = {
-              Text(
-                text = stringResource(R.string.HelpSettingsFragment_for_updates_please_check_your_app_store),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-            }
-          )
-        }
-      }
-
-      item {
-        Rows.TextRow(
-          text = stringResource(R.string.HelpSettingsFragment__version),
-          label = ApkInfo.versionName,
+        LightSettingsRow(
+          title = stringResource(R.string.HelpSettingsFragment_for_updates_please_check_your_app_store),
+          onClick = null
         )
       }
 
+      LightSettingsRow(
+        title = stringResource(R.string.HelpSettingsFragment__version),
+        summary = ApkInfo.versionName,
+        onClick = null
+      )
+
       if (BuildConfig.MANAGE_MOLLY_UPDATES) {
-        item {
-          Rows.ToggleRow(
-            checked = state.autoUpdateEnabled,
-            text = stringResource(R.string.preferences__autoupdate_molly),
-            label = stringResource(R.string.preferences__periodically_check_for_new_releases_and_ask_to_install_them),
-            onCheckChanged = callbacks::onAutoUpdateChanged
-          )
-        }
+        LightSettingsToggleRow(
+          checked = state.autoUpdateEnabled,
+          title = stringResource(R.string.preferences__autoupdate_molly),
+          summary = stringResource(R.string.preferences__periodically_check_for_new_releases_and_ask_to_install_them),
+          onCheckedChange = callbacks::onAutoUpdateChanged
+        )
 
-        item {
-          Rows.ToggleRow(
-            checked = state.includeBetaEnabled,
-            text = stringResource(R.string.preferences__include_beta_updates),
-            label = stringResource(R.string.preferences__beta_versions_are_intended_for_testing_purposes_and_may_contain_bugs),
-            onCheckChanged = callbacks::onIncludeBetaChanged
-          )
-        }
+        LightSettingsToggleRow(
+          checked = state.includeBetaEnabled,
+          title = stringResource(R.string.preferences__include_beta_updates),
+          summary = stringResource(R.string.preferences__beta_versions_are_intended_for_testing_purposes_and_may_contain_bugs),
+          onCheckedChange = callbacks::onIncludeBetaChanged
+        )
 
-        item {
-          val relTime = rememberCheckTime(state.lastCheckedTime)
-          val label = stringResource(
-            R.string.AppUpdatesSettingsFragment__last_checked_s, relTime?.first ?: stringResource(R.string.preferences__never)
-          )
-          val contentDesc = relTime?.second?.let {
-            stringResource(R.string.AppUpdatesSettingsFragment__last_checked_s, it)
-          }
-          Rows.TextRow(
-            text = stringResource(R.string.EnableAppUpdatesMegaphone_check_for_updates),
-            label = label,
-            modifier = Modifier.semantics {
-              contentDescription = contentDesc ?: label
-            },
-            enabled = state.autoUpdateEnabled,
-            onClick = callbacks::onCheckForUpdatesClick
-          )
+        val relTime = rememberCheckTime(state.lastCheckedTime)
+        val label = stringResource(
+          R.string.AppUpdatesSettingsFragment__last_checked_s,
+          relTime?.first ?: stringResource(R.string.preferences__never)
+        )
+        val contentDesc = relTime?.second?.let {
+          stringResource(R.string.AppUpdatesSettingsFragment__last_checked_s, it)
         }
+        LightSettingsValueRow(
+          title = stringResource(R.string.EnableAppUpdatesMegaphone_check_for_updates),
+          value = label,
+          valueContentDescription = contentDesc ?: label,
+          modifier = Modifier.semantics {
+            contentDescription = contentDesc ?: label
+          },
+          enabled = state.autoUpdateEnabled,
+          onClick = callbacks::onCheckForUpdatesClick
+        )
       }
     }
   }

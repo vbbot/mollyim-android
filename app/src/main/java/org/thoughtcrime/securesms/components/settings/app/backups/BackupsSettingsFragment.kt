@@ -9,47 +9,23 @@ import android.content.Context
 import android.os.Bundle
 import android.view.View
 import androidx.activity.result.ActivityResultLauncher
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.unit.dp
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import kotlinx.coroutines.delay
-import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dividers
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
-import org.signal.core.ui.compose.Texts
 import org.signal.core.util.money.FiatMoney
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.backup.DeletionState
@@ -57,6 +33,13 @@ import org.thoughtcrime.securesms.backup.v2.MessageBackupTier
 import org.thoughtcrime.securesms.backup.v2.ui.subscription.MessageBackupsType
 import org.thoughtcrime.securesms.components.settings.app.subscription.MessageBackupsCheckoutLauncher.createBackupsCheckoutLauncher
 import org.thoughtcrime.securesms.keyvalue.SignalStore
+import org.thoughtcrime.securesms.light.LightSettingsDivider
+import org.thoughtcrime.securesms.light.LightSettingsProgressRow
+import org.thoughtcrime.securesms.light.LightSettingsRadioRow
+import org.thoughtcrime.securesms.light.LightSettingsRow
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.LightSettingsSection
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.payments.FiatMoneyUtil
 import org.thoughtcrime.securesms.util.DateUtils
 import org.thoughtcrime.securesms.util.Environment
@@ -64,16 +47,12 @@ import org.thoughtcrime.securesms.util.navigation.safeNavigate
 import java.math.BigDecimal
 import java.util.Currency
 import java.util.Locale
-import kotlin.getValue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import org.signal.core.ui.R as CoreUiR
 
-/**
- * Top-level backups settings screen.
- */
+/** Top-level backups settings screen. */
 class BackupsSettingsFragment : ComposeFragment() {
 
   private lateinit var checkoutLauncher: ActivityResultLauncher<MessageBackupTier?>
@@ -101,14 +80,8 @@ class BackupsSettingsFragment : ComposeFragment() {
       onBackupsRowClick = {
         when (state.backupState) {
           is BackupState.Error -> Unit
-
-          is BackupState.None -> {
-            checkoutLauncher.launch(null)
-          }
-
-          else -> {
-            findNavController().safeNavigate(R.id.action_backupsSettingsFragment_to_remoteBackupsSettingsFragment)
-          }
+          is BackupState.None -> checkoutLauncher.launch(null)
+          else -> findNavController().safeNavigate(R.id.action_backupsSettingsFragment_to_remoteBackupsSettingsFragment)
         }
       },
       onOnDeviceBackupsRowClick = {
@@ -118,7 +91,7 @@ class BackupsSettingsFragment : ComposeFragment() {
           findNavController().safeNavigate(R.id.action_backupsSettingsFragment_to_backupsPreferenceFragment)
         }
       },
-      onBackupTierInternalOverrideChanged = { viewModel.onBackupTierInternalOverrideChanged(it) }
+      onBackupTierInternalOverrideChanged = viewModel::onBackupTierInternalOverrideChanged
     )
   }
 }
@@ -131,456 +104,180 @@ private fun BackupsSettingsContent(
   onOnDeviceBackupsRowClick: () -> Unit = {},
   onBackupTierInternalOverrideChanged: (MessageBackupTier?) -> Unit = {}
 ) {
-  Scaffolds.Settings(
-    title = stringResource(R.string.preferences_chats__backups),
-    navigationIcon = SignalIcons.ArrowStart.imageVector,
-    onNavigationClick = onNavigationClick
-  ) { paddingValues ->
-    LazyColumn(
-      modifier = Modifier.padding(paddingValues)
+  MollyLightTheme {
+    LightSettingsScreen(
+      title = stringResource(R.string.preferences_chats__backups),
+      onBack = onNavigationClick
     ) {
       if (backupsSettingsState.showBackupTierInternalOverride) {
-        item {
-          Column(modifier = Modifier.padding(horizontal = dimensionResource(id = CoreUiR.dimen.gutter))) {
-            Text(
-              text = "ALPHA ONLY",
-              style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-              text = "Use this to override the subscription state to one of your choosing.",
-              style = MaterialTheme.typography.bodyMedium
-            )
-            InternalBackupOverrideRow(backupsSettingsState, onBackupTierInternalOverrideChanged)
-          }
-          Dividers.Default()
-        }
+        LightSettingsSection("ALPHA ONLY")
+        LightSettingsRow(
+          title = "Use this to override the subscription state to one of your choosing.",
+          onClick = null
+        )
+        InternalBackupOverrideRows(backupsSettingsState, onBackupTierInternalOverrideChanged)
+        LightSettingsDivider()
       }
 
-      item {
-        Text(
-          text = stringResource(R.string.RemoteBackupsSettingsFragment__back_up_your_message_history),
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          style = MaterialTheme.typography.bodyMedium,
-          modifier = Modifier.padding(horizontal = dimensionResource(CoreUiR.dimen.gutter), vertical = 16.dp)
-        )
-      }
+      LightSettingsRow(
+        title = stringResource(R.string.RemoteBackupsSettingsFragment__back_up_your_message_history),
+        onClick = null
+      )
 
-      item {
-        when (backupsSettingsState.backupState) {
-          is BackupState.LocalStore -> {
-            LocalStoreBackupRow(
-              backupState = backupsSettingsState.backupState,
-              lastBackupAt = backupsSettingsState.lastBackupAt,
-              onBackupsRowClick = onBackupsRowClick
-            )
-
-            OtherWaysToBackUpHeading()
+      val showOtherWays = when (val backupState = backupsSettingsState.backupState) {
+        is BackupState.LocalStore -> {
+          val plan = when (backupState.tier) {
+            MessageBackupTier.FREE -> stringResource(R.string.RemoteBackupsSettingsFragment__your_backup_plan_is_free)
+            MessageBackupTier.PAID -> stringResource(R.string.MessageBackupsTypeSelectionScreen__text_plus_all_your_media)
           }
-
-          is BackupState.Inactive -> {
-            InactiveBackupsRow(
-              onBackupsRowClick = onBackupsRowClick
-            )
-
-            OtherWaysToBackUpHeading()
-          }
-
-          is BackupState.ActiveFree, is BackupState.ActivePaid, is BackupState.Canceled -> {
-            ActiveBackupsRow(
-              backupState = backupsSettingsState.backupState,
-              onBackupsRowClick = onBackupsRowClick,
-              lastBackupAt = backupsSettingsState.lastBackupAt
-            )
-
-            OtherWaysToBackUpHeading()
-          }
-
-          is BackupState.None -> {
-            if (backupsSettingsState.backupState.featureSupported) {
-              NeverEnabledBackupsRow(
-                onBackupsRowClick = onBackupsRowClick
-              )
-
-              OtherWaysToBackUpHeading()
-            }
-          }
-
-          is BackupState.Error -> {
-            WaitingForNetworkRow(
-              onBackupsRowClick = onBackupsRowClick
-            )
-
-            OtherWaysToBackUpHeading()
-          }
-
-          BackupState.NotFound -> {
-            NotFoundBackupRow(
-              onBackupsRowClick = onBackupsRowClick
-            )
-
-            OtherWaysToBackUpHeading()
-          }
-
-          is BackupState.Pending -> {
-            PendingBackupRow(
-              onBackupsRowClick = onBackupsRowClick
-            )
-
-            OtherWaysToBackUpHeading()
-          }
-
-          is BackupState.SubscriptionMismatchMissingGooglePlay -> {
-            ActiveBackupsRow(
-              backupState = backupsSettingsState.backupState,
-              lastBackupAt = backupsSettingsState.lastBackupAt,
-              onBackupsRowClick = onBackupsRowClick
-            )
-
-            OtherWaysToBackUpHeading()
-          }
-        }
-      }
-
-      item {
-        Rows.TextRow(
-          text = stringResource(R.string.RemoteBackupsSettingsFragment__on_device_backups),
-          icon = ImageVector.vectorResource(CoreUiR.drawable.symbol_device_phone_24),
-          label = stringResource(R.string.RemoteBackupsSettingsFragment__save_your_backups_to),
-          onClick = onOnDeviceBackupsRowClick
-        )
-      }
-    }
-  }
-}
-
-@Composable
-private fun OtherWaysToBackUpHeading() {
-  Dividers.Default()
-
-  Texts.SectionHeader(
-    text = stringResource(R.string.RemoteBackupsSettingsFragment__other_ways_to_backup)
-  )
-}
-
-@Composable
-private fun NeverEnabledBackupsRow(
-  onBackupsRowClick: () -> Unit = {}
-) {
-  Rows.TextRow(
-    modifier = Modifier.wrapContentHeight(),
-    icon = {
-      Box(
-        modifier = Modifier
-          .padding(top = 12.dp)
-          .align(Alignment.Top)
-      ) {
-        Icon(
-          painter = SignalIcons.Backup.painter,
-          contentDescription = null
-        )
-      }
-    },
-    text = {
-      Column {
-        Text(
-          text = stringResource(R.string.RemoteBackupsSettingsFragment__signal_backups),
-          style = MaterialTheme.typography.bodyLarge
-        )
-
-        Text(
-          text = stringResource(R.string.BackupsSettingsFragment_automatic_backups_with_signals),
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          style = MaterialTheme.typography.bodyMedium
-        )
-
-        Buttons.MediumTonal(
-          onClick = onBackupsRowClick,
-          modifier = Modifier.padding(top = 12.dp)
-        ) {
-          Text(
-            text = stringResource(R.string.BackupsSettingsFragment_set_up)
+          BackupPlanRows(
+            summary = "$plan\n${lastBackupSummary(backupsSettingsState.lastBackupAt)}",
+            action = stringResource(R.string.BackupsSettingsFragment_view_settings),
+            onClick = onBackupsRowClick
           )
+          true
+        }
+
+        is BackupState.Inactive -> {
+          BackupPlanRows(
+            summary = stringResource(R.string.RemoteBackupsSettingsFragment__off),
+            action = stringResource(R.string.BackupsSettingsFragment_view_settings),
+            onClick = onBackupsRowClick
+          )
+          true
+        }
+
+        is BackupState.ActiveFree, is BackupState.ActivePaid, is BackupState.Canceled -> {
+          ActiveBackupPlanRows(
+            backupState = backupState as BackupState.WithTypeAndRenewalTime,
+            lastBackupAt = backupsSettingsState.lastBackupAt,
+            onClick = onBackupsRowClick
+          )
+          true
+        }
+
+        is BackupState.None -> {
+          if (backupState.featureSupported) {
+            BackupPlanRows(
+              summary = stringResource(R.string.BackupsSettingsFragment_automatic_backups_with_signals),
+              action = stringResource(R.string.BackupsSettingsFragment_set_up),
+              onClick = onBackupsRowClick
+            )
+            true
+          } else {
+            false
+          }
+        }
+
+        is BackupState.Error -> {
+          LightSettingsProgressRow(
+            title = stringResource(R.string.RemoteBackupsSettingsFragment__waiting_for_network)
+          )
+          true
+        }
+
+        BackupState.NotFound -> {
+          BackupPlanRows(
+            summary = stringResource(R.string.BackupsSettingsFragment_subscription_not_found_on_this_device),
+            action = stringResource(R.string.BackupsSettingsFragment_view_settings),
+            onClick = onBackupsRowClick
+          )
+          true
+        }
+
+        is BackupState.Pending -> {
+          LightSettingsProgressRow(
+            title = stringResource(R.string.RemoteBackupsSettingsFragment__signal_backups),
+            summary = stringResource(R.string.RemoteBackupsSettingsFragment__payment_pending)
+          )
+          LightSettingsRow(
+            title = stringResource(R.string.BackupsSettingsFragment_view_settings),
+            onClick = onBackupsRowClick
+          )
+          true
+        }
+
+        is BackupState.SubscriptionMismatchMissingGooglePlay -> {
+          ActiveBackupPlanRows(
+            backupState = backupState,
+            lastBackupAt = backupsSettingsState.lastBackupAt,
+            onClick = onBackupsRowClick
+          )
+          true
         }
       }
-    }
-  )
-}
 
-@Composable
-private fun WaitingForNetworkRow(onBackupsRowClick: () -> Unit = {}) {
-  Rows.TextRow(
-    text = {
-      Column {
-        Text(text = stringResource(R.string.RemoteBackupsSettingsFragment__waiting_for_network))
-        ViewSettingsButton(onBackupsRowClick)
+      if (showOtherWays) {
+        LightSettingsDivider()
+        LightSettingsSection(stringResource(R.string.RemoteBackupsSettingsFragment__other_ways_to_backup))
       }
-    },
-    icon = {
-      CircularProgressIndicator()
-    }
-  )
-}
 
-@Composable
-private fun InactiveBackupsRow(
-  onBackupsRowClick: () -> Unit = {}
-) {
-  Rows.TextRow(
-    text = {
-      Column {
-        Text(
-          text = stringResource(R.string.RemoteBackupsSettingsFragment__signal_backups),
-          style = MaterialTheme.typography.bodyLarge
-        )
-
-        Text(
-          text = stringResource(R.string.RemoteBackupsSettingsFragment__off),
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        ViewSettingsButton(onBackupsRowClick)
-      }
-    },
-    icon = {
-      Icon(
-        imageVector = SignalIcons.Backup.imageVector,
-        contentDescription = stringResource(R.string.preferences_chats__backups),
-        tint = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier
-          .padding(top = 12.dp)
-          .align(Alignment.Top)
+      LightSettingsRow(
+        title = stringResource(R.string.RemoteBackupsSettingsFragment__on_device_backups),
+        summary = stringResource(R.string.RemoteBackupsSettingsFragment__save_your_backups_to),
+        onClick = onOnDeviceBackupsRowClick
       )
     }
-  )
-}
-
-@Composable
-private fun NotFoundBackupRow(
-  onBackupsRowClick: () -> Unit = {}
-) {
-  Rows.TextRow(
-    modifier = Modifier.wrapContentHeight(),
-    icon = {
-      Box(
-        modifier = Modifier
-          .padding(top = 12.dp)
-          .align(Alignment.Top)
-      ) {
-        Icon(
-          painter = SignalIcons.Backup.painter,
-          contentDescription = null
-        )
-      }
-    },
-    text = {
-      Column {
-        Text(
-          text = stringResource(R.string.RemoteBackupsSettingsFragment__signal_backups),
-          style = MaterialTheme.typography.bodyLarge
-        )
-
-        Text(
-          text = stringResource(R.string.BackupsSettingsFragment_subscription_not_found_on_this_device),
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        ViewSettingsButton(onBackupsRowClick)
-      }
-    }
-  )
-}
-
-@Composable
-private fun PendingBackupRow(
-  onBackupsRowClick: () -> Unit = {}
-) {
-  Rows.TextRow(
-    modifier = Modifier.wrapContentHeight(),
-    icon = {
-      Box(
-        modifier = Modifier
-          .padding(top = 12.dp)
-          .align(Alignment.Top)
-      ) {
-        CircularProgressIndicator(
-          modifier = Modifier.size(24.dp)
-        )
-      }
-    },
-    text = {
-      Column {
-        Text(
-          text = stringResource(R.string.RemoteBackupsSettingsFragment__signal_backups),
-          style = MaterialTheme.typography.bodyLarge
-        )
-
-        Text(
-          text = stringResource(R.string.RemoteBackupsSettingsFragment__payment_pending),
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          style = MaterialTheme.typography.bodyMedium
-        )
-
-        ViewSettingsButton(onBackupsRowClick)
-      }
-    }
-  )
-}
-
-@Composable
-private fun ViewSettingsButton(onClick: () -> Unit) {
-  Buttons.MediumTonal(
-    onClick = onClick,
-    modifier = Modifier.padding(top = 12.dp)
-  ) {
-    Text(
-      text = stringResource(R.string.BackupsSettingsFragment_view_settings)
-    )
   }
 }
 
 @Composable
-private fun LocalStoreBackupRow(
-  backupState: BackupState.LocalStore,
-  lastBackupAt: Duration,
-  onBackupsRowClick: () -> Unit
+private fun BackupPlanRows(
+  summary: String,
+  action: String,
+  onClick: () -> Unit
 ) {
-  Rows.TextRow(
-    modifier = Modifier.wrapContentHeight(),
-    icon = {
-      Box(
-        modifier = Modifier
-          .padding(top = 12.dp)
-          .align(Alignment.Top)
-      ) {
-        Icon(
-          painter = SignalIcons.Backup.painter,
-          contentDescription = null
-        )
-      }
-    },
-    text = {
-      Column {
-        Text(
-          text = stringResource(R.string.RemoteBackupsSettingsFragment__signal_backups),
-          style = MaterialTheme.typography.bodyLarge
-        )
-
-        val tierText = when (backupState.tier) {
-          MessageBackupTier.FREE -> stringResource(R.string.RemoteBackupsSettingsFragment__your_backup_plan_is_free)
-          MessageBackupTier.PAID -> stringResource(R.string.MessageBackupsTypeSelectionScreen__text_plus_all_your_media)
-        }
-
-        Text(
-          text = tierText,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          style = MaterialTheme.typography.bodyMedium
-        )
-
-        LastBackedUpText(lastBackupAt)
-        ViewSettingsButton(onBackupsRowClick)
-      }
-    }
+  LightSettingsRow(
+    title = stringResource(R.string.RemoteBackupsSettingsFragment__signal_backups),
+    summary = summary,
+    onClick = onClick
   )
+  LightSettingsRow(title = action, onClick = onClick)
 }
 
 @Composable
-private fun ActiveBackupsRow(
+private fun ActiveBackupPlanRows(
   backupState: BackupState.WithTypeAndRenewalTime,
   lastBackupAt: Duration,
-  onBackupsRowClick: () -> Unit = {}
+  onClick: () -> Unit
 ) {
-  Rows.TextRow(
-    modifier = Modifier.wrapContentHeight(),
-    icon = {
-      Box(
-        modifier = Modifier
-          .padding(top = 12.dp)
-          .align(Alignment.Top)
-      ) {
-        Icon(
-          painter = SignalIcons.Backup.painter,
-          contentDescription = null
-        )
-      }
-    },
-    text = {
-      Column {
-        Text(
-          text = stringResource(R.string.RemoteBackupsSettingsFragment__signal_backups),
-          style = MaterialTheme.typography.bodyLarge
-        )
-
-        val locale = LocalLocale.current.platformLocale
-        when (val type = backupState.messageBackupsType) {
-          is MessageBackupsType.Paid -> {
-            val body = if (backupState is BackupState.Canceled) {
-              stringResource(R.string.BackupsSettingsFragment__subscription_canceled)
-            } else if (type.pricePerMonth.amount == BigDecimal.ZERO) {
-              stringResource(
-                R.string.BackupsSettingsFragment_renews_s,
-                DateUtils.formatDateWithYear(locale, backupState.renewalTime.inWholeMilliseconds)
-              )
-            } else {
-              stringResource(
-                R.string.BackupsSettingsFragment_s_month_renews_s,
-                FiatMoneyUtil.format(LocalContext.current.resources, type.pricePerMonth),
-                DateUtils.formatDateWithYear(locale, backupState.renewalTime.inWholeMilliseconds)
-              )
-            }
-
-            val color = if (backupState is BackupState.Canceled) {
-              MaterialTheme.colorScheme.error
-            } else {
-              MaterialTheme.colorScheme.onSurfaceVariant
-            }
-
-            Text(
-              text = body,
-              color = color,
-              style = MaterialTheme.typography.bodyMedium
-            )
-          }
-
-          is MessageBackupsType.Free -> {
-            Text(
-              text = stringResource(
-                R.string.RemoteBackupsSettingsFragment__your_backup_plan_is_free
-              ),
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              style = MaterialTheme.typography.bodyMedium
-            )
-          }
-        }
-
-        LastBackedUpText(lastBackupAt)
-
-        ViewSettingsButton(onBackupsRowClick)
-      }
+  val locale = LocalLocale.current.platformLocale
+  val planSummary = when (val type = backupState.messageBackupsType) {
+    is MessageBackupsType.Free -> stringResource(R.string.RemoteBackupsSettingsFragment__your_backup_plan_is_free)
+    is MessageBackupsType.Paid -> when {
+      backupState is BackupState.Canceled -> stringResource(R.string.BackupsSettingsFragment__subscription_canceled)
+      type.pricePerMonth.amount == BigDecimal.ZERO -> stringResource(
+        R.string.BackupsSettingsFragment_renews_s,
+        DateUtils.formatDateWithYear(locale, backupState.renewalTime.inWholeMilliseconds)
+      )
+      else -> stringResource(
+        R.string.BackupsSettingsFragment_s_month_renews_s,
+        FiatMoneyUtil.format(LocalContext.current.resources, type.pricePerMonth),
+        DateUtils.formatDateWithYear(locale, backupState.renewalTime.inWholeMilliseconds)
+      )
     }
+  }
+
+  BackupPlanRows(
+    summary = "$planSummary\n${lastBackupSummary(lastBackupAt)}",
+    action = stringResource(R.string.BackupsSettingsFragment_view_settings),
+    onClick = onClick
   )
 }
 
 @Composable
-private fun LastBackedUpText(lastBackupAt: Duration) {
+private fun lastBackupSummary(lastBackupAt: Duration): String {
   val context = LocalContext.current
-
-  var lastBackupString by remember(lastBackupAt) { mutableStateOf(calculateLastBackupTimeString(context, lastBackupAt)) }
+  var label by remember(lastBackupAt) { mutableStateOf(calculateLastBackupTimeString(context, lastBackupAt)) }
 
   LaunchedEffect(lastBackupAt) {
     while (true) {
       delay(1.minutes)
-      lastBackupString = calculateLastBackupTimeString(context, lastBackupAt)
+      label = calculateLastBackupTimeString(context, lastBackupAt)
     }
   }
 
-  Text(
-    text = stringResource(
-      R.string.BackupsSettingsFragment_last_backup_s,
-      lastBackupString
-    ),
-    color = MaterialTheme.colorScheme.onSurfaceVariant,
-    style = MaterialTheme.typography.bodyMedium
-  )
+  return stringResource(R.string.BackupsSettingsFragment_last_backup_s, label)
 }
 
 private fun calculateLastBackupTimeString(context: Context, lastBackupAt: Duration): String {
@@ -595,9 +292,7 @@ private fun calculateLastBackupTimeString(context: Context, lastBackupAt: Durati
       relativeTime.value
     } else {
       val day = DateUtils.getDayPrecisionTimeString(context, Locale.getDefault(), lastBackupAt.inWholeMilliseconds)
-      val time = relativeTime.value
-
-      context.getString(R.string.RemoteBackupsSettingsFragment__s_at_s, day, time)
+      context.getString(R.string.RemoteBackupsSettingsFragment__s_at_s, day, relativeTime.value)
     }
   } else {
     context.getString(R.string.RemoteBackupsSettingsFragment__never)
@@ -605,29 +300,27 @@ private fun calculateLastBackupTimeString(context: Context, lastBackupAt: Durati
 }
 
 @Composable
-private fun InternalBackupOverrideRow(
+private fun InternalBackupOverrideRows(
   backupsSettingsState: BackupsSettingsState,
   onBackupTierInternalOverrideChanged: (MessageBackupTier?) -> Unit = {}
 ) {
   val options = remember {
-    mapOf(
+    listOf(
       "Unset" to null,
       "Free" to MessageBackupTier.FREE,
       "Paid" to MessageBackupTier.PAID
     )
   }
-
   val deletionState by SignalStore.backup.deletionStateFlow.collectAsStateWithLifecycle(SignalStore.backup.deletionState)
+  val enabled = deletionState == DeletionState.NONE || deletionState == DeletionState.COMPLETE
 
-  Row(verticalAlignment = Alignment.CenterVertically) {
-    options.forEach { option ->
-      RadioButton(
-        enabled = deletionState == DeletionState.NONE || deletionState == DeletionState.COMPLETE,
-        selected = option.value == backupsSettingsState.backupTierInternalOverride,
-        onClick = { onBackupTierInternalOverrideChanged(option.value) }
-      )
-      Text(option.key)
-    }
+  options.forEach { (label, tier) ->
+    LightSettingsRadioRow(
+      title = label,
+      selected = tier == backupsSettingsState.backupTierInternalOverride,
+      enabled = enabled,
+      onClick = { onBackupTierInternalOverrideChanged(tier) }
+    )
   }
 }
 
@@ -649,114 +342,5 @@ private fun BackupsSettingsContentPreview() {
         lastBackupAt = 0.seconds
       )
     )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun BackupsSettingsContentBackupTierInternalOverridePreview() {
-  Previews.Preview {
-    BackupsSettingsContent(
-      backupsSettingsState = BackupsSettingsState(
-        backupState = BackupState.None(featureSupported = true),
-        showBackupTierInternalOverride = true,
-        backupTierInternalOverride = null,
-        lastBackupAt = 0.seconds
-      )
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun WaitingForNetworkRowPreview() {
-  Previews.Preview {
-    WaitingForNetworkRow()
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun InactiveBackupsRowPreview() {
-  Previews.Preview {
-    InactiveBackupsRow()
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun NotFoundBackupRowPreview() {
-  Previews.Preview {
-    NotFoundBackupRow()
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun PendingBackupRowPreview() {
-  Previews.Preview {
-    PendingBackupRow()
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun ActivePaidBackupsRowPreview() {
-  Previews.Preview {
-    ActiveBackupsRow(
-      backupState = BackupState.ActivePaid(
-        messageBackupsType = MessageBackupsType.Paid(
-          pricePerMonth = FiatMoney(BigDecimal.valueOf(4), Currency.getInstance("CAD")),
-          storageAllowanceBytes = 1_000_000,
-          mediaTtl = 30.days
-        ),
-        renewalTime = 0.seconds,
-        price = FiatMoney(BigDecimal.valueOf(4), Currency.getInstance("CAD"))
-      ),
-      lastBackupAt = 0.seconds
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun ActivePaidBackupsRowNoPricePreview() {
-  Previews.Preview {
-    ActiveBackupsRow(
-      backupState = BackupState.ActivePaid(
-        messageBackupsType = MessageBackupsType.Paid(
-          pricePerMonth = FiatMoney(BigDecimal.ZERO, Currency.getInstance("CAD")),
-          storageAllowanceBytes = 1_000_000,
-          mediaTtl = 30.days
-        ),
-        renewalTime = 0.seconds,
-        price = FiatMoney(BigDecimal.valueOf(4), Currency.getInstance("CAD"))
-      ),
-      lastBackupAt = 0.seconds
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun ActiveFreeBackupsRowPreview() {
-  Previews.Preview {
-    ActiveBackupsRow(
-      backupState = BackupState.ActiveFree(
-        messageBackupsType = MessageBackupsType.Free(
-          mediaRetentionDays = 30
-        ),
-        renewalTime = 0.seconds
-      ),
-      lastBackupAt = 0.seconds
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun NeverEnabledBackupsRowPreview() {
-  Previews.Preview {
-    NeverEnabledBackupsRow()
   }
 }

@@ -7,12 +7,9 @@ package org.thoughtcrime.securesms.components.settings.app.backups.local
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.net.Uri
-import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.navigation.fragment.findNavController
-import com.google.android.material.timepicker.MaterialTimePicker
-import com.google.android.material.timepicker.TimeFormat
 import org.signal.core.ui.permissions.Permissions
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
@@ -28,7 +25,7 @@ sealed interface LocalBackupsSettingsCallback {
   fun onNavigationClick()
   fun onTurnOnClick()
   fun onCreateBackupClick()
-  fun onPickTimeClick()
+  fun onBackupTimeSelected(hour: Int, minute: Int)
   fun onViewBackupKeyClick()
   fun onLearnMoreClick()
   fun onLaunchBackupLocationPickerClick()
@@ -39,7 +36,7 @@ sealed interface LocalBackupsSettingsCallback {
     override fun onNavigationClick() = Unit
     override fun onTurnOnClick() = Unit
     override fun onCreateBackupClick() = Unit
-    override fun onPickTimeClick() = Unit
+    override fun onBackupTimeSelected(hour: Int, minute: Int) = Unit
     override fun onViewBackupKeyClick() = Unit
     override fun onLearnMoreClick() = Unit
     override fun onLaunchBackupLocationPickerClick() = Unit
@@ -71,28 +68,11 @@ class DefaultLocalBackupsSettingsCallback(
     }
   }
 
-  override fun onPickTimeClick() {
-    val timeFormat = if (DateFormat.is24HourFormat(fragment.requireContext())) {
-      TimeFormat.CLOCK_24H
-    } else {
-      TimeFormat.CLOCK_12H
-    }
-
-    val picker = MaterialTimePicker.Builder()
-      .setTimeFormat(timeFormat)
-      .setHour(SignalStore.settings.backupHour)
-      .setMinute(SignalStore.settings.backupMinute)
-      .setTitleText(R.string.BackupsPreferenceFragment__set_backup_time)
-      .build()
-
-    picker.addOnPositiveButtonClickListener {
-      SignalStore.settings.setBackupSchedule(picker.hour, picker.minute)
-      TextSecurePreferences.setNextBackupTime(fragment.requireContext(), 0)
-      LocalBackupListener.schedule(fragment.requireContext())
-      viewModel.refreshSettingsState()
-    }
-
-    picker.show(fragment.childFragmentManager, "TIME_PICKER")
+  override fun onBackupTimeSelected(hour: Int, minute: Int) {
+    SignalStore.settings.setBackupSchedule(hour, minute)
+    TextSecurePreferences.setNextBackupTime(fragment.requireContext(), 0)
+    LocalBackupListener.schedule(fragment.requireContext())
+    viewModel.refreshSettingsState()
   }
 
   override fun onCreateBackupClick() {

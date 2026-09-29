@@ -10,11 +10,13 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -47,6 +49,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightIcons
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.LightTopBar
+import com.thelightphone.sdk.ui.LightTopBarCenter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,6 +89,7 @@ import org.thoughtcrime.securesms.giph.mp4.GiphyMp4ProjectionRecycler
 import org.thoughtcrime.securesms.groups.GroupId
 import org.thoughtcrime.securesms.groups.GroupMigrationMembershipChange
 import org.thoughtcrime.securesms.linkpreview.LinkPreview
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.mediapreview.MediaIntentFactory
 import org.thoughtcrime.securesms.polls.PollOption
 import org.thoughtcrime.securesms.polls.PollRecord
@@ -117,7 +127,7 @@ class StarredMessagesActivity : PassphraseRequiredActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?, ready: Boolean) {
     setContent {
-      SignalTheme {
+      MollyLightTheme {
         StarredMessagesScreen(
           viewModel = viewModel,
           onNavigateBack = { supportFinishAfterTransition() },
@@ -145,7 +155,6 @@ class StarredMessagesActivity : PassphraseRequiredActivity() {
   }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StarredMessagesScreen(
   viewModel: StarredMessagesViewModel,
@@ -155,25 +164,25 @@ private fun StarredMessagesScreen(
   val messages by viewModel.getMessages().collectAsStateWithLifecycle(initialValue = null)
   val scope = rememberCoroutineScope()
   val context = LocalContext.current
-  val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
-  Scaffold(
-    topBar = {
-      Scaffolds.DefaultTopAppBar(
-        title = stringResource(R.string.StarredMessagesActivity__starred_messages),
-        titleContent = { _, title -> Text(text = title, style = MaterialTheme.typography.titleLarge) },
-        navigationIcon = SignalIcons.ArrowStart.imageVector,
-        navigationContentDescription = stringResource(R.string.DefaultTopAppBar__navigate_up_content_description),
-        onNavigationClick = onNavigateBack,
-        scrollBehavior = scrollBehavior
-      )
-    },
-    modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
-  ) { padding ->
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(LightThemeTokens.colors.background)
+  ) {
+    LightTopBar(
+      leftButton = LightBarButton.LightIcon(
+        icon = LightIcons.BACK,
+        onClick = onNavigateBack,
+        contentDescription = stringResource(R.string.DefaultTopAppBar__navigate_up_content_description)
+      ),
+      center = LightTopBarCenter.Text(stringResource(R.string.StarredMessagesActivity__starred_messages))
+    )
+
     Box(
       modifier = Modifier
-        .padding(padding)
-        .fillMaxSize()
+        .weight(1f)
+        .fillMaxWidth()
     ) {
       when {
         messages == null -> {
@@ -181,7 +190,7 @@ private fun StarredMessagesScreen(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
           ) {
-            CircularProgressIndicator()
+            LightText(text = stringResource(R.string.LinkDeviceFragment__loading), variant = LightTextVariant.Copy)
           }
         }
 
@@ -306,28 +315,25 @@ private fun EmptyState(modifier: Modifier = Modifier) {
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.Center
   ) {
-    Icon(
-      painter = painterResource(R.drawable.symbol_star_24),
-      contentDescription = null,
-      modifier = Modifier
-        .size(48.dp)
-        .alpha(0.5f),
-      tint = MaterialTheme.colorScheme.onSurface
+    LightText(
+      text = "☆",
+      variant = LightTextVariant.Title,
+      lighten = true
     )
 
     Spacer(modifier = Modifier.height(16.dp))
 
-    Text(
+    LightText(
       text = stringResource(R.string.StarredMessagesFragment__no_starred_messages),
-      style = MaterialTheme.typography.headlineMedium
+      variant = LightTextVariant.Heading
     )
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    Text(
+    LightText(
       text = stringResource(R.string.StarredMessagesFragment__tap_and_hold_on_a_message_to_star_it),
-      style = MaterialTheme.typography.bodyLarge,
-      modifier = Modifier.alpha(0.7f)
+      variant = LightTextVariant.Copy,
+      lighten = true
     )
   }
 }

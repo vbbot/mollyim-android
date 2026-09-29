@@ -187,205 +187,127 @@ fun AccountSettingsScreen(
   state: AccountSettingsState,
   callbacks: AccountSettingsScreenCallbacks
 ) {
-  Scaffolds.Settings(
-    title = stringResource(R.string.AccountSettingsFragment__account),
-    onNavigationClick = callbacks::onNavigationClick,
-    navigationIcon = ImageVector.vectorResource(R.drawable.ic_arrow_left_24)
-  ) { contentPadding ->
-    LazyColumn(
-      modifier = Modifier
-        .padding(contentPadding)
-        .then(rememberStatusBarColorNestedScrollModifier())
-        .testTag(AccountSettingsTestTags.SCROLLER)
+  org.thoughtcrime.securesms.light.MollyLightTheme {
+    org.thoughtcrime.securesms.light.LightSettingsScreen(
+      title = stringResource(R.string.AccountSettingsFragment__account),
+      onBack = callbacks::onNavigationClick,
+      modifier = Modifier.testTag(AccountSettingsTestTags.SCROLLER)
     ) {
-      item {
-        Texts.SectionHeader(
-          text = stringResource(R.string.preferences_app_protection__signal_pin)
-        )
-      }
+      org.thoughtcrime.securesms.light.LightSettingsSection(
+        stringResource(R.string.preferences_app_protection__signal_pin)
+      )
 
       if (state.isLinkedDevice) {
-        item {
-          Rows.TextRow(
-            text = stringResource(R.string.AccountSettingsFragment_pin_settings_cannot_be_changed_from_a_linked_device),
-          )
-        }
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.AccountSettingsFragment_pin_settings_cannot_be_changed_from_a_linked_device),
+          onClick = null
+        )
       } else {
-        item {
-          @StringRes val textId = if (state.hasPin || state.hasRestoredAep) {
-            R.string.preferences_app_protection__change_your_pin
-          } else {
-            R.string.preferences_app_protection__create_a_pin
-          }
-
-          Rows.TextRow(
-            text = stringResource(textId),
-            enabled = state.isNotDeprecatedOrUnregistered(),
-            onClick = {
-              if (state.hasPin) {
-                callbacks.onChangePinClick()
-              } else {
-                callbacks.onCreatePinClick()
-              }
-            },
-            modifier = Modifier.testTag(AccountSettingsTestTags.ROW_MODIFY_PIN)
-          )
+        @StringRes val pinLabel = if (state.hasPin || state.hasRestoredAep) {
+          R.string.preferences_app_protection__change_your_pin
+        } else {
+          R.string.preferences_app_protection__create_a_pin
         }
-
-        item {
-          Rows.ToggleRow(
-            text = stringResource(R.string.preferences_app_protection__pin_reminders),
-            label = stringResource(R.string.AccountSettingsFragment__youll_be_asked_less_frequently),
-            checked = state.hasPin && state.pinRemindersEnabled,
-            enabled = state.hasPin && state.isNotDeprecatedOrUnregistered(),
-            onCheckChanged = callbacks::setPinRemindersEnabled,
-            modifier = Modifier.testTag(AccountSettingsTestTags.ROW_PIN_REMINDER)
-          )
-        }
-
-        item {
-          Rows.ToggleRow(
-            text = stringResource(R.string.preferences_app_protection__registration_lock),
-            label = stringResource(R.string.AccountSettingsFragment__require_your_signal_pin),
-            checked = state.registrationLockEnabled,
-            enabled = state.hasPin && state.isNotDeprecatedOrUnregistered(),
-            onCheckChanged = callbacks::setRegistrationLockEnabled,
-            modifier = Modifier.testTag(AccountSettingsTestTags.ROW_REGISTRATION_LOCK)
-          )
-        }
-
-        item {
-          Rows.TextRow(
-            text = stringResource(R.string.preferences__advanced_pin_settings),
-            enabled = state.isNotDeprecatedOrUnregistered(),
-            onClick = callbacks::openAdvancedPinSettings,
-            modifier = Modifier.testTag(AccountSettingsTestTags.ROW_ADVANCED_PIN_SETTINGS)
-          )
-        }
-      }
-
-      item {
-        Dividers.Default()
-      }
-
-      item {
-        Texts.SectionHeader(
-          text = stringResource(R.string.AccountSettingsFragment__account)
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(pinLabel),
+          enabled = state.isNotDeprecatedOrUnregistered(),
+          onClick = if (state.hasPin) callbacks::onChangePinClick else callbacks::onCreatePinClick,
+          modifier = Modifier.testTag(AccountSettingsTestTags.ROW_MODIFY_PIN)
+        )
+        org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+          title = stringResource(R.string.preferences_app_protection__pin_reminders),
+          summary = stringResource(R.string.AccountSettingsFragment__youll_be_asked_less_frequently),
+          checked = state.hasPin && state.pinRemindersEnabled,
+          enabled = state.hasPin && state.isNotDeprecatedOrUnregistered(),
+          onCheckedChange = callbacks::setPinRemindersEnabled,
+          modifier = Modifier.testTag(AccountSettingsTestTags.ROW_PIN_REMINDER)
+        )
+        org.thoughtcrime.securesms.light.LightSettingsToggleRow(
+          title = stringResource(R.string.preferences_app_protection__registration_lock),
+          summary = stringResource(R.string.AccountSettingsFragment__require_your_signal_pin),
+          checked = state.registrationLockEnabled,
+          enabled = state.hasPin && state.isNotDeprecatedOrUnregistered(),
+          onCheckedChange = callbacks::setRegistrationLockEnabled,
+          modifier = Modifier.testTag(AccountSettingsTestTags.ROW_REGISTRATION_LOCK)
+        )
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.preferences__advanced_pin_settings),
+          enabled = state.isNotDeprecatedOrUnregistered(),
+          onClick = callbacks::openAdvancedPinSettings,
+          modifier = Modifier.testTag(AccountSettingsTestTags.ROW_ADVANCED_PIN_SETTINGS)
         )
       }
+
+      org.thoughtcrime.securesms.light.LightSettingsDivider()
+      org.thoughtcrime.securesms.light.LightSettingsSection(
+        stringResource(R.string.AccountSettingsFragment__account)
+      )
 
       if (!state.userUnregistered) {
-        item {
-          Rows.TextRow(
-            text = stringResource(R.string.AccountSettingsFragment__change_phone_number),
-            enabled = state.isNotDeprecatedOrUnregistered() && !state.isLinkedDevice,
-            onClick = callbacks::openChangeNumberFlow,
-            modifier = Modifier.testTag(AccountSettingsTestTags.ROW_CHANGE_PHONE_NUMBER)
-          )
-        }
-      }
-
-      item {
-        Rows.TextRow(
-          text = stringResource(R.string.preferences_chats__transfer_account),
-          label = stringResource(R.string.preferences_chats__transfer_account_to_a_new_android_device),
-          enabled = state.canTransferWhileUnregistered || state.isNotDeprecatedOrUnregistered() && !state.isLinkedDevice,
-          onClick = callbacks::openDeviceTransferFlow,
-          modifier = Modifier.testTag(AccountSettingsTestTags.ROW_TRANSFER_ACCOUNT)
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.AccountSettingsFragment__change_phone_number),
+          enabled = state.isNotDeprecatedOrUnregistered() && !state.isLinkedDevice,
+          onClick = callbacks::openChangeNumberFlow,
+          modifier = Modifier.testTag(AccountSettingsTestTags.ROW_CHANGE_PHONE_NUMBER)
         )
       }
-
-      item {
-        Rows.TextRow(
-          text = stringResource(R.string.AccountSettingsFragment__request_account_data),
-          enabled = state.isNotDeprecatedOrUnregistered(),
-          onClick = callbacks::openExportAccountDataFlow,
-          modifier = Modifier.testTag(AccountSettingsTestTags.ROW_REQUEST_ACCOUNT_DATA)
-        )
-      }
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences_chats__transfer_account),
+        summary = stringResource(R.string.preferences_chats__transfer_account_to_a_new_android_device),
+        enabled = state.canTransferWhileUnregistered || state.isNotDeprecatedOrUnregistered() && !state.isLinkedDevice,
+        onClick = callbacks::openDeviceTransferFlow,
+        modifier = Modifier.testTag(AccountSettingsTestTags.ROW_TRANSFER_ACCOUNT)
+      )
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.AccountSettingsFragment__request_account_data),
+        enabled = state.isNotDeprecatedOrUnregistered(),
+        onClick = callbacks::openExportAccountDataFlow,
+        modifier = Modifier.testTag(AccountSettingsTestTags.ROW_REQUEST_ACCOUNT_DATA)
+      )
 
       if (!state.isNotDeprecatedOrUnregistered()) {
         if (state.clientDeprecated) {
-          item {
-            Rows.TextRow(
-              text = stringResource(R.string.preferences_account_update_signal),
-              onClick = callbacks::openUpdateAppFlow,
-              modifier = Modifier.testTag(AccountSettingsTestTags.ROW_UPDATE_SIGNAL)
-            )
-          }
-        } else if (state.userUnregistered) {
-          item {
-            Rows.TextRow(
-              text = stringResource(R.string.preferences_account_reregister),
-              onClick = callbacks::openReRegistrationFlow,
-              modifier = Modifier.testTag(AccountSettingsTestTags.ROW_RE_REGISTER)
-            )
-          }
-        }
-
-        item {
-          var displayDialog by remember { mutableStateOf(false) }
-
-          Rows.TextRow(
-            text = {
-              Text(
-                text = stringResource(R.string.preferences_account_delete_all_data),
-                style = MaterialTheme.typography.bodyLarge,
-                color = colorResource(R.color.signal_alert_primary)
-              )
-            },
-            onClick = {
-              displayDialog = true
-            },
-            modifier = Modifier.testTag(AccountSettingsTestTags.ROW_DELETE_ALL_DATA)
+          org.thoughtcrime.securesms.light.LightSettingsRow(
+            title = stringResource(R.string.preferences_account_update_signal),
+            onClick = callbacks::openUpdateAppFlow,
+            modifier = Modifier.testTag(AccountSettingsTestTags.ROW_UPDATE_SIGNAL)
           )
-
-          if (displayDialog) {
-            DeleteAllDataConfirmationDialog(
-              onDismissRequest = { displayDialog = false },
-              onConfirm = callbacks::deleteAllData
-            )
-          }
-        }
-      }
-
-      item {
-        @ColorRes val textColor = if (state.isNotDeprecatedOrUnregistered()) {
-          R.color.signal_alert_primary
-        } else {
-          R.color.signal_alert_primary_50
+        } else if (state.userUnregistered) {
+          org.thoughtcrime.securesms.light.LightSettingsRow(
+            title = stringResource(R.string.preferences_account_reregister),
+            onClick = callbacks::openReRegistrationFlow,
+            modifier = Modifier.testTag(AccountSettingsTestTags.ROW_RE_REGISTER)
+          )
         }
 
-        Rows.TextRow(
-          text = {
-            Text(
-              text = stringResource(R.string.preferences__delete_account),
-              color = colorResource(textColor)
-            )
-          },
-          enabled = state.isNotDeprecatedOrUnregistered(),
-          onClick = callbacks::openDeleteAccountFlow,
-          modifier = Modifier.testTag(AccountSettingsTestTags.ROW_DELETE_ACCOUNT)
+        var displayDeleteAllDialog by remember { mutableStateOf(false) }
+        org.thoughtcrime.securesms.light.LightSettingsRow(
+          title = stringResource(R.string.preferences_account_delete_all_data),
+          onClick = { displayDeleteAllDialog = true },
+          modifier = Modifier.testTag(AccountSettingsTestTags.ROW_DELETE_ALL_DATA)
         )
+        if (displayDeleteAllDialog) {
+          org.thoughtcrime.securesms.light.LightConfirmationDialog(
+            title = stringResource(R.string.preferences_account_delete_all_data_confirmation_title),
+            body = stringResource(R.string.preferences_account_delete_all_data_confirmation_message),
+            confirmLabel = stringResource(R.string.preferences_account_delete_all_data_confirmation_proceed),
+            dismissLabel = stringResource(R.string.preferences_account_delete_all_data_confirmation_cancel),
+            onConfirm = callbacks::deleteAllData,
+            onDismiss = { displayDeleteAllDialog = false },
+            destructive = true,
+            modifier = Modifier.testTag(AccountSettingsTestTags.DIALOG_CONFIRM_DELETE_ALL_DATA)
+          )
+        }
       }
+
+      org.thoughtcrime.securesms.light.LightSettingsRow(
+        title = stringResource(R.string.preferences__delete_account),
+        enabled = state.isNotDeprecatedOrUnregistered(),
+        onClick = callbacks::openDeleteAccountFlow,
+        modifier = Modifier.testTag(AccountSettingsTestTags.ROW_DELETE_ACCOUNT)
+      )
     }
   }
-}
-
-@Composable
-private fun DeleteAllDataConfirmationDialog(
-  onConfirm: () -> Unit,
-  onDismissRequest: () -> Unit
-) {
-  Dialogs.SimpleAlertDialog(
-    title = stringResource(R.string.preferences_account_delete_all_data_confirmation_title),
-    body = stringResource(R.string.preferences_account_delete_all_data_confirmation_message),
-    confirm = stringResource(R.string.preferences_account_delete_all_data_confirmation_proceed),
-    onConfirm = onConfirm,
-    dismiss = stringResource(R.string.preferences_account_delete_all_data_confirmation_cancel),
-    onDismissRequest = onDismissRequest,
-    modifier = Modifier.testTag(AccountSettingsTestTags.DIALOG_CONFIRM_DELETE_ALL_DATA)
-  )
 }
 
 @DayNightPreviews
@@ -412,6 +334,14 @@ private fun AccountSettingsScreenPreview() {
 @Composable
 private fun DeleteAllDataConfirmationDialogPreview() {
   Previews.Preview {
-    DeleteAllDataConfirmationDialog({}, {})
+    org.thoughtcrime.securesms.light.LightConfirmationDialog(
+      title = stringResource(R.string.preferences_account_delete_all_data_confirmation_title),
+      body = stringResource(R.string.preferences_account_delete_all_data_confirmation_message),
+      confirmLabel = stringResource(R.string.preferences_account_delete_all_data_confirmation_proceed),
+      dismissLabel = stringResource(R.string.preferences_account_delete_all_data_confirmation_cancel),
+      onConfirm = {},
+      onDismiss = {},
+      destructive = true
+    )
   }
 }

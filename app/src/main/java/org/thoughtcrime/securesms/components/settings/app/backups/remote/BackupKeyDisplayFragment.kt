@@ -14,6 +14,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.os.bundleOf
 import androidx.fragment.app.setFragmentResult
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -22,8 +24,11 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import org.signal.core.ui.compose.ComposeFragment
-import org.signal.core.ui.compose.Dialogs
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.light.LightConfirmationDialog
+import org.thoughtcrime.securesms.light.LightSettingsProgressRow
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.backup.v2.ui.subscription.MessageBackupsKeyRecordMode
 import org.thoughtcrime.securesms.backup.v2.ui.subscription.MessageBackupsKeyRecordScreen
 import org.thoughtcrime.securesms.backup.v2.ui.subscription.MessageBackupsKeyVerifyScreen
@@ -94,7 +99,7 @@ class BackupKeyDisplayFragment : ComposeFragment() {
     }
 
     if (state.rotationState == BackupKeyRotationState.GENERATING_KEY || state.rotationState == BackupKeyRotationState.COMMITTING_KEY) {
-      Dialogs.IndeterminateProgressDialog()
+      BackupKeyProgressDialog()
     }
 
     if (displayWarningDialog) {
@@ -138,14 +143,36 @@ private fun BackupKeyNotCommitedWarningDialog(
   onConfirm: () -> Unit,
   onCancel: () -> Unit
 ) {
-  Dialogs.SimpleAlertDialog(
+  var abandoningKey by remember { mutableStateOf(false) }
+  LightConfirmationDialog(
     title = stringResource(R.string.BackupKeyDisplayFragment__cancel_key_creation_question),
     body = stringResource(R.string.BackupKeyDisplayFragment__your_new_backup_key),
-    confirm = stringResource(R.string.BackupKeyDisplayFragment__cancel_key_creation),
-    dismiss = stringResource(R.string.BackupKeyDisplayFragment__confirm_key),
-    onConfirm = onConfirm,
-    onDeny = onCancel
+    confirmLabel = stringResource(R.string.BackupKeyDisplayFragment__cancel_key_creation),
+    dismissLabel = stringResource(R.string.BackupKeyDisplayFragment__confirm_key),
+    onConfirm = {
+      abandoningKey = true
+      onConfirm()
+    },
+    onDismiss = {
+      if (!abandoningKey) onCancel()
+    },
+    destructive = true
   )
+}
+
+@Composable
+private fun BackupKeyProgressDialog() {
+  val title = stringResource(R.string.BackupCreationProgressRow__processing_backup)
+  Dialog(
+    onDismissRequest = {},
+    properties = DialogProperties(usePlatformDefaultWidth = false)
+  ) {
+    MollyLightTheme {
+      LightSettingsScreen(title = title, onBack = {}) {
+        LightSettingsProgressRow(title = title)
+      }
+    }
+  }
 }
 
 private enum class Screen(val route: String) {

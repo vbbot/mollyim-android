@@ -9,13 +9,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,24 +28,22 @@ import androidx.navigation.fragment.findNavController
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.MollyLightTheme
 
 class AppIconTutorialFragment : ComposeFragment() {
 
   @Composable
   override fun FragmentContent() {
-    Scaffolds.Settings(
-      title = "",
-      onNavigationClick = {
-        findNavController().popBackStack()
-      },
-      navigationIcon = SignalIcons.ArrowStart.imageVector,
-      navigationContentDescription = stringResource(id = R.string.Material3SearchToolbar__close)
-    ) { contentPadding: PaddingValues ->
-      TutorialScreen(Modifier.padding(contentPadding))
+    MollyLightTheme {
+      LightSettingsScreen(
+        title = "",
+        onBack = { findNavController().popBackStack() }
+      ) {
+        TutorialScreen()
+      }
     }
   }
 
@@ -58,8 +53,7 @@ class AppIconTutorialFragment : ComposeFragment() {
       Column(
         modifier = Modifier
           .padding(horizontal = 24.dp)
-          .align(Alignment.Center)
-          .verticalScroll(rememberScrollState()),
+          .align(Alignment.Center),
         horizontalAlignment = Alignment.CenterHorizontally
       ) {
         val borderShape = RoundedCornerShape(12.dp)

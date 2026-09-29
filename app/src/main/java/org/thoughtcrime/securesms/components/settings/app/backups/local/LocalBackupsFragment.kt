@@ -32,7 +32,6 @@ import androidx.navigation3.ui.NavDisplay
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import kotlinx.coroutines.launch
 import org.signal.core.ui.compose.ComposeFragment
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Launchers
 import org.signal.core.ui.util.StorageUtil
 import org.signal.core.util.logging.Log
@@ -43,7 +42,6 @@ import org.thoughtcrime.securesms.backup.v2.ui.subscription.MessageBackupsKeyRec
 import org.thoughtcrime.securesms.backup.v2.ui.subscription.MessageBackupsKeyRecordScreen
 import org.thoughtcrime.securesms.backup.v2.ui.subscription.MessageBackupsKeyVerifyScreen
 import org.thoughtcrime.securesms.keyvalue.SignalStore
-import kotlin.time.Duration.Companion.milliseconds
 
 private val TAG = Log.tag(LocalBackupsFragment::class)
 
@@ -162,11 +160,12 @@ class LocalBackupsFragment : ComposeFragment() {
                 }
               )
 
-              Dialogs.IndeterminateProgressDialog(
-                visible = upgradeInProgress,
-                delayDuration = 100.milliseconds,
-                minimumDisplayDuration = 500.milliseconds
-              )
+              if (upgradeInProgress) {
+                LightBlockingProgressDialog(
+                  title = stringResource(R.string.BackupCreationProgressRow__processing_backup),
+                  summary = null
+                )
+              }
             }
 
             else -> error("Unknown key: $key")
