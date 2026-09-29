@@ -206,6 +206,20 @@
     <string name="LightMessageMenu__remove_reaction">REMOVE REACTION</string>
     <!-- Attachment keyboard entry that starts recording a voice message. -->
     <string name="AttachmentKeyboard_voice_note">Voice note</string>
+    <!-- Active voice recording state and elapsed time. -->
+    <string name="LightVoiceRecording__held">RECORDING\n%1$s</string>
+    <string name="LightVoiceRecording__locked">RECORDING LOCKED\n%1$s</string>
+    <string name="LightVoiceRecording__slide_to_cancel">SLIDE TO CANCEL</string>
+    <string name="LightVoiceRecording__discard">Discard recording</string>
+    <string name="LightVoiceRecording__review_description">Stop and review recording</string>
+    <string name="LightVoiceRecording__send">Send recording</string>
+    <!-- Recorded voice-note draft review controls. -->
+    <string name="LightVoiceNoteDraft__recorded">RECORDED</string>
+    <string name="LightVoiceNoteDraft__seek">Seek voice note</string>
+    <string name="LightVoiceNoteDraft__delete">Delete voice note</string>
+    <string name="LightVoiceNoteDraft__play">Play voice note</string>
+    <string name="LightVoiceNoteDraft__pause">Pause voice note</string>
+    <string name="LightVoiceNoteDraft__send">Send voice note</string>
 
     <!--
         LIGHT PHONE: the call log's second column. One short token per row, in the clipped upper-case

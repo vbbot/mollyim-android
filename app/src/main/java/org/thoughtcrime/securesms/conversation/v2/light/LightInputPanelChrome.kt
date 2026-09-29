@@ -31,9 +31,8 @@ import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle
  *   toggle, the quick and inline attachment toggles, the sticker suggestion strip, the edit-mode
  *   header) and puts the real `ComposeText` on the Light type scale and palette.
  * - [setComposerMode], which switches between "the composer is up" (a bare, full-width text entry;
- *   send lives in the composer's top bar) and "Signal's own voice chrome is up" (the send toggle
- *   back, the entry out of the way, because `recording_layout` and `VoiceNoteDraftView` are laid out
- *   across the compose bubble).
+ *   send lives in the composer's top bar) and "Light voice chrome is up" (the entry moves out of the
+ *   way while the recording or recorded-draft host is laid out across the compose bubble).
  *
  * Everything is reached through `findViewById` rather than by widening `InputPanel`'s API: the ids are
  * public, and keeping the Light presentation in one Light-named file is what stops it from being lost
@@ -54,14 +53,14 @@ object LightInputPanelChrome {
   fun install(panel: InputPanel) {
     val context = panel.context
 
-    // The panel is the surface behind the composer's text entry, and behind Signal's recording row.
-    // Both are Light surfaces, so it is painted from the Light palette rather than from whatever
+    // The panel is the surface behind the composer's text entry and the Light voice hosts.
+    // All are Light surfaces, so it is painted from the Light palette rather than from whatever
     // `colorSurface` happens to resolve to.
     panel.setBackgroundColor(LightItemStyle.backgroundColor(context))
 
     // The compose bubble is a rounded Material fill. The Light design has no containers: the entry is
-    // text on black. The view itself stays -- `recording_layout` and the voice-note draft view are
-    // constrained to its bounds, so removing it would leave the recording timer unanchored.
+    // text on black. The view itself stays -- the recording and draft hosts are constrained to its
+    // bounds, so removing it would leave the Light voice presentation unanchored.
     panel.findViewById<View>(R.id.compose_bubble).background = null
 
     // No emoji, sticker or GIF picker anywhere in the composer, so the toggle that opens them goes.
@@ -88,30 +87,20 @@ object LightInputPanelChrome {
   }
 
   /**
-   * @param composer true while the Light composer is up, false while the panel is showing Signal's
-   *   own recording chrome or a voice-note draft.
+   * @param composer true while the Light composer is up, false while the panel is showing the Light
+   *   recording or recorded-draft review host.
    */
   @JvmStatic
   fun setComposerMode(panel: InputPanel, composer: Boolean) {
-    // `recording_layout` puts the timer, "slide to cancel"/cancel and the send toggle across the
-    // compose bubble, and `VoiceNoteDraftView` replaces the entry outright. Both need the send toggle
-    // that the composer does not, because the composer sends from its own top bar.
-    //
-    // Restoring it resets the alpha only on the way back from GONE. `InputPanel` fades this view in
-    // and out around a recording, and resetting the alpha on every pass would snap a half-faded
-    // toggle to full opacity in the middle of one.
-    val buttonToggle = panel.findViewById<View>(R.id.button_toggle)
-    if (composer) {
-      buttonToggle.isVisible = false
-    } else if (!buttonToggle.isVisible) {
-      buttonToggle.alpha = 1f
-      buttonToggle.isVisible = true
-    }
+    // Every visible Light state owns an explicit send intent. The composer sends from its top bar,
+    // recording sends through MicrophoneRecorderView, and a recorded draft calls the fragment's named
+    // send controller. Signal's circular AnimatingToggle therefore never draws and is not retained as
+    // a hidden behavior proxy.
+    panel.findViewById<View>(R.id.button_toggle).isVisible = false
 
-    // INVISIBLE, not GONE, when the composer is down: `recording_layout` and `VoiceNoteDraftView` are
-    // laid out across the compose bubble, and the bubble is only as tall as the entry that is sitting
-    // in it. Collapsing the entry would collapse the row they draw in with it. The alpha, again, is
-    // `InputPanel`'s to animate while its voice chrome is up.
+    // INVISIBLE, not GONE, when the composer is down: the recording and draft hosts are laid out
+    // across the compose bubble, and the bubble is only as tall as the entry that is sitting in it.
+    // Collapsing the entry would collapse the row they draw in with it.
     val composeText = panel.findViewById<ComposeText>(R.id.embedded_text_editor)
     if (composer) {
       composeText.alpha = 1f

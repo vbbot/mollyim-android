@@ -604,7 +604,7 @@ class ConversationFragment :
   /**
    * LIGHT PHONE: whether a voice note is being recorded, from the moment the recorder starts until it
    * is sent, cancelled or saved as a draft. The input panel has to be expanded for all of it, because
-   * Signal's recording chrome -- the timer, cancel and send -- is laid out inside it.
+   * the Light recording host is laid out inside it.
    */
   private var lightRecordingActive: Boolean = false
 
@@ -5013,30 +5013,37 @@ class ConversationFragment :
       draftViewModel.deleteVoiceNoteDraft()
     }
 
+    override fun onVoiceNoteDraftSend(audioUri: Uri) {
+      getVoiceNoteMediaController().stopPlaybackAndReset(audioUri)
+      sendMessage()
+    }
+
     override fun onRecorderStarted() {
-      // LIGHT PHONE: the panel has to come back into the layout before `InputPanel` lays the timer,
-      // cancel and send across it -- `recording_layout` lives inside the panel, and the Light bottom
-      // bar has to stand aside for it.
+      // LIGHT PHONE: the panel has to come back into the layout before its recording host is shown;
+      // the Light bottom bar has to stand aside for it.
       lightRecordingActive = true
       updateLightInputChrome()
       voiceMessageRecordingDelegate.onRecorderStarted()
     }
 
     override fun onRecorderLocked() {
-      updateToggleButtonState()
+      // LIGHT PHONE: the Light recording host now owns the visible discard/review/send controls, so
+      // neither `updateToggleButtonState()` nor the send-toggle pin that used to live here is needed.
+      //
+      // The pin was a fix for a real device bug: a tap-launched voice note presses and locks in the
+      // same frame, so `InputPanel`'s fade-out of the send toggle and its fade-in of the very same
+      // view landed on top of each other, with each fade's listener able to leave the view INVISIBLE
+      // on cancellation. It was resolved by forcing the AnimatingToggle to its end state.
+      //
+      // That race needed two animators of one view to agree, and it no longer applies: `InputPanel`
+      // no longer fades the toggle around a recording at all, the recording host draws its own
+      // discard/review/send row, and `LightInputPanelChrome.setComposerMode` keeps the toggle GONE
+      // in every state. Forcing it VISIBLE here would put Signal's circular toggle back on top of the
+      // Light recording, which is the regression the host exists to remove.
+      //
+      // The recording intent still terminates through `InputPanel` and `MicrophoneRecorderView`, so
+      // held, locked and terminal-state behavior is unchanged.
       voiceMessageRecordingDelegate.onRecorderLocked()
-
-      // LIGHT PHONE: a tap-launched voice note presses and locks in the same frame, so `InputPanel`'s
-      // fade-out of the send toggle and its fade-in of the very same view land on top of each other,
-      // with each fade's listener able to leave the view INVISIBLE on cancellation. Hold-to-record has
-      // a human-scale gap between the two and never hit this. Pin the end state rather than trusting
-      // two competing animators to resolve it: the send toggle is the only way to finish a voice note,
-      // and a recording that cannot be sent is a dead end on the device with nothing to see in a build.
-      binding.conversationInputPanel.buttonToggle.apply {
-        animate().cancel()
-        alpha = 1f
-        visibility = View.VISIBLE
-      }
     }
 
     override fun onRecorderFinished() {

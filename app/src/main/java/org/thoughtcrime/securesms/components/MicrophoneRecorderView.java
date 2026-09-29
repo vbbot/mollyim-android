@@ -98,8 +98,8 @@ public final class MicrophoneRecorderView extends FrameLayout implements View.On
    * none: the bottom bar is call, attach and compose, and a voice note is started by tapping an entry
    * in the attachment keyboard. A tap has no "release", so there is nothing for the held state to
    * mean -- the recording has to come up already locked, which is exactly the UI
-   * {@link InputPanel#onRecordLocked()} puts on screen (no "slide to cancel", an explicit cancel, and
-   * the send toggle faded in).
+   * {@link InputPanel#onRecordLocked()} puts on screen (no "slide to cancel", with explicit discard,
+   * stop-for-review, and send actions).
    *
    * The permission and microphone-in-use guards are the same two the touch handler applies, so a tap
    * and a hold refuse for the same reasons and report it through the same handler callbacks.
@@ -210,9 +210,11 @@ public final class MicrophoneRecorderView extends FrameLayout implements View.On
 
     FloatingRecordButton(Context context, ImageView recordButtonFab) {
       this.recordButtonFab = recordButtonFab;
-      this.recordButtonFab.getBackground().setColorFilter(context.getResources()
-                                                                 .getColor(R.color.red_500),
-                                                          PorterDuff.Mode.SRC_IN);
+      if (this.recordButtonFab.getBackground() != null) {
+        this.recordButtonFab.getBackground().setColorFilter(context.getResources()
+                                                                   .getColor(R.color.red_500),
+                                                            PorterDuff.Mode.SRC_IN);
+      }
     }
 
     void display(float x, float y) {

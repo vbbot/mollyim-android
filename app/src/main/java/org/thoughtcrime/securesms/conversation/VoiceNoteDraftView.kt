@@ -3,15 +3,26 @@ package org.thoughtcrime.securesms.conversation
 import android.content.Context
 import android.net.Uri
 import android.util.AttributeSet
-import android.view.View
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.lifecycle.Observer
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
+import io.reactivex.rxjava3.disposables.Disposable
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.components.AudioView
+import org.thoughtcrime.securesms.audio.AudioWaveForms
 import org.thoughtcrime.securesms.components.voice.VoiceNotePlaybackState
+import org.thoughtcrime.securesms.conversation.v2.light.LightVoiceNoteDraftCallbacks
+import org.thoughtcrime.securesms.conversation.v2.light.LightVoiceNoteDraftHostView
+import org.thoughtcrime.securesms.conversation.v2.light.LightVoiceNoteDraftState
 import org.thoughtcrime.securesms.database.DraftTable
 import org.thoughtcrime.securesms.mms.AudioSlide
+import java.util.concurrent.TimeUnit
 
+/**
+ * View-land owner for the recorded-draft review host.
+ *
+ * DraftViewModel still owns the blob and VoiceNoteMediaController still owns playback. This class only
+ * translates their URI/state callbacks into immutable Light presentation state.
+ */
 class VoiceNoteDraftView @JvmOverloads constructor(
   context: Context,
   attrs: AttributeSet? = null,
@@ -23,63 +34,104 @@ class VoiceNoteDraftView @JvmOverloads constructor(
   var draft: DraftTable.Draft? = null
     private set
 
-  private lateinit var audioView: AudioView
+  private val lightView: LightVoiceNoteDraftHostView
+  private var audioSlide: AudioSlide? = null
+  private var audioUri: Uri? = null
+  private var metadataDisposable: Disposable = Disposable.disposed()
 
-  val playbackStateObserver: Observer<VoiceNotePlaybackState>
-    get() = audioView.playbackStateObserver
+  val playbackStateObserver: Observer<VoiceNotePlaybackState> = Observer(::onPlaybackState)
 
   init {
+    orientation = VERTICAL
     inflate(context, R.layout.voice_note_draft_view, this)
-
-    val delete: View = findViewById(R.id.voice_note_draft_delete)
-
-    delete.setOnClickListener {
-      if (draft != null) {
-        val uri = audioView.audioSlideUri
-        if (uri != null) {
-          listener?.onVoiceNoteDraftDelete(uri)
+    lightView = findViewById(R.id.light_voice_note_draft)
+    lightView.callbacks = LightVoiceNoteDraftCallbacks(
+      onDelete = {
+        audioUri?.let { listener?.onVoiceNoteDraftDelete(it) }
+      },
+      onTogglePlayback = {
+        audioUri?.let { uri ->
+          if (lightView.state.isPlaying) {
+            listener?.onVoiceNoteDraftPause(uri)
+          } else {
+            listener?.onVoiceNoteDraftPlay(uri, lightView.state.progress.toDouble())
+          }
         }
+      },
+      onSeek = { progress ->
+        audioUri?.let { listener?.onVoiceNoteDraftSeekTo(it, progress) }
+      },
+      onSend = {
+        audioUri?.let { listener?.onVoiceNoteDraftSend(it) }
       }
-    }
+    )
+  }
 
-    audioView = findViewById(R.id.voice_note_audio_view)
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    if (lightView.state.durationMillis == 0L) {
+      loadDuration()
+    }
+  }
+
+  override fun onDetachedFromWindow() {
+    metadataDisposable.dispose()
+    super.onDetachedFromWindow()
   }
 
   fun clearDraft() {
-    this.draft = null
+    metadataDisposable.dispose()
+    audioSlide = null
+    audioUri = null
+    draft = null
+    lightView.state = LightVoiceNoteDraftState()
   }
 
   fun setDraft(draft: DraftTable.Draft) {
-    audioView.setAudio(
-      AudioSlide.createFromVoiceNoteDraft(draft),
-      AudioViewCallbacksAdapter(),
-      true,
-      false
-    )
+    val nextAudioSlide = AudioSlide.createFromVoiceNoteDraft(draft)
+    val nextUri = nextAudioSlide.uri
 
+    if (nextUri != audioUri) {
+      lightView.state = LightVoiceNoteDraftState()
+    }
+
+    audioSlide = nextAudioSlide
+    audioUri = nextUri
     this.draft = draft
+    loadDuration()
   }
 
-  private inner class AudioViewCallbacksAdapter : AudioView.Callbacks {
-    override fun onPlay(audioUri: Uri, progress: Double) {
-      listener?.onVoiceNoteDraftPlay(audioUri, progress)
+  private fun loadDuration() {
+    val slide = audioSlide ?: return
+    metadataDisposable.dispose()
+    metadataDisposable = AudioWaveForms
+      .getWaveForm(context, slide.asAttachment())
+      .observeOn(AndroidSchedulers.mainThread())
+      .subscribe(
+        { info ->
+          lightView.state = lightView.state.copy(
+            durationMillis = info.getDuration(TimeUnit.MILLISECONDS)
+          )
+        },
+        { /* The draft remains playable even if waveform metadata cannot be read. */ }
+      )
+  }
+
+  private fun onPlaybackState(playbackState: VoiceNotePlaybackState) {
+    val targetUri = audioUri ?: return
+    val current = lightView.state
+
+    lightView.state = if (playbackState.uri == targetUri) {
+      current.copy(
+        positionMillis = if (playbackState.isAutoReset) 0L else playbackState.playheadPositionMillis,
+        durationMillis = playbackState.trackDuration.takeIf { it > 0L } ?: current.durationMillis,
+        isPlaying = playbackState.isPlaying
+      )
+    } else if (current.isPlaying) {
+      current.copy(isPlaying = false)
+    } else {
+      current
     }
-
-    override fun onPause(audioUri: Uri) {
-      listener?.onVoiceNoteDraftPause(audioUri)
-    }
-
-    override fun onSeekTo(audioUri: Uri, progress: Double) {
-      listener?.onVoiceNoteDraftSeekTo(audioUri, progress)
-    }
-
-    override fun onStopAndReset(audioUri: Uri) {
-      throw UnsupportedOperationException()
-    }
-
-    override fun onProgressUpdated(durationMillis: Long, playheadMillis: Long) = Unit
-
-    override fun onSpeedChanged(speed: Float, isPlaying: Boolean) = Unit
   }
 
   interface Listener {
@@ -87,5 +139,6 @@ class VoiceNoteDraftView @JvmOverloads constructor(
     fun onVoiceNoteDraftPause(audioUri: Uri)
     fun onVoiceNoteDraftSeekTo(audioUri: Uri, progress: Double)
     fun onVoiceNoteDraftDelete(audioUri: Uri)
+    fun onVoiceNoteDraftSend(audioUri: Uri)
   }
 }

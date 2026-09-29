@@ -6,20 +6,13 @@ import android.content.Context;
 import android.graphics.drawable.ColorDrawable;
 import android.hardware.Camera;
 import android.text.SpannableString;
-import android.text.format.DateUtils;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.AlphaAnimation;
-import android.view.animation.Animation;
-import android.view.animation.AnimationSet;
-import android.view.animation.Interpolator;
-import android.view.animation.TranslateAnimation;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.DimenRes;
@@ -41,8 +34,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import org.signal.core.ui.util.ThemeUtil;
 import org.signal.core.ui.view.Stub;
 import org.signal.core.util.ThreadUtil;
-import org.signal.core.util.concurrent.ListenableFuture;
-import org.signal.core.util.concurrent.SettableFuture;
 import org.signal.core.util.logging.Log;
 import org.signal.glide.decryptableuri.DecryptableUri;
 import org.thoughtcrime.securesms.R;
@@ -57,6 +48,7 @@ import org.thoughtcrime.securesms.conversation.ConversationMessage;
 import org.thoughtcrime.securesms.conversation.ConversationStickerSuggestionAdapter;
 import org.thoughtcrime.securesms.conversation.MessageStyler;
 import org.thoughtcrime.securesms.conversation.VoiceNoteDraftView;
+import org.thoughtcrime.securesms.conversation.v2.light.LightVoiceRecordingView;
 import org.thoughtcrime.securesms.database.DraftTable;
 import org.thoughtcrime.securesms.database.model.MessageId;
 import org.thoughtcrime.securesms.database.model.MessageRecord;
@@ -73,7 +65,6 @@ import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.recipients.RecipientId;
 import org.thoughtcrime.securesms.util.MessageRecordUtil;
 import org.thoughtcrime.securesms.util.ViewUtil;
-import org.thoughtcrime.securesms.util.concurrent.AssertedSuccessListener;
 
 import java.util.Arrays;
 import java.util.List;
@@ -93,25 +84,23 @@ public class InputPanel extends ConstraintLayout
   private static final long QUOTE_REVEAL_DURATION_MILLIS = 150;
   private static final int  FADE_TIME                    = 150;
 
-  private RecyclerView          stickerSuggestion;
-  private Stub<QuoteView>       quoteViewStub;
-  private Stub<LinkPreviewView> linkPreviewStub;
-  private EmojiToggle           mediaKeyboard;
-  private ComposeText           composeText;
-  private ImageButton           quickCameraToggle;
-  private ImageButton           quickAudioToggle;
-  private AnimatingToggle       buttonToggle;
-  private SendButton            sendButton;
-  private View                  recordingContainer;
-  private View                  recordLockCancel;
-  private View                  composeContainer;
-  private View                  editMessageCancel;
-  private ImageView             editMessageThumbnail;
-  private View                  editMessageTitle;
-  private FrameLayout           composeTextContainer;
+  private RecyclerView            stickerSuggestion;
+  private Stub<QuoteView>         quoteViewStub;
+  private Stub<LinkPreviewView>   linkPreviewStub;
+  private EmojiToggle             mediaKeyboard;
+  private ComposeText             composeText;
+  private ImageButton             quickCameraToggle;
+  private ImageButton             quickAudioToggle;
+  private AnimatingToggle         buttonToggle;
+  private View                    recordingContainer;
+  private LightVoiceRecordingView lightVoiceRecordingView;
+  private View                    composeContainer;
+  private View                    editMessageCancel;
+  private ImageView               editMessageThumbnail;
+  private View                    editMessageTitle;
+  private FrameLayout             composeTextContainer;
 
   private MicrophoneRecorderView   microphoneRecorderView;
-  private SlideToCancel            slideToCancel;
   private RecordTime               recordTime;
   private ValueAnimator            editMessageAnimator;
   private Stub<VoiceNoteDraftView> voiceNoteDraftViewStub;
@@ -175,24 +164,22 @@ public class InputPanel extends ConstraintLayout
     this.composeText            = findViewById(R.id.embedded_text_editor);
     this.composeTextContainer   = findViewById(R.id.embedded_text_editor_container);
     this.quickCameraToggle      = findViewById(R.id.quick_camera_toggle);
-    this.quickAudioToggle       = findViewById(R.id.quick_audio_toggle);
-    this.buttonToggle           = findViewById(R.id.button_toggle);
-    this.sendButton             = findViewById(R.id.send_button);
-    this.recordingContainer     = findViewById(R.id.recording_container);
-    this.recordLockCancel       = findViewById(R.id.record_cancel);
-    this.voiceNoteDraftViewStub = new Stub<>(findViewById(R.id.voice_note_draft_view_stub));
-    this.slideToCancel          = new SlideToCancel(findViewById(R.id.slide_to_cancel));
-    this.microphoneRecorderView = findViewById(R.id.recorder_view);
+    this.quickAudioToggle        = findViewById(R.id.quick_audio_toggle);
+    this.buttonToggle            = findViewById(R.id.button_toggle);
+    this.recordingContainer      = findViewById(R.id.recording_container);
+    this.lightVoiceRecordingView = findViewById(R.id.light_voice_recording);
+    this.voiceNoteDraftViewStub  = new Stub<>(findViewById(R.id.voice_note_draft_view_stub));
+    this.microphoneRecorderView  = findViewById(R.id.recorder_view);
     this.microphoneRecorderView.setHandler(this);
-    this.recordTime             = new RecordTime(findViewById(R.id.record_time),
-                                                 findViewById(R.id.microphone),
-                                                 TimeUnit.HOURS.toSeconds(1),
-                                                 () -> microphoneRecorderView.cancelAction(false));
+    this.lightVoiceRecordingView.setCallbacks(() -> microphoneRecorderView.cancelAction(true),
+                                              () -> microphoneRecorderView.saveAction(),
+                                              () -> microphoneRecorderView.unlockAction());
+    this.recordTime = new RecordTime(lightVoiceRecordingView,
+                                     TimeUnit.HOURS.toSeconds(1),
+                                     () -> microphoneRecorderView.cancelAction(false));
     this.editMessageCancel      = findViewById(R.id.input_panel_exit_edit_mode);
     this.editMessageTitle       = findViewById(R.id.edit_message_title);
     this.editMessageThumbnail   = findViewById(R.id.edit_message_thumbnail);
-
-    this.recordLockCancel.setOnClickListener(v -> microphoneRecorderView.cancelAction(true));
 
     mediaKeyboard.setVisibility(View.VISIBLE);
     emojiVisible = true;
@@ -618,7 +605,6 @@ public class InputPanel extends ConstraintLayout
   public void onRecordPressed() {
     if (listener != null) listener.onRecorderStarted();
     recordTime.display();
-    slideToCancel.display();
 
     if (emojiVisible) {
       fadeOut(mediaKeyboard);
@@ -647,9 +633,7 @@ public class InputPanel extends ConstraintLayout
 
   @Override
   public void onRecordMoved(float offsetX, float absoluteX) {
-    slideToCancel.moveTo(offsetX);
-
-    float position  = absoluteX / recordingContainer.getWidth();
+    float position = absoluteX / recordingContainer.getWidth();
 
     if (ViewUtil.isLtr(this) && position <= 0.5 ||
         ViewUtil.isRtl(this) && position >= 0.6)
@@ -667,9 +651,7 @@ public class InputPanel extends ConstraintLayout
 
   @Override
   public void onRecordLocked() {
-    slideToCancel.hide();
-    recordLockCancel.setVisibility(View.VISIBLE);
-    fadeIn(buttonToggle);
+    lightVoiceRecordingView.showLocked();
     if (listener != null) listener.onRecorderLocked();
   }
 
@@ -700,19 +682,11 @@ public class InputPanel extends ConstraintLayout
   }
 
   private long onRecordHideEvent() {
-    recordLockCancel.setVisibility(View.GONE);
+    long elapsedTime = recordTime.hide();
 
-    ListenableFuture<Void> future      = slideToCancel.hide();
-    long                   elapsedTime = recordTime.hide();
-
-    future.addListener(new AssertedSuccessListener<Void>() {
-      @Override
-      public void onSuccess(Void result) {
-        if (!voiceNoteDraftViewStub.resolved() || voiceNoteDraftViewStub.get().getDraft() == null) {
-          fadeInNormalComposeViews();
-        }
-      }
-    });
+    if (!voiceNoteDraftViewStub.resolved() || voiceNoteDraftViewStub.get().getDraft() == null) {
+      fadeInNormalComposeViews();
+    }
 
     return elapsedTime;
   }
@@ -757,8 +731,6 @@ public class InputPanel extends ConstraintLayout
       voiceNoteDraftView.setDraft(voiceNoteDraft);
       voiceNoteDraftView.setVisibility(VISIBLE);
       hideNormalComposeViews();
-      fadeIn(buttonToggle);
-      buttonToggle.displayQuick(sendButton);
     } else {
       if (voiceNoteDraftViewStub.resolved()) {
         VoiceNoteDraftView voiceNoteDraftView = voiceNoteDraftViewStub.get();
@@ -778,6 +750,11 @@ public class InputPanel extends ConstraintLayout
     boolean            wasResolved        = voiceNoteDraftViewStub.resolved();
     VoiceNoteDraftView voiceNoteDraftView = voiceNoteDraftViewStub.get();
     if (!wasResolved) {
+      // ViewStub replacement views inherit the stub's fixed compose-row height. The Light draft host
+      // is eight grid units tall, so let its immutable presentation determine the replacement height.
+      ViewGroup.LayoutParams layoutParams = voiceNoteDraftView.getLayoutParams();
+      layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+      voiceNoteDraftView.setLayoutParams(layoutParams);
       voiceNoteDraftView.setListener(listener);
     }
 
@@ -804,7 +781,12 @@ public class InputPanel extends ConstraintLayout
     fadeIn(composeText);
     fadeIn(quickCameraToggle);
     fadeIn(quickAudioToggle);
-    fadeIn(buttonToggle);
+
+    // LIGHT PHONE: `buttonToggle` is deliberately not faded back in. It was Signal's send affordance
+    // during a recording and for a voice-note draft, and both are drawn now by the Light recording
+    // host and the Light recorded-draft host. `LightInputPanelChrome.setComposerMode` keeps the
+    // toggle GONE in every state, so fading it in here would only flash Signal's circular toggle
+    // over the Light chrome for 150ms on the way out of a recording.
   }
 
   private void fadeIn(@NonNull View v) {
@@ -884,85 +866,33 @@ public class InputPanel extends ConstraintLayout
     void onQuickCameraToggleClicked();
   }
 
-  private static class SlideToCancel {
-
-    private final View slideToCancelView;
-
-    SlideToCancel(View slideToCancelView) {
-      this.slideToCancelView = slideToCancelView;
-    }
-
-    public void display() {
-      ViewUtil.fadeIn(this.slideToCancelView, FADE_TIME);
-    }
-
-    public ListenableFuture<Void> hide() {
-      final SettableFuture<Void> future = new SettableFuture<>();
-
-      AnimationSet animation = new AnimationSet(true);
-      animation.addAnimation(new TranslateAnimation(Animation.ABSOLUTE, slideToCancelView.getTranslationX(),
-                                                    Animation.ABSOLUTE, 0,
-                                                    Animation.RELATIVE_TO_SELF, 0,
-                                                    Animation.RELATIVE_TO_SELF, 0));
-      animation.addAnimation(new AlphaAnimation(1, 0));
-
-      animation.setDuration(MicrophoneRecorderView.ANIMATION_DURATION);
-      animation.setFillBefore(true);
-      animation.setFillAfter(false);
-
-      slideToCancelView.postDelayed(() -> future.set(null), MicrophoneRecorderView.ANIMATION_DURATION);
-      slideToCancelView.setVisibility(View.GONE);
-      slideToCancelView.startAnimation(animation);
-
-      return future;
-    }
-
-    void moveTo(float offset) {
-      Animation animation = new TranslateAnimation(Animation.ABSOLUTE, offset,
-                                                   Animation.ABSOLUTE, offset,
-                                                   Animation.RELATIVE_TO_SELF, 0,
-                                                   Animation.RELATIVE_TO_SELF, 0);
-
-      animation.setDuration(0);
-      animation.setFillAfter(true);
-      animation.setFillBefore(true);
-
-      slideToCancelView.startAnimation(animation);
-    }
-  }
-
   private static class RecordTime implements Runnable {
 
-    private final @NonNull TextView recordTimeView;
-    private final @NonNull View     microphone;
-    private final @NonNull Runnable onLimitHit;
-    private final          long     limitSeconds;
-    private                long     startTime;
+    private final @NonNull LightVoiceRecordingView recordingView;
+    private final @NonNull Runnable                onLimitHit;
+    private final          long                    limitSeconds;
+    private                long                    startTime;
 
-    private RecordTime(@NonNull TextView recordTimeView, @NonNull View microphone, long limitSeconds, @NonNull Runnable onLimitHit) {
-      this.recordTimeView = recordTimeView;
-      this.microphone     = microphone;
-      this.limitSeconds   = limitSeconds;
-      this.onLimitHit     = onLimitHit;
+    private RecordTime(@NonNull LightVoiceRecordingView recordingView,
+                       long limitSeconds,
+                       @NonNull Runnable onLimitHit) {
+      this.recordingView = recordingView;
+      this.limitSeconds  = limitSeconds;
+      this.onLimitHit    = onLimitHit;
     }
 
     @MainThread
     public void display() {
       this.startTime = System.currentTimeMillis();
-      this.recordTimeView.setText(DateUtils.formatElapsedTime(0));
-      ViewUtil.fadeIn(this.recordTimeView, FADE_TIME);
+      this.recordingView.showHeld();
       ThreadUtil.runOnMainDelayed(this, TimeUnit.SECONDS.toMillis(1));
-      microphone.setVisibility(View.VISIBLE);
-      microphone.startAnimation(pulseAnimation());
     }
 
     @MainThread
     public long hide() {
       long elapsedTime = System.currentTimeMillis() - startTime;
       this.startTime = 0;
-      ViewUtil.fadeOut(this.recordTimeView, FADE_TIME, View.INVISIBLE);
-      microphone.clearAnimation();
-      ViewUtil.fadeOut(this.microphone, FADE_TIME, View.INVISIBLE);
+      this.recordingView.hideRecording();
       return elapsedTime;
     }
 
@@ -973,33 +903,13 @@ public class InputPanel extends ConstraintLayout
       if (localStartTime > 0) {
         long elapsedTime = System.currentTimeMillis() - localStartTime;
         long elapsedSeconds = TimeUnit.MILLISECONDS.toSeconds(elapsedTime);
+        recordingView.setElapsedMillis(elapsedTime);
         if (elapsedSeconds >= limitSeconds) {
           onLimitHit.run();
         } else {
-          recordTimeView.setText(DateUtils.formatElapsedTime(elapsedSeconds));
           ThreadUtil.runOnMainDelayed(this, TimeUnit.SECONDS.toMillis(1));
         }
       }
-    }
-
-    private static Animation pulseAnimation() {
-      AlphaAnimation animation = new AlphaAnimation(0, 1);
-
-      animation.setInterpolator(pulseInterpolator());
-      animation.setRepeatCount(Animation.INFINITE);
-      animation.setDuration(1000);
-
-      return animation;
-    }
-
-    private static Interpolator pulseInterpolator() {
-      return input -> {
-        input *= 5;
-        if (input > 1) {
-          input = 4 - input;
-        }
-        return Math.max(0, Math.min(1, input));
-      };
     }
   }
 }
