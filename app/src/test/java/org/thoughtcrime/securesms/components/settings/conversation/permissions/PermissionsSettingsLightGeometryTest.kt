@@ -106,5 +106,5 @@ class PermissionsSettingsLightGeometryTest {
     }
   }
 
-  private fun string(id: Int): String = RuntimeEnvironment.getApplication<Application>().getString(id)
+  private fun string(id: Int): String = RuntimeEnvironment.getApplication().getString(id)
 }

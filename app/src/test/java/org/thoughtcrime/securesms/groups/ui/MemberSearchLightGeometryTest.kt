@@ -80,7 +80,7 @@ class MemberSearchLightGeometryTest {
   }
 
   private val filterLabels: List<String>
-    get() = RuntimeEnvironment.getApplication<Application>()
+    get() = RuntimeEnvironment.getApplication()
       .resources
       .getStringArray(R.array.filter_search_entries)
       .map { it.uppercase(Locale.getDefault()) }

@@ -8,6 +8,7 @@ package org.thoughtcrime.securesms.conversation.mutiselect.forward
 import android.app.Application
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.unit.width
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
@@ -90,7 +91,7 @@ class MultiselectForwardBottomBarGeometryTest {
     }
   }
 
-  private fun sendLabel(): String = RuntimeEnvironment.getApplication<Application>()
+  private fun sendLabel(): String = RuntimeEnvironment.getApplication()
     .getString(R.string.ShareActivity__send)
     .uppercase(Locale.getDefault())
 

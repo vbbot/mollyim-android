@@ -153,5 +153,5 @@ class LightAddGroupDetailsViewTest {
     )
   }
 
-  private val context get() = RuntimeEnvironment.getApplication<Application>()
+  private val context get() = RuntimeEnvironment.getApplication()
 }

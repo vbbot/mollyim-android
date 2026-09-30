@@ -18,6 +18,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.unit.height
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -91,7 +92,7 @@ class LightSettingsTest {
         LightSettingsRow(
           title = "Long press",
           onClick = { clicks++ },
-          onLongClick = { longClicks++ },
+          onLongClick = { longClicks++; true },
           modifier = Modifier.testTag("long-press")
         )
       }

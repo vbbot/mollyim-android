@@ -66,9 +66,10 @@ class LightAppTopBarTest {
     // 1 gu = 360dp / 27 = 13.333dp at LP3 width, so `LightTopBar`'s 3 gu is 40dp and the chevron,
     // which the bar centres vertically, sits on the 20dp midline. This is what the fragment layout
     // sizes itself to: a bar that reverted to Material's 64dp would push every settings row down.
-    val midline = composeTestRule.onNodeWithContentDescription("Navigate up")
+    // `DpRect` has no `center` -- that is `Rect`'s -- so take the vertical middle explicitly.
+    val chevron = composeTestRule.onNodeWithContentDescription("Navigate up")
       .getUnclippedBoundsInRoot()
-      .center.y
+    val midline = (chevron.top + chevron.bottom) / 2
 
     assertThat(midline.value).isCloseTo(3f * 360f / LightGrid.WIDTH / 2f, TOLERANCE_DP)
   }
@@ -142,7 +143,6 @@ class LightAppTopBarTest {
    * [MollyLightTheme] itself; rendering it here directly keeps the test to a `setContent` and stops
    * it passing on a light background it would never ship with.
    */
-  @Composable
   private fun setBar(
     title: String?,
     leftAction: LightBarAction? = LightBarAction.Sdk(
@@ -161,9 +161,9 @@ class LightAppTopBarTest {
           title = title,
           leftAction = leftAction,
           rightAction = actionIcon?.let {
-            LightBarAction.Drawable(
+            LightBarAction.HostDrawable(
               contentDescription = actionContentDescription,
-              drawable = it,
+              icon = it,
               onClick = requireNotNull(onActionClick)
             )
           }
