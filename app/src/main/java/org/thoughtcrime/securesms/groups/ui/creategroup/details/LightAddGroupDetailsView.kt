@@ -127,21 +127,23 @@ class LightAddGroupDetailsView @JvmOverloads constructor(
   }
 
   /**
-   * Presentation state. Every one of these is `private`, which is load-bearing rather than stylistic:
-   * Kotlin does not generate accessors for a private property, it reads and writes the delegate
-   * directly. A single non-private delegated property would emit `getName()`/`setName(String)` and
-   * then collide with the `setName`-shaped Java-facing setters below, which is what an earlier
-   * review flagged. Keep this block private -- renaming a member to dodge an accessor clash is the
-   * fix that quietly widens the surface instead.
+   * Presentation state, kept private so this class exposes exactly the Java-facing setters below and
+   * nothing else.
+   *
+   * Kotlin *does* generate accessors for a private delegated property -- they are simply private.
+   * That still matters, because a private `setBusy(Boolean)` and a public `setBusy(Boolean)` share
+   * one JVM signature and are a platform declaration clash, not a shadowing that Kotlin resolves.
+   * `mmsEnabled` and `busyState` are named to avoid the clash; the setters below keep the short
+   * names the host calls.
    */
   private var name by mutableStateOf("")
   private var avatarBytes by mutableStateOf<ByteArray?>(null)
   private var timerText by mutableStateOf("")
   private var memberItems by mutableStateOf(emptyList<MemberUi>())
   private var duplicateGroupItems by mutableStateOf(emptyList<DuplicateGroupUi>())
-  private var mms by mutableStateOf(false)
+  private var mmsEnabled by mutableStateOf(false)
   private var submitAllowed by mutableStateOf(false)
-  private var busy by mutableStateOf(false)
+  private var busyState by mutableStateOf(false)
   private var errorMessage by mutableStateOf<String?>(null)
   private var confirmation by mutableStateOf<Confirmation?>(null)
 
@@ -179,7 +181,7 @@ class LightAddGroupDetailsView @JvmOverloads constructor(
   }
 
   fun setMms(value: Boolean) {
-    mms = value
+    mmsEnabled = value
   }
 
   fun setCanSubmit(value: Boolean) {
@@ -187,12 +189,12 @@ class LightAddGroupDetailsView @JvmOverloads constructor(
   }
 
   fun setBusy(value: Boolean) {
-    busy = value
+    busyState = value
     if (value) errorMessage = null
   }
 
   fun showError(message: String) {
-    busy = false
+    busyState = false
     errorMessage = message
   }
 
@@ -210,9 +212,9 @@ class LightAddGroupDetailsView @JvmOverloads constructor(
             timerValue = timerText,
             members = memberItems,
             duplicateGroups = duplicateGroupItems,
-            isMms = mms,
+            isMms = mmsEnabled,
             canSubmit = submitAllowed,
-            isBusy = busy,
+            isBusy = busyState,
             errorMessage = errorMessage
           ),
           onBack = callbacks::onBack,
@@ -228,13 +230,13 @@ class LightAddGroupDetailsView @JvmOverloads constructor(
             }
           },
           onMemberClick = { member ->
-            if (!busy) confirmation = Confirmation.RemoveMember(member.recipient, member.name)
+            if (!busyState) confirmation = Confirmation.RemoveMember(member.recipient, member.name)
           },
           onDuplicateClick = { group ->
-            if (!busy) confirmation = Confirmation.OpenDuplicate(group.recipient, group.name)
+            if (!busyState) confirmation = Confirmation.OpenDuplicate(group.recipient, group.name)
           },
           onCreateClick = {
-            if (submitAllowed && !busy) callbacks.onCreateClick()
+            if (submitAllowed && !busyState) callbacks.onCreateClick()
           }
         )
 

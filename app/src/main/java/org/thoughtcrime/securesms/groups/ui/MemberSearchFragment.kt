@@ -467,6 +467,7 @@ private fun MemberSearchContent(
   val lightState = remember(context, data, selection) {
     memberSearchLightState(context, data, selection)
   }
+  val rowsByKey = remember(lightState) { lightState.rows.associateBy(LightContactItem::key) }
 
   LaunchedEffect(Unit) {
     focusRequester.requestFocus()
@@ -504,7 +505,10 @@ private fun MemberSearchContent(
     LightContactListScreen(
       state = lightState,
       listState = lazyListState,
-      onClick = { item ->
+      onClick = { key ->
+        // `LightContactListScreen` hands back the row's stable key rather than the row, because a
+        // click may land on an instance composed before the latest paging update. Resolve it here.
+        val item = rowsByKey[key] ?: return@LightContactListScreen
         when (val row = item.data) {
           is ContactSearchData.KnownRecipient -> clickCallbacks.onKnownRecipientClicked(anchorView, row, item.selected)
           is ContactSearchData.UnknownRecipient -> clickCallbacks.onUnknownRecipientClicked(anchorView, row, item.selected)
