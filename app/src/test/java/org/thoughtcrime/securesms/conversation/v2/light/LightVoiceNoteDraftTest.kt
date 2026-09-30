@@ -8,6 +8,7 @@ package org.thoughtcrime.securesms.conversation.v2.light
 import android.app.Application
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.width
 import assertk.assertThat
 import assertk.assertions.isBetween
 import assertk.assertions.isCloseTo
@@ -88,9 +90,10 @@ class LightVoiceNoteDraftTest {
       callbacks = LightVoiceNoteDraftCallbacks({}, {}, { seek = it }, {})
     )
 
-    val bounds = composeTestRule.onNodeWithContentDescription("Seek voice note").getUnclippedBoundsInRoot()
-    composeTestRule.onNodeWithContentDescription("Seek voice note").performTouchInput {
-      click(Offset(size.width * 0.75f, size.height / 2f))
+    val seekBar = composeTestRule.onNodeWithContentDescription("Seek voice note")
+    val bounds = seekBar.getUnclippedBoundsInRoot()
+    seekBar.performTouchInput {
+      click(Offset(visibleSize.width * 0.75f, visibleSize.height / 2f))
     }
 
     assertThat(bounds.width.value).isBetween(100f, 260f)
