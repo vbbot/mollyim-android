@@ -10,7 +10,7 @@
   The `Toolbar` is still here, zero-height and transparent, and is *not* chrome any more. Two things
   still need a real one:
 
-    * `Toolbar` is the `MenuProvider` host the DSL menu contract is built on -- the destination
+    * `Toolbar` is the `MenuProvider` host the DSL menu contract is built on: the destination
       inflates its `menuId` into it and its `onOptionsItemSelected` reads the resulting `MenuItem`;
     * destinations anchor their own popups to `R.id.toolbar` (`GroupStorySettingsFragment` does this
       for its `SignalContextMenu`).

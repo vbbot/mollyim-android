@@ -3,7 +3,7 @@
   The nav host for a `DSLSettingsActivity`.
 
   The background was `?attr/signal_background_primary`, which resolves to whatever the Signal/Molly
-  theme decided. A scoped Light theme does not paint surfaces -- the host has to -- and the Light
+  theme decided. A scoped Light theme does not paint surfaces (the host has to), and the Light
   design language is true black, so the container is pinned to `@color/molly_surface_dark` rather
   than to an attribute. Without this the nav host stays Signal-coloured behind every Light settings
   screen, which is exactly the "Light list inside a Material frame" failure.
