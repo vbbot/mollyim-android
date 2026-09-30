@@ -225,21 +225,37 @@ fun LightActionPanelDialog(
     )
   ) {
     MollyLightTheme {
-      Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-          modifier = Modifier
-            .align(Alignment.TopCenter)
-            .fillMaxWidth()
-            .fillMaxHeight(1f - PANEL_HEIGHT_FRACTION)
-            .pointerInput(Unit) { detectTapGestures(onTap = { onDismiss() }) }
-        )
-        LightActionPanel(
-          actions = actions,
-          onDismiss = onDismiss,
-          modifier = Modifier.align(Alignment.BottomCenter)
-        )
-      }
+      LightActionPanelOverlay(actions = actions, onDismiss = onDismiss)
     }
+  }
+}
+
+/**
+ * The panel plus the black screen behind it and the tap-anything-above-to-dismiss zone.
+ *
+ * Split out of [LightActionPanelDialog] so that a caller which is *already* a dialog window -- a
+ * `DialogFragment`, say -- gets the identical result rather than re-deriving the geometry and
+ * ending up with a differently shaped panel.
+ */
+@Composable
+fun LightActionPanelOverlay(
+  actions: List<LightPanelAction>,
+  onDismiss: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  Box(modifier = modifier.fillMaxSize()) {
+    Box(
+      modifier = Modifier
+        .align(Alignment.TopCenter)
+        .fillMaxWidth()
+        .fillMaxHeight(1f - PANEL_HEIGHT_FRACTION)
+        .pointerInput(Unit) { detectTapGestures(onTap = { onDismiss() }) }
+    )
+    LightActionPanel(
+      actions = actions,
+      onDismiss = onDismiss,
+      modifier = Modifier.align(Alignment.BottomCenter)
+    )
   }
 }
 

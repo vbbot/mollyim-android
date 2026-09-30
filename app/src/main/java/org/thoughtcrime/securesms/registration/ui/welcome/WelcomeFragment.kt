@@ -24,6 +24,7 @@ import org.thoughtcrime.securesms.registration.fragments.RegistrationViewDelegat
 import org.thoughtcrime.securesms.registration.fragments.WelcomePermissions
 import org.thoughtcrime.securesms.registration.ui.RegistrationCheckpoint
 import com.thelightphone.sdk.ui.LightIcons
+import com.thelightphone.sdk.ui.LightTextVariant
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
 import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationContracts
 import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
@@ -33,7 +34,7 @@ import org.thoughtcrime.securesms.util.BackupUtil
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.TextSecurePreferences
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
-import org.thoughtcrime.securesms.util.visible
+import org.signal.registration.R as RegistrationR
 
 /**
  * First screen that is displayed on the very first app launch.
@@ -51,28 +52,13 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
     super.onViewCreated(view, savedInstanceState)
 
     // The eight-tap debug-log gesture used to hang off the wordmark and the Signal headline. Both
-    // are hidden on the Light screen, and a GONE view cannot be tapped, so the gesture had quietly
-    // stopped working. The root is the only always-present surface here, and the buttons on top of
-    // it keep their own listeners, so they still take their own taps.
+    // are gone from the Light screen, so the gesture hangs off the root instead: the black space
+    // above the action stack is the only part of this screen that does not belong to an action, and
+    // the stack keeps its own taps.
     setDebugLogSubmitMultiTapView(binding.root)
 
     LightRegistrationViewStyle.surface(binding.root)
-    LightRegistrationViewStyle.action(binding.welcomeContinueButton)
-    LightRegistrationViewStyle.action(binding.welcomeTransferOrRestore)
-    LightRegistrationViewStyle.action(binding.link)
-    LightRegistrationViewStyle.body(binding.welcomeTermsButton)
-    binding.welcomeTermsButton.backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
-    binding.welcomeTermsButton.strokeWidth = 0
-    binding.image.visibility = View.GONE
-    binding.title.visibility = View.GONE
-
-    binding.welcomeContinueButton.setOnClickListener { onContinueClicked() }
-    binding.welcomeTermsButton.setOnClickListener { onTermsClicked() }
-    binding.welcomeTransferOrRestore.setOnClickListener { onRestoreOrTransferClicked() }
-    binding.welcomeTransferOrRestore.visible = !sharedViewModel.isReregister
-
-    binding.link.setOnClickListener { onLinkDeviceClicked() }
-
+    bindWelcomeActions(binding.welcomeActions)
     bindLightTopBar(binding.lightTopBar)
 
     childFragmentManager.setFragmentResultListener(RestoreWelcomeBottomSheet.REQUEST_KEY, viewLifecycleOwner) { requestKey, bundle ->
@@ -97,6 +83,47 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
       }
     }
 
+  }
+
+  /**
+   * Builds the Welcome screen's action stack, in the order it presents them.
+   *
+   * Three of the four were `LightRegistrationViewStyle.action()` Material buttons: continue, restore
+   * or transfer, and link device. The fourth, terms and privacy, was a `body()` button and stays
+   * quieter -- it is a legal footnote, not a way through registration, and on a device with one
+   * foreground colour the only way to say that is weight and shade.
+   *
+   * Restore or transfer is dropped on re-registration, where there is nothing to restore from. That
+   * was a `visible = ` on one button; here it is one fewer row, and the stack closes up.
+   *
+   * The four labels come from the registration feature module's own resources rather than the app's.
+   * They were reachable as `@string/...` in the layout because XML resolves against the merged
+   * resource table, but this fragment is Kotlin and R is non-transitive, so the app's `R` has no
+   * field for them. `RegistrationActivity_link_device` is the trap: a handful of the app's own
+   * translated files also declare it, which is enough for the field to exist and for the reference
+   * below to compile against the wrong module's copy.
+   */
+  private fun bindWelcomeActions(actions: LightWelcomeActionsView) {
+    val list = mutableListOf(
+      LightWelcomeAction(getString(RegistrationR.string.RegistrationActivity_continue), ::onContinueClicked)
+    )
+
+    if (!sharedViewModel.isReregister) {
+      list += LightWelcomeAction(
+        getString(RegistrationR.string.registration_activity__restore_or_transfer),
+        ::onRestoreOrTransferClicked
+      )
+    }
+
+    list += LightWelcomeAction(getString(RegistrationR.string.RegistrationActivity_link_device), ::onLinkDeviceClicked)
+    list += LightWelcomeAction(
+      label = getString(RegistrationR.string.RegistrationActivity_terms_and_privacy),
+      onClick = ::onTermsClicked,
+      variant = LightTextVariant.Fine,
+      lighten = true
+    )
+
+    actions.actions = list
   }
 
   /**

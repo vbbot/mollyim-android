@@ -1,20 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
-
-    <ImageView
-        android:id="@+id/image"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_margin="16dp"
-        android:importantForAccessibility="no"
-        android:src="@drawable/welcome"
-        app:layout_constraintBottom_toTopOf="@+id/title"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/light_top_bar" />
+    android:layout_height="match_parent"
+    tools:context="org.thoughtcrime.securesms.registration.ui.welcome.WelcomeFragment">
 
     <!--
       The welcome screen is the root of the registration graph, so the bar carries no back
@@ -31,70 +21,23 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <TextView
-        android:id="@+id/title"
+    <!--
+      The four actions, replacing the `MaterialButton`s this screen used to carry.
+
+      The wordmark and the "Take privacy with you" headline that sat above them are gone for good:
+      they are Signal's, and the Light port has no wordmark. What is left is black and this stack,
+      anchored to the bottom, so the screen reads the way the device does everywhere else.
+
+      The rows set their own type, colour and hit targets from the grid, so this view is given
+      nothing but its position.
+    -->
+    <org.thoughtcrime.securesms.registration.ui.welcome.LightWelcomeActionsView
+        android:id="@+id/welcome_actions"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="40dp"
-        android:gravity="center"
-        android:text="@string/RegistrationActivity_take_privacy_with_you_be_yourself_in_every_message"
-        android:textAppearance="@style/Signal.Text.HeadlineMedium"
-        app:layout_constraintBottom_toTopOf="@+id/welcome_terms_button"
-        app:layout_constraintEnd_toEndOf="@+id/welcome_continue_button"
-        app:layout_constraintStart_toStartOf="@+id/welcome_continue_button" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/welcome_terms_button"
-        style="@style/Signal.Widget.Button.Large.Secondary"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="24dp"
-        android:gravity="center"
-        android:text="@string/RegistrationActivity_terms_and_privacy"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        app:layout_constraintBottom_toTopOf="@+id/welcome_continue_button"
-        app:layout_constraintEnd_toEndOf="@+id/welcome_continue_button"
-        app:layout_constraintStart_toStartOf="@+id/welcome_continue_button" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/welcome_continue_button"
-        style="@style/Signal.Widget.Button.Large.Tonal"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp"
-        android:layout_marginBottom="17dp"
-        android:text="@string/RegistrationActivity_continue"
-        app:layout_constraintBottom_toTopOf="@id/welcome_transfer_or_restore"
+        android:layout_marginBottom="48dp"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/welcome_transfer_or_restore"
-        style="@style/Signal.Widget.Button.Large.Tonal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp"
-        android:layout_marginBottom="17dp"
-        app:backgroundTint="?attr/colorSurfaceContainer"
-        android:text="@string/registration_activity__restore_or_transfer"
-        app:layout_constraintBottom_toTopOf="@+id/link"
-        app:layout_constraintEnd_toEndOf="@+id/welcome_continue_button"
-        app:layout_constraintStart_toStartOf="@+id/welcome_continue_button" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/link"
-        style="@style/Signal.Widget.Button.Large.Tonal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp"
-        android:layout_marginBottom="48dp"
-        app:backgroundTint="?attr/colorSurfaceContainer"
-        android:text="@string/RegistrationActivity_link_device"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="@+id/welcome_transfer_or_restore"
-        app:layout_constraintStart_toStartOf="@+id/welcome_transfer_or_restore" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
