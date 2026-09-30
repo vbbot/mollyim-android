@@ -4829,6 +4829,10 @@
     <!-- Button label to prompt them to return to creating a numbers-only password ("PIN") -->
     <string name="BaseKbsPinFragment__create_numeric_pin">Create numeric PIN</string>
     <string name="BaseKbsPinFragment__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string>
+    <!-- Accessibility label for the back affordance on the "create your PIN" screen, which steps back to the PIN introduction it was pushed from. -->
+    <string name="BaseKbsPinFragment__back_to_pin_introduction">Back to PIN introduction</string>
+    <!-- Accessibility label for the back affordance on the "confirm your PIN" screen, which steps back to the screen the PIN was typed on. -->
+    <string name="BaseKbsPinFragment__back_to_create_pin">Back to creating your PIN</string>
 
     <!-- CreateKbsPinFragment -->
     <plurals name="CreateKbsPinFragment__pin_must_be_at_least_characters">

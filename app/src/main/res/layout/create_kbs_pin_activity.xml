@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hosts the create/confirm PIN navigation graph.
+
+  The black background is not decoration: `NavHostFragment` animates fragments in and out, and the
+  window behind them is the theme's surface. Without it the default transition briefly shows whatever
+  the theme paints, which is not the Light Phone's true black.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    tools:viewBindingIgnore="true"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".lock.v2.CreateSvrPinActivity">
+    android:background="@android:color/black"
+    tools:context=".lock.v2.CreateSvrPinActivity"
+    tools:viewBindingIgnore="true">
 
     <fragment
         android:id="@+id/nav_host_fragment"

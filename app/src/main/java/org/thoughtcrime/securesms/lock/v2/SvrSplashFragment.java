@@ -1,20 +1,13 @@
 package org.thoughtcrime.securesms.lock.v2;
 
 import android.os.Bundle;
-import android.text.method.LinkMovementMethod;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.Navigation;
 
@@ -24,18 +17,25 @@ import org.thoughtcrime.securesms.pin.PinOptOutDialog;
 import org.thoughtcrime.securesms.util.CommunicationActions;
 import org.thoughtcrime.securesms.util.navigation.SafeNavigation;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * The PIN migration introduction.
+ *
+ * <p>The migration activity's root screen, and it stays one: the system back gesture is still
+ * swallowed, so the user cannot leave the migration half-finished. That is also why it carries no
+ * back affordance -- there is nothing behind it to go back to, and a chevron would promise a
+ * destination that does not exist.
+ *
+ * <p>Presentation is {@link LightSvrSplashView}'s. The two decisions this screen actually makes --
+ * registration lock or no registration lock, and therefore which pair of labels to show -- and the
+ * conditions on its opt-out entry are unchanged.
+ */
 public final class SvrSplashFragment extends Fragment {
 
-  private TextView title;
-  private TextView description;
-  private TextView primaryAction;
-  private TextView secondaryAction;
-
-  @Override
-  public void onCreate(@Nullable Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    setHasOptionsMenu(true);
-  }
+  private LightSvrSplashView splashView;
 
   @Override
   public @Nullable View onCreateView(@NonNull LayoutInflater inflater,
@@ -47,13 +47,10 @@ public final class SvrSplashFragment extends Fragment {
 
   @Override
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-    title           = view.findViewById(R.id.kbs_splash_title);
-    description     = view.findViewById(R.id.kbs_splash_description);
-    primaryAction   = view.findViewById(R.id.kbs_splash_primary_action);
-    secondaryAction = view.findViewById(R.id.kbs_splash_secondary_action);
+    splashView = view.findViewById(R.id.light_svr_splash_view);
 
-    primaryAction.setOnClickListener(v -> onCreatePin());
-    secondaryAction.setOnClickListener(v -> onLearnMore());
+    splashView.setOnPrimary(this::onCreatePin);
+    splashView.setOnSecondary(this::onLearnMore);
 
     if (SignalStore.svr().isRegistrationLockEnabled()) {
       setUpRegLockEnabled();
@@ -61,11 +58,7 @@ public final class SvrSplashFragment extends Fragment {
       setUpRegLockDisabled();
     }
 
-    description.setMovementMethod(LinkMovementMethod.getInstance());
-
-    Toolbar toolbar = view.findViewById(R.id.kbs_splash_toolbar);
-    ((AppCompatActivity) requireActivity()).setSupportActionBar(toolbar);
-    ((AppCompatActivity) requireActivity()).getSupportActionBar().setTitle(null);
+    updateOverflowItems();
 
     requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
       @Override
@@ -74,42 +67,55 @@ public final class SvrSplashFragment extends Fragment {
   }
 
   @Override
-  public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
-    inflater.inflate(R.menu.pin_skip, menu);
+  public void onResume() {
+    super.onResume();
+
+    // Repeated because the old code re-evaluated this in `onPrepareOptionsMenu`, which runs on
+    // every invalidate, and `SignalStore` may have been written to while this screen was stopped.
+    updateOverflowItems();
   }
 
-  @Override
-  public void onPrepareOptionsMenu(@NonNull Menu menu) {
+  /**
+   * The overflow panel, which is the former {@code R.menu.pin_skip} options menu.
+   *
+   * <p>Its one gating condition has not moved: the opt-out is not offered while registration lock is
+   * enabled, because a registration lock <em>is</em> the PIN and there is nothing left to opt out of.
+   */
+  private void updateOverflowItems() {
     if (SignalStore.svr().isRegistrationLockEnabled()) {
-      menu.clear();
+      splashView.updateOverflowItems(Collections.emptyList());
+      return;
     }
-  }
 
-  @Override
-  public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-    if (item.getItemId() == R.id.menu_pin_learn_more) {
-      onLearnMore();
-      return true;
-    } else if (item.getItemId() == R.id.menu_pin_skip) {
-      onPinSkipped();
-      return true;
-    } else {
-      return false;
-    }
+    List<LightSvrPinMenuItem> items = new ArrayList<>(2);
+    items.add(new LightSvrPinMenuItem(
+        getString(R.string.KbsSplashFragment__learn_more_about_pins),
+        this::onLearnMore
+    ));
+    items.add(new LightSvrPinMenuItem(
+        getString(R.string.KbsSplashFragment__disable_pin),
+        this::onPinSkipped
+    ));
+
+    splashView.updateOverflowItems(items);
   }
 
   private void setUpRegLockEnabled() {
-    title.setText(R.string.KbsSplashFragment__registration_lock_equals_pin);
-    description.setText(R.string.KbsSplashFragment__your_registration_lock_is_now_called_a_pin);
-    primaryAction.setText(R.string.KbsSplashFragment__update_pin);
-    secondaryAction.setText(R.string.KbsSplashFragment__learn_more);
+    splashView.updateHeader(
+        getString(R.string.KbsSplashFragment__registration_lock_equals_pin),
+        getString(R.string.KbsSplashFragment__your_registration_lock_is_now_called_a_pin),
+        getString(R.string.KbsSplashFragment__update_pin),
+        getString(R.string.KbsSplashFragment__learn_more)
+    );
   }
 
   private void setUpRegLockDisabled() {
-    title.setText(R.string.KbsSplashFragment__introducing_pins);
-    description.setText(R.string.KbsSplashFragment__pins_keep_information_stored_with_signal_encrypted);
-    primaryAction.setText(R.string.KbsSplashFragment__create_your_pin);
-    secondaryAction.setText(R.string.KbsSplashFragment__learn_more);
+    splashView.updateHeader(
+        getString(R.string.KbsSplashFragment__introducing_pins),
+        getString(R.string.KbsSplashFragment__pins_keep_information_stored_with_signal_encrypted),
+        getString(R.string.KbsSplashFragment__create_your_pin),
+        getString(R.string.KbsSplashFragment__learn_more)
+    );
   }
 
   private void onCreatePin() {

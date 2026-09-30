@@ -5,6 +5,7 @@
 
 package org.thoughtcrime.securesms.light
 
+import android.content.Context
 import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -52,7 +53,12 @@ fun rememberMollyLightColors(): LightColors = LightThemeColors.Dark
 @Composable
 fun rememberSystemHapticsEnabled(): Boolean {
   val context = LocalContext.current
-  return remember(context) {
-    Settings.System.getInt(context.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 1) != 0
-  }
+  return remember(context) { systemHapticsEnabled(context) }
 }
+
+/**
+ * [rememberSystemHapticsEnabled] for the View side, which has no composition to read the setting in
+ * and so cannot go through the composable. One implementation, so the two cannot disagree.
+ */
+fun systemHapticsEnabled(context: Context): Boolean =
+  Settings.System.getInt(context.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 1) != 0

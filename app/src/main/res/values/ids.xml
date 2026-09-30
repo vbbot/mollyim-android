@@ -36,4 +36,16 @@
     <item name="edittext_monospace" type="id" />
     <item name="edittext_spoiler" type="id" />
     <item name="edittext_clear_formatting" type="id" />
+
+    <!--
+      MOLLY: the PIN reminder's content view builds itself in code (LightPinReminderView), but
+      SignalPinReminderDialog drives it through these ids. Declaring them here keeps them in R;
+      a layout that no longer mentions them would stop generating them and break that host.
+    -->
+    <item name="pin_reminder_title" type="id" />
+    <item name="pin" type="id" />
+    <item name="pin_status" type="id" />
+    <item name="kbs_reminder_body" type="id" />
+    <item name="skip" type="id" />
+    <item name="submit" type="id" />
 </resources>

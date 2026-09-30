@@ -4,22 +4,13 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.StringRes;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
-
-import com.google.android.material.button.MaterialButton;
 
 import org.signal.core.ui.logging.LoggingFragment;
 import org.thoughtcrime.securesms.PassphraseRequiredActivity;
@@ -29,24 +20,35 @@ import org.thoughtcrime.securesms.pin.PinOptOutDialog;
 import org.thoughtcrime.securesms.registration.util.RegistrationUtil;
 import org.thoughtcrime.securesms.util.CommunicationActions;
 import org.thoughtcrime.securesms.util.text.AfterTextChanged;
-import org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton;
-import org.thoughtcrime.securesms.util.views.LearnMoreTextView;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * The shared base for the two Signal PIN screens -- create and confirm.
+ *
+ * <p>Presentation is {@link LightSvrPinView}'s: this class no longer finds views by id, and neither
+ * screen has a Material widget left on it. What it still owns is everything that must not change --
+ * the entry-length gate on the confirm action, the keyboard-type switch, the IME action, the opt-out
+ * menu's gating, and the navigation out of the graph.
+ *
+ * <p><strong>Nothing here may weaken a PIN check.</strong> The Signal PIN is not an app lock; it is
+ * the credential that makes a backup restorable after losing the phone. The length gate, the
+ * navigation arguments, the `SignalStore` conditions on the opt-out, and the order in which the view
+ * model's observers are attached are all load-bearing and are reproduced exactly.
+ */
 public abstract class BaseSvrPinFragment<ViewModel extends BaseSvrPinViewModel> extends LoggingFragment {
 
-  private TextView                       title;
-  private LearnMoreTextView              description;
-  private EditText                       input;
-  private TextView                       label;
-  private MaterialButton                 keyboardToggle;
-  private CircularProgressMaterialButton confirm;
-  private ViewModel                      viewModel;
+  /**
+   * The screen, as Light components.
+   *
+   * <p>Protected because both subclasses drive it: they set the header, the status line and the
+   * field's own state, exactly as they used to assign fields looked up by id.
+   */
+  protected LightSvrPinView pinView;
 
-  @Override
-  public void onCreate(@Nullable Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    setHasOptionsMenu(true);
-  }
+  private ViewModel viewModel;
 
   @Override
   public @Nullable View onCreateView(@NonNull LayoutInflater inflater,
@@ -58,28 +60,33 @@ public abstract class BaseSvrPinFragment<ViewModel extends BaseSvrPinViewModel> 
 
   @Override
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-    initializeViews(view);
+    pinView = view.findViewById(R.id.light_svr_pin_view);
+    pinView.updateConfirm(getString(R.string.BaseKbsPinFragment__next), false, false);
+
+    // Runs before the view model exists, exactly as `initializeViews` used to: the subclass sets
+    // the header and the status line here, and the observers below are what ultimately settle the
+    // confirm action's liveness.
+    initializeViewStates();
 
     viewModel = initializeViewModel();
+
     viewModel.getUserEntry().observe(getViewLifecycleOwner(), svrPin -> {
       boolean isEntryValid = svrPin.length() >= SvrConstants.MINIMUM_PIN_LENGTH;
 
-      confirm.setEnabled(isEntryValid);
-      confirm.setAlpha(isEntryValid ? 1f : 0.5f);
+      // Same gate as before, and the same ordering consequence: this observer is attached after
+      // the subclass's own setup, so on first delivery it is what decides the confirm action's
+      // state, not whatever `initializeViewStates` set.
+      setConfirmEnabled(isEntryValid);
     });
 
-    viewModel.getKeyboard().observe(getViewLifecycleOwner(), keyboardType -> {
-      keyboardType.applyTo(input, keyboardToggle);
-      keyboardToggle.setText(resolveKeyboardToggleText(keyboardType));
-    });
+    viewModel.getKeyboard().observe(getViewLifecycleOwner(), this::applyKeyboardType);
 
-    description.setOnLinkClickListener(v -> {
-      CommunicationActions.openBrowserLink(requireContext(), getString(R.string.BaseKbsPinFragment__learn_more_url));
-    });
+    pinView.setOnLearnMore(() ->
+        CommunicationActions.openBrowserLink(requireContext(), getString(R.string.BaseKbsPinFragment__learn_more_url)));
+    pinView.setOnBack(this::navigateBack);
+    pinView.updateBackContentDescription(getBackContentDescription());
 
-    Toolbar toolbar = view.findViewById(R.id.kbs_pin_toolbar);
-    ((AppCompatActivity) requireActivity()).setSupportActionBar(toolbar);
-    ((AppCompatActivity) requireActivity()).getSupportActionBar().setTitle(null);
+    updateOverflowItems();
 
     initializeListeners();
   }
@@ -88,64 +95,68 @@ public abstract class BaseSvrPinFragment<ViewModel extends BaseSvrPinViewModel> 
   public void onResume() {
     super.onResume();
 
-    input.requestFocus();
+    // The credential field is a real, focusable `EditText` hosted in Compose, so this is the same
+    // focus request it always was -- and it is what raises the Light Phone's system IME.
+    getInput().requestFocus();
+
+    // Repeated because the old code re-evaluated this in `onPrepareOptionsMenu`, which runs on
+    // every invalidate, and `SignalStore` may have been written to while this screen was stopped.
+    updateOverflowItems();
   }
 
-  @Override
-  public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
-    inflater.inflate(R.menu.pin_skip, menu);
-  }
-
-  @Override
-  public void onPrepareOptionsMenu(@NonNull Menu menu) {
+  /**
+   * The overflow panel, rebuilt whenever the screen resumes.
+   *
+   * <p>This is the former {@code R.menu.pin_skip} options menu, and the conditions that decided
+   * whether it had any items have not moved: both entries disappear once a PIN exists, the user has
+   * opted out, or registration lock is enabled. The evaluation is repeated on resume because the
+   * old code ran it in {@code onPrepareOptionsMenu}, which is called more than once.
+   */
+  private void updateOverflowItems() {
     if (SignalStore.svr().isRegistrationLockEnabled() ||
         SignalStore.svr().hasPin() ||
         SignalStore.svr().hasOptedOut())
     {
-      menu.clear();
+      pinView.updateOverflowItems(Collections.emptyList());
+      return;
     }
-  }
 
-  @Override
-  public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-    if (item.getItemId() == R.id.menu_pin_learn_more) {
-      onLearnMore();
-      return true;
-    } else if (item.getItemId() == R.id.menu_pin_skip) {
-      onPinSkipped();
-      return true;
-    } else {
-      return false;
-    }
+    List<LightSvrPinMenuItem> items = new ArrayList<>(2);
+    items.add(new LightSvrPinMenuItem(
+        getString(R.string.KbsSplashFragment__learn_more_about_pins),
+        () -> CommunicationActions.openBrowserLink(requireContext(), getString(R.string.KbsSplashFragment__learn_more_link))
+    ));
+    items.add(new LightSvrPinMenuItem(
+        getString(R.string.KbsSplashFragment__disable_pin),
+        this::onPinSkipped
+    ));
+
+    pinView.updateOverflowItems(items);
   }
 
   protected abstract ViewModel initializeViewModel();
 
   protected abstract void initializeViewStates();
 
-  protected TextView getTitle() {
-    return title;
+  /**
+   * What this screen's back affordance is <em>for</em>, in words.
+   *
+   * A back icon whose content description is just "back" tells a screen-reader user nothing they can
+   * act on, so it is required rather than defaulted, and each screen names its own destination:
+   * this one steps back to the PIN introduction it was pushed from, the confirm screen steps back to
+   * the screen the PIN was typed on.
+   */
+  protected @NonNull String getBackContentDescription() {
+    return getString(R.string.BaseKbsPinFragment__back_to_pin_introduction);
   }
 
-  protected LearnMoreTextView getDescription() {
-    return description;
-  }
-
+  /** The credential field. */
   protected EditText getInput() {
-    return input;
+    return pinView.getInput();
   }
 
-
-  protected TextView getLabel() {
-    return label;
-  }
-
-  protected TextView getKeyboardToggle() {
-    return keyboardToggle;
-  }
-
-  protected CircularProgressMaterialButton getConfirm() {
-    return confirm;
+  protected LightSvrPinView getPinView() {
+    return pinView;
   }
 
   protected void closeNavGraphBranch() {
@@ -160,43 +171,68 @@ public abstract class BaseSvrPinFragment<ViewModel extends BaseSvrPinViewModel> 
     requireActivity().finish();
   }
 
-  private void initializeViews(@NonNull View view) {
-    title          = view.findViewById(R.id.edit_kbs_pin_title);
-    description    = view.findViewById(R.id.edit_kbs_pin_description);
-    input          = view.findViewById(R.id.edit_kbs_pin_input);
-    label          = view.findViewById(R.id.edit_kbs_pin_input_label);
-    keyboardToggle = view.findViewById(R.id.edit_kbs_pin_keyboard_toggle);
-    confirm        = view.findViewById(R.id.edit_kbs_pin_confirm);
-
-    initializeViewStates();
-  }
-
   private void initializeListeners() {
-    input.addTextChangedListener(new AfterTextChanged(s -> viewModel.setUserEntry(s.toString())));
-    input.setImeOptions(EditorInfo.IME_ACTION_NEXT);
-    input.setOnEditorActionListener(this::handleEditorAction);
-    keyboardToggle.setOnClickListener(v -> viewModel.toggleAlphaNumeric());
-    confirm.setOnClickListener(v -> viewModel.confirm());
+    getInput().addTextChangedListener(new AfterTextChanged(s -> viewModel.setUserEntry(s.toString())));
+
+    // After the keyboard observer, not before: `PinKeyboardType.applyInputTypeTo` reassigns the
+    // field's key listener, and this ordering is the one the original had.
+    getInput().setImeOptions(EditorInfo.IME_ACTION_NEXT);
+    getInput().setOnEditorActionListener(this::handleEditorAction);
+
+    pinView.setOnKeyboardToggle(() -> viewModel.toggleAlphaNumeric());
+    pinView.setOnConfirm(() -> viewModel.confirm());
   }
 
   private boolean handleEditorAction(@NonNull View view, int actionId, @NonNull KeyEvent event) {
-    if (actionId == EditorInfo.IME_ACTION_NEXT && confirm.isEnabled()) {
+    if (actionId == EditorInfo.IME_ACTION_NEXT && pinView.getConfirmEnabled()) {
       viewModel.confirm();
     }
 
     return true;
   }
 
-  private @StringRes int resolveKeyboardToggleText(@NonNull PinKeyboardType keyboardType) {
+  /**
+   * Applies a keyboard type to the credential field and updates the toggle's label.
+   *
+   * <p>{@code PinKeyboardType.applyTo} is deliberately not called: its second argument is a
+   * {@code MaterialButton} it sets an icon on, and there is no Material button here. The label was
+   * always set separately, immediately after, so nothing observable is lost but the icon -- which
+   * the Light design language replaces with a text action anyway.
+   *
+   * <p>Note this clears the field when the input <em>class</em> changes (numeric to text or back).
+   * That is {@code PinKeyboardType}'s behaviour and it is preserved: switching keyboards must not
+   * carry a half-numeric PIN across.
+   */
+  private void applyKeyboardType(@NonNull PinKeyboardType keyboardType) {
+    keyboardType.applyInputTypeTo(getInput());
+    pinView.updateKeyboardToggle(resolveKeyboardToggleText(keyboardType));
+  }
+
+  private @NonNull String resolveKeyboardToggleText(@NonNull PinKeyboardType keyboardType) {
     if (keyboardType == PinKeyboardType.ALPHA_NUMERIC) {
-      return R.string.BaseKbsPinFragment__create_numeric_pin;
+      return getString(R.string.BaseKbsPinFragment__create_numeric_pin);
     } else {
-      return R.string.BaseKbsPinFragment__create_alphanumeric_pin;
+      return getString(R.string.BaseKbsPinFragment__create_alphanumeric_pin);
     }
   }
 
-  private void onLearnMore() {
-    CommunicationActions.openBrowserLink(requireContext(), getString(R.string.KbsSplashFragment__learn_more_link));
+  /** Sets the confirm action's liveness without disturbing whether it is in flight. */
+  protected void setConfirmEnabled(boolean enabled) {
+    pinView.updateConfirm(pinView.getConfirmLabel(), enabled, pinView.getBusy());
+  }
+
+  /** Sets the confirm action's in-flight state without disturbing whether it is live. */
+  protected void setConfirmBusy(boolean busy) {
+    pinView.updateConfirm(pinView.getConfirmLabel(), pinView.getConfirmEnabled(), busy);
+  }
+
+  /**
+   * Back means back: pops this screen off the graph, or leaves the activity when there is nothing
+   * behind it. Routed through the activity's dispatcher so it lands on exactly the behaviour the
+   * system back gesture had.
+   */
+  private void navigateBack() {
+    requireActivity().getOnBackPressedDispatcher().onBackPressed();
   }
 
   private void onPinSkipped() {
