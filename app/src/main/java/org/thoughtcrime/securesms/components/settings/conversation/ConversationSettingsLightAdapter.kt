@@ -76,7 +76,7 @@ private class ClickHolder(itemView: View) : BaseRowHolder<ClickPreference>(itemV
     itemView.isEnabled = true
     itemView.isClickable = true
     itemView.setOnClickListener {
-      if (model.isEnabled) model.onClick() else model.onDisabledClicked()
+      if (model.isEnabled) model.onClick() else model.onDisabledClicked?.invoke()
     }
     itemView.setOnLongClickListener {
       if (model.isEnabled) model.onLongClick?.invoke() ?: false else false
