@@ -27,11 +27,13 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.signal.core.ui.CoreUiDependenciesRule
 import org.thoughtcrime.securesms.light.MollyLightTheme
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, qualifiers = "w360dp-h413dp-xxhdpi")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class LightVoiceNoteDraftTest {
 
   @get:Rule
