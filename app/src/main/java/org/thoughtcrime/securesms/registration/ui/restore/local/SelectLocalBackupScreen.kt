@@ -114,7 +114,7 @@ private fun BackupChoiceRow(label: String, onClick: () -> Unit) {
     verticalAlignment = Alignment.CenterVertically
   ) {
     Icon(
-      imageVector = ImageVector.vectorResource(R.drawable.symbol_backup_24),
+      imageVector = ImageVector.vectorResource(R.drawable.symbol_signal_backups_24),
       contentDescription = null,
       tint = LightThemeTokens.colors.content,
       modifier = Modifier.size(1.5f.gridUnitsAsDp())

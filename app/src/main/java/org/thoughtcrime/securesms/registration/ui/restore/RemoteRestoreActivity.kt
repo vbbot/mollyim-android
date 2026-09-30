@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -206,7 +205,7 @@ class RemoteRestoreActivity : BaseActivity() {
             },
             onImportErrorDialogDismiss = { viewModel.clearError() },
             onUpdateSignal = {
-              PlayStoreUtil.openPlayStoreOrOurApkDownloadPage(this)
+              PlayStoreUtil.openPlayStoreOrOurApkDownloadPage(this@RemoteRestoreActivity)
             },
             contactSupportCallbacks = contactSupportViewModel
           )

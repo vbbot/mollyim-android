@@ -101,7 +101,7 @@ object LightRegistrationViewStyle {
     // is normally harmless because the opaque button covers it. Our transparent button
     // exposes it as a dot. Make the button opaque BLACK so it hides the indicator in
     // BUTTON state; when spinning the button goes INVISIBLE and the indicator shows.
-    materialButton.backgroundTintList = ColorStateList.valueOf(Color.BLACK)
+    button.backgroundTintList = ColorStateList.valueOf(Color.BLACK)
 
     button.findViewById<CircularProgressIndicator>(R.id.progress_indicator)?.apply {
       setIndicatorColor(content(button))
