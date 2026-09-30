@@ -123,25 +123,23 @@ abstract class DSLSettingsFragment(
         (0 until m.size()).map(m::getItem).filter { it.isVisible }
       }.orEmpty()
 
-      when (actions.size) {
-        0 -> bar.rightAction = null
-        1 -> bar.rightAction = actions[0].icon?.let { icon ->
-          LightBarAction.Drawable(
+      if (actions.size == 1) {
+        bar.rightAction = actions[0].icon?.let { icon ->
+          LightBarAction.HostDrawable(
             contentDescription = actions[0].title?.toString(),
-            // A `MenuItem`'s icon is usually backed by a shared `ConstantState` -- the same instance
+            // A `MenuItem`'s icon is usually backed by a shared `ConstantState`: the same instance
             // the hidden toolbar is holding. Copy it, so recolouring the bar's glyph cannot
             // recolour the drawable anywhere else that state is used from.
-            drawable = icon.constantState?.newDrawable(resources)?.mutate() ?: icon,
+            icon = icon.constantState?.newDrawable(resources)?.mutate() ?: icon,
             onClick = { onOptionsItemSelected(actions[0]) }
           )
         }
-        else -> {
-          // `LightTopBar` has one right slot. Rendering the first and dropping the rest would
-          // remove actions a user can currently reach, so the bar stays empty and the menu is
-          // left to the toolbar's own overflow instead -- no settings screen is in this state
-          // today, and when one is, the overflow is visible rather than a feature gone missing.
-          bar.clearAction()
-        }
+      } else {
+        // `LightTopBar` has one right slot. With no action the slot is empty, and with several it
+        // stays empty too: rendering the first would silently drop the rest, so the menu is left to
+        // the toolbar's own overflow instead. No settings screen is in that state today, and when
+        // one is, the overflow is visible rather than an action gone missing.
+        bar.rightAction = null
       }
     }
   }

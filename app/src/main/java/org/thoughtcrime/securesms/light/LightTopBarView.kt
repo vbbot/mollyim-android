@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.AbstractComposeView
@@ -52,12 +53,16 @@ sealed interface LightBarAction {
   ) : LightBarAction
 
   /**
-   * A drawable of the host's own -- a `MenuItem` icon, typically -- recoloured to the Light content
+   * A drawable of the host's own (a `MenuItem` icon, typically) recoloured to the Light content
    * colour, because those carry Signal's Material tint and would be off-palette on black.
+   *
+   * Not named `Drawable`: a nested classifier shadows the imported
+   * `android.graphics.drawable.Drawable` inside this interface, which would type the property below
+   * as the variant itself.
    */
-  data class Drawable(
+  data class HostDrawable(
     override val contentDescription: String?,
-    val drawable: Drawable,
+    val icon: Drawable,
     override val onClick: () -> Unit
   ) : LightBarAction
 }
@@ -105,8 +110,8 @@ private fun LightBarAction.toBarButton(): LightBarButton = when (this) {
     contentDescription = contentDescription
   )
 
-  is LightBarAction.Drawable -> LightBarButton.Icon(
-    painter = rememberLightTintedDrawablePainter(drawable),
+  is LightBarAction.HostDrawable -> LightBarButton.Icon(
+    painter = rememberLightTintedDrawablePainter(icon),
     onClick = onClick,
     contentDescription = contentDescription
   )
@@ -136,7 +141,7 @@ private fun rememberLightTintedDrawablePainter(drawable: Drawable): Painter {
     drawable.setColorFilter(PorterDuffColorFilter(tint.toArgb(), PorterDuff.Mode.SRC_IN))
     drawable.draw(Canvas(bitmap))
 
-    bitmap.asImageBitmap()
+    BitmapPainter(bitmap.asImageBitmap())
   }
 }
 
