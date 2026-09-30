@@ -107,7 +107,7 @@ class LightAppTopBarTest {
    */
   @Test
   fun `a root screen renders no back affordance at all`() {
-    setBar(title = null, leftAction = null)
+    setBar(title = null, hasBackAction = false)
 
     composeTestRule.onAllNodesWithContentDescription("Navigate up").assertCountEquals(0)
   }
@@ -145,21 +145,25 @@ class LightAppTopBarTest {
    */
   private fun setBar(
     title: String?,
-    leftAction: LightBarAction? = LightBarAction.Sdk(
-      contentDescription = "Navigate up",
-      icon = LightIcons.BACK,
-      onClick = {}
-    ),
+    hasBackAction: Boolean = true,
+    onBackClick: () -> Unit = {},
     actionIcon: android.graphics.drawable.Drawable? = null,
     actionContentDescription: String? = null,
-    onBackClick: () -> Unit = {},
     onActionClick: (() -> Unit)? = null
   ) {
     composeTestRule.setContent {
       LightTheme(colors = LightThemeColors.Dark) {
         LightAppTopBar(
           title = title,
-          leftAction = leftAction,
+          leftAction = if (hasBackAction) {
+            LightBarAction.Sdk(
+              contentDescription = "Navigate up",
+              icon = LightIcons.BACK,
+              onClick = onBackClick
+            )
+          } else {
+            null
+          },
           rightAction = actionIcon?.let {
             LightBarAction.HostDrawable(
               contentDescription = actionContentDescription,

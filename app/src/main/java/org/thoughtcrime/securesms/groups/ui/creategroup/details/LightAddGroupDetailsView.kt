@@ -410,7 +410,10 @@ fun LightAddGroupDetailsScreen(
         )
       ),
       modifier = Modifier
-        .semantics {
+        // Merged, so the bar is announced as one node -- "Creating…, button, unavailable" -- rather
+        // than as a bare label with the disabled state stranded on an ancestor a screen reader never
+        // reaches on its own.
+        .semantics(mergeDescendants = true) {
           role = Role.Button
           if (!state.submitEnabled) disabled()
         }

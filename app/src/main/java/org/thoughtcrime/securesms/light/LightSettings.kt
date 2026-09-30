@@ -226,7 +226,10 @@ fun LightSettingsRow(
             if (longPress != null) {
               semanticsOnLongClick(label = longPressLabel) { longPress() }
             }
-            if (!enabled && !actionable) {
+            // Marked disabled whenever the row is disabled, not only when it is inert: a row that
+            // explains *why* it is unavailable is still unavailable, and `disabled()` only reports
+            // state -- it does not suppress the click, so the explanation is still delivered.
+            if (!enabled) {
               disabled()
             }
           }

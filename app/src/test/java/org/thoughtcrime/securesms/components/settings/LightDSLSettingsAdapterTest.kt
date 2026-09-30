@@ -5,14 +5,22 @@
 
 package org.thoughtcrime.securesms.components.settings
 
+import android.app.Application
 import assertk.assertThat
 import assertk.assertions.isEqualTo
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.thoughtcrime.securesms.components.settings.models.AsyncSwitch
 import org.thoughtcrime.securesms.components.settings.models.Button
 import org.thoughtcrime.securesms.components.settings.models.Space
 import org.thoughtcrime.securesms.components.settings.models.Text
 
+// Robolectric, not plain JUnit: the adapter is a RecyclerView ListAdapter, so building one needs
+// the framework's Looper and task executor, and booting the real Application pulls in sqlcipher.
+@RunWith(RobolectricTestRunner::class)
+@Config(application = Application::class)
 class LightDSLSettingsAdapterTest {
 
   @Test

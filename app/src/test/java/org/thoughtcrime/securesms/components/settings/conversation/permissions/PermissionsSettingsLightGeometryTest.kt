@@ -8,6 +8,8 @@ package org.thoughtcrime.securesms.components.settings.conversation.permissions
 import android.app.Application
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -62,7 +64,11 @@ class PermissionsSettingsLightGeometryTest {
     )
 
     composeTestRule.onNodeWithText(string(R.string.PermissionsSettingsFragment__add_members)).performClick()
-    composeTestRule.onNodeWithText(string(R.string.PermissionsSettingsFragment__all_members)).performClick()
+    // The row behind the panel reads "Send messages, All members, ›" as well, so the label alone
+    // matches two nodes; the panel's option is the selectable one.
+    composeTestRule.onNode(
+      hasText(string(R.string.PermissionsSettingsFragment__all_members)) and isSelectable()
+    ).performClick()
     composeTestRule.onNodeWithText(string(android.R.string.ok)).performClick()
 
     assertThat(selections).isEqualTo(listOf(GroupPermission.ADD_MEMBERS to ALL_MEMBERS_INDEX))

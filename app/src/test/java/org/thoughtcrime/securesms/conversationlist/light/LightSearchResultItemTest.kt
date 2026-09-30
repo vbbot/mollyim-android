@@ -119,10 +119,13 @@ class LightSearchResultItemTest {
   }
 
   @Test
-  fun `an unrecognised arbitrary row is blank space rather than a crash`() {
+  fun `an unrecognised arbitrary row is a visible coverage failure, not blank space`() {
+    // Not PLACEHOLDER. A blank row is how an unfilled paging hole looks, so a functional row the
+    // Light port does not understand must not wear that mask -- it says so on screen instead.
     val row = map(ContactSearchData.Arbitrary("something-invented-upstream")).single()
 
-    assertThat(row.kind).isEqualTo(LightContactItem.Kind.PLACEHOLDER)
+    assertThat(row.kind).isEqualTo(LightContactItem.Kind.UNSUPPORTED)
+    assertThat(row.enabled).isFalse()
   }
 
   /**
