@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -28,6 +29,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
@@ -40,7 +42,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import kotlinx.coroutines.launch
 import org.signal.core.ui.BottomSheetUtil
@@ -65,6 +66,7 @@ import org.thoughtcrime.securesms.contacts.paged.ContactSearchViewModel
 import org.thoughtcrime.securesms.database.RecipientTable
 import org.thoughtcrime.securesms.database.model.IdentityRecord
 import org.thoughtcrime.securesms.keyvalue.SignalStore
+import org.thoughtcrime.securesms.light.LightConfirmationDialog
 import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.mediasend.v2.stories.ChooseGroupStoryBottomSheet
 import org.thoughtcrime.securesms.mediasend.v2.stories.ChooseStoryTypeBottomSheet
@@ -132,6 +134,15 @@ class MultiselectForwardFragment :
   private var bottomBarHeightPx by mutableIntStateOf(0)
   private val bottomBarLifecycle = SiblingHostLifecycle()
 
+  /**
+   * The first-send explainer, which is the one dialog this flow owns end to end.
+   *
+   * It is Compose state rather than a fragment result because the dialog is drawn by
+   * [LightConfirmationDialog] inside this fragment's own composition, and because the stage observer
+   * that raises it is not itself a composition: see [FragmentContent].
+   */
+  private var firstSendDialog by mutableStateOf<FirstSendDialog>(FirstSendDialog.Idle)
+
   private val args: MultiselectForwardFragmentArgs by lazy {
     requireArguments().getParcelableCompat(ARGS, MultiselectForwardFragmentArgs::class.java)!!
   }
@@ -156,6 +167,52 @@ class MultiselectForwardFragment :
         contactSearchCallbacks = remember { SearchCallbacks() },
         searchConfigurationProvider = findListener<SearchConfigurationProvider>(),
         bottomContentPadding = with(LocalDensity.current) { bottomBarHeightPx.toDp() }
+      )
+
+      FirstSendExplanation()
+    }
+  }
+
+  /**
+   * The one-time "faster forwards" explainer, in place of the `MaterialAlertDialogBuilder` that used
+   * to raise it.
+   *
+   * That was a dark Material plate with a filled accent button on a black screen: the single most
+   * visibly Signal thing in the whole share flow, shown the first time a user forwards anything.
+   * [LightConfirmationDialog] is the same three things in the app's own grammar: a close affordance,
+   * the message, and cancel/confirm in the bottom bar.
+   *
+   * Rendered from the composition rather than shown as its own dialog fragment so that the state that
+   * raises it -- the stage observer in [onViewCreated] -- and the state that draws it are the same
+   * object, and so the dialog cannot outlive the view by a frame on a configuration change.
+   */
+  @Composable
+  private fun FirstSendExplanation() {
+    val dialog = firstSendDialog
+
+    if (dialog is FirstSendDialog.Showing) {
+      LightConfirmationDialog(
+        title = stringResource(R.string.MultiselectForwardFragment__faster_forwards),
+        body = stringResource(R.string.MultiselectForwardFragment__forwarded_messages_are_now),
+        confirmLabel = resources.getQuantityString(
+          R.plurals.MultiselectForwardFragment_send_d_messages,
+          dialog.messageCount,
+          dialog.messageCount
+        ),
+        dismissLabel = stringResource(android.R.string.cancel),
+        onConfirm = {
+          viewModel.confirmFirstSend(contactSearchViewModel.getSelectedContacts())
+          firstSendDialog = FirstSendDialog.Idle
+        },
+        onDismiss = {
+          // `LightConfirmationDialog` calls `onDismiss` after `onConfirm` as well as after the close
+          // affordance and the system back, so this is reached on both paths. The state decides
+          // which: only the path that did not confirm may cancel the send.
+          if (firstSendDialog is FirstSendDialog.Showing) {
+            firstSendDialog = FirstSendDialog.Idle
+            viewModel.cancelSend()
+          }
+        }
       )
     }
   }
@@ -356,20 +413,7 @@ class MultiselectForwardFragment :
   private fun displayFirstSendConfirmation() {
     SignalStore.tooltips.markMultiForwardDialogSeen()
 
-    val messageCount = getMessageCount()
-
-    MaterialAlertDialogBuilder(requireContext())
-      .setTitle(R.string.MultiselectForwardFragment__faster_forwards)
-      .setMessage(R.string.MultiselectForwardFragment__forwarded_messages_are_now)
-      .setPositiveButton(resources.getQuantityString(R.plurals.MultiselectForwardFragment_send_d_messages, messageCount, messageCount)) { d, _ ->
-        d.dismiss()
-        viewModel.confirmFirstSend(contactSearchViewModel.getSelectedContacts())
-      }
-      .setNegativeButton(android.R.string.cancel) { d, _ ->
-        d.dismiss()
-        viewModel.cancelSend()
-      }
-      .show()
+    firstSendDialog = FirstSendDialog.Showing(getMessageCount())
   }
 
   private fun onSend() {
@@ -630,6 +674,18 @@ class MultiselectForwardFragment :
       fragment.show(supportFragmentManager, BottomSheetUtil.STANDARD_BOTTOM_SHEET_FRAGMENT_TAG)
     }
   }
+}
+
+/**
+ * Whether the one-time first-send explainer is up, and for how many messages.
+ *
+ * The count is captured when the dialog is raised rather than read from the view model while it is
+ * drawn, because the send can complete underneath it: the original read it at the same moment, and
+ * a label that changed while the dialog was on screen would be a worse bug than a stale count.
+ */
+private sealed interface FirstSendDialog {
+  data object Idle : FirstSendDialog
+  data class Showing(val messageCount: Int) : FirstSendDialog
 }
 
 /**
