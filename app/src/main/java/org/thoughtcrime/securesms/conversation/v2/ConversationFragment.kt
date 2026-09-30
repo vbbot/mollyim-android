@@ -50,7 +50,6 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.MainThread
 import androidx.annotation.StringRes
 import androidx.appcompat.content.res.AppCompatResources
-import androidx.appcompat.widget.SearchView
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.app.ActivityOptionsCompat
 import androidx.core.content.ContextCompat
@@ -82,8 +81,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.android.material.R as MaterialR
-import com.google.android.material.datepicker.CalendarConstraints
-import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.BaseTransientBottomBar.Duration
 import com.google.android.material.snackbar.Snackbar
@@ -145,7 +142,6 @@ import org.thoughtcrime.securesms.billing.upgrade.UpgradeToStartMediaBackupSheet
 import org.thoughtcrime.securesms.calls.YouAreAlreadyInACallSnackbar
 import org.thoughtcrime.securesms.components.AnimatingToggle
 import org.thoughtcrime.securesms.components.ComposeText
-import org.thoughtcrime.securesms.components.ConversationSearchBottomBar
 import org.thoughtcrime.securesms.components.HidingLinearLayout
 import org.thoughtcrime.securesms.components.InputAwareConstraintLayout
 import org.thoughtcrime.securesms.components.InputPanel
@@ -239,6 +235,7 @@ import org.thoughtcrime.securesms.conversation.v2.items.light.LightQuoteLine
 import org.thoughtcrime.securesms.conversation.v2.keyboard.AttachmentKeyboardFragment
 import org.thoughtcrime.securesms.conversation.v2.light.LightComposerView
 import org.thoughtcrime.securesms.conversation.v2.light.LightConversationBottomBarView
+import org.thoughtcrime.securesms.conversation.v2.light.LightConversationSearchNavigationView
 import org.thoughtcrime.securesms.conversation.v2.light.LightConversationTopBarLeftAction
 import org.thoughtcrime.securesms.conversation.v2.light.LightInputPanelChrome
 import org.thoughtcrime.securesms.conversation.v2.light.LightMessageMenu
@@ -364,8 +361,6 @@ import org.thoughtcrime.securesms.util.RemoteConfig
 import org.thoughtcrime.securesms.util.SignalLocalMetrics
 import org.thoughtcrime.securesms.util.TextSecurePreferences
 import org.thoughtcrime.securesms.util.ViewUtil
-import org.thoughtcrime.securesms.util.atMidnight
-import org.thoughtcrime.securesms.util.atUTC
 import org.thoughtcrime.securesms.util.doAfterNextLayout
 import org.thoughtcrime.securesms.util.fragments.requireListener
 import org.thoughtcrime.securesms.util.getPoll
@@ -376,15 +371,13 @@ import org.thoughtcrime.securesms.util.hasLinkPreview
 import org.thoughtcrime.securesms.util.hasNonTextSlide
 import org.thoughtcrime.securesms.util.isValidReactionTarget
 import org.thoughtcrime.securesms.util.padding
-import org.thoughtcrime.securesms.util.setIncognitoKeyboardEnabled
-import org.thoughtcrime.securesms.util.toMillis
 import org.thoughtcrime.securesms.util.viewModel
 import org.thoughtcrime.securesms.util.visible
 import org.thoughtcrime.securesms.verify.VerifyIdentityActivity
 import org.thoughtcrime.securesms.wallpaper.ChatWallpaper
 import org.thoughtcrime.securesms.wallpaper.ChatWallpaperDimLevelUtil
 import java.time.Instant
-import java.time.LocalDateTime
+import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 import java.util.Optional
@@ -423,6 +416,7 @@ class ConversationFragment :
 
     private const val ACTION_PINNED_SHORTCUT = "action_pinned_shortcut"
     private const val SAVED_STATE_IS_SEARCH_REQUESTED = "is_search_requested"
+    private const val SAVED_STATE_SEARCH_QUERY = "search_query"
     private const val EMOJI_SEARCH_FRAGMENT_TAG = "EmojiSearchFragment"
     private const val MESSAGE_DETAILS_TAG = "MessageDetailsFragment"
 
@@ -575,7 +569,7 @@ class ConversationFragment :
 
   private var animationsAllowed = false
   private var pinnedShortcutReceiver: BroadcastReceiver? = null
-  private var searchMenuItem: MenuItem? = null
+  private var searchQuery: String = ""
 
   private var isSearchRequested: Boolean = false
     set(value) {
@@ -642,8 +636,8 @@ class ConversationFragment :
   private val bottomActionBar: SignalBottomActionBar
     get() = binding.conversationBottomActionBar
 
-  private val searchNav: ConversationSearchBottomBar
-    get() = binding.conversationSearchBottomBar.root
+  private val searchNav: LightConversationSearchNavigationView
+    get() = binding.conversationSearchBottomBar
 
   private val lightBottomBar: LightConversationBottomBarView
     get() = binding.lightBottomBar
@@ -798,13 +792,18 @@ class ConversationFragment :
   override fun onViewStateRestored(savedInstanceState: Bundle?) {
     super.onViewStateRestored(savedInstanceState)
 
+    searchQuery = savedInstanceState?.getString(SAVED_STATE_SEARCH_QUERY).orEmpty()
     isSearchRequested = savedInstanceState?.getBoolean(SAVED_STATE_IS_SEARCH_REQUESTED, false) ?: args.isWithSearchOpen
+    if (isSearchRequested) {
+      openChatSearch()
+    }
   }
 
   override fun onSaveInstanceState(outState: Bundle) {
     super.onSaveInstanceState(outState)
 
     outState.putBoolean(SAVED_STATE_IS_SEARCH_REQUESTED, isSearchRequested)
+    outState.putString(SAVED_STATE_SEARCH_QUERY, searchQuery)
   }
 
   private var previous24HourFormat: Boolean? = null
@@ -1098,11 +1097,13 @@ class ConversationFragment :
     val state = viewModel.backPressedState.value
 
     when {
+      binding.conversationSearchDatePicker.isOpen -> closeSearchDatePicker(restoreSearchFocus = true)
+
       state.isLightActionPanelShowing -> dismissLightActionPanel()
 
       state.isLightComposerShowing -> closeLightComposer(cancelEdit = true)
 
-      state.isSearchRequested -> searchMenuItem?.collapseActionView()
+      state.isSearchRequested -> closeChatSearch()
 
       state.isInActionMode -> finishActionMode()
 
@@ -1135,7 +1136,9 @@ class ConversationFragment :
     actionModeTopBarView.onCloseClick = this::finishActionMode
     actionModeTopBarView.title = calculateSelectedItemCount()
 
-    searchMenuItem?.collapseActionView()
+    if (isSearchRequested) {
+      closeChatSearch()
+    }
     binding.toolbar.isInvisible = true
     binding.lightTopBar.isInvisible = true
     if (scheduledMessagesStub.isVisible) {
@@ -1772,7 +1775,7 @@ class ConversationFragment :
   }
 
   private fun invalidateOptionsMenu() {
-    if (searchMenuItem?.isActionViewExpanded != true || !isSearchRequested) {
+    if (!isSearchRequested) {
       binding.toolbar.invalidateMenu()
     }
   }
@@ -2317,7 +2320,22 @@ class ConversationFragment :
       searchNav.setData(result.position, result.results.size)
     }
 
-    searchNav.setEventListener(SearchEventListener())
+    binding.conversationSearchQuery.apply {
+      incognitoKeyboard = TextSecurePreferences.isIncognitoKeyboardEnabled(requireContext())
+      onQueryChange = { updateChatSearchQuery(it, forced = false) }
+      onSubmit = { updateChatSearchQuery(query, forced = true) }
+      onBack = this@ConversationFragment::closeChatSearch
+    }
+
+    searchNav.onMoveToPrevious = searchViewModel::onMoveUp
+    searchNav.onMoveToNext = searchViewModel::onMoveDown
+    searchNav.onJumpToDate = this::openSearchDatePicker
+
+    binding.conversationSearchDatePicker.apply {
+      isDateValid = viewModel.jumpToDateValidator::isValid
+      onDateSelected = this@ConversationFragment::onSearchDateSelected
+      onBack = { closeSearchDatePicker(restoreSearchFocus = true) }
+    }
 
     disposables += viewModel.searchQuery.subscribeBy {
       adapter.updateSearchQuery(it)
@@ -3251,7 +3269,7 @@ class ConversationFragment :
    */
   private fun handleReplyToMessage(conversationMessage: ConversationMessage, openComposer: Boolean = true) {
     if (isSearchRequested) {
-      searchMenuItem?.collapseActionView()
+      closeChatSearch()
     }
 
     if (inputPanel.inEditMessageMode()) {
@@ -3288,7 +3306,7 @@ class ConversationFragment :
     }
 
     if (isSearchRequested) {
-      searchMenuItem?.collapseActionView()
+      closeChatSearch()
     }
 
     viewModel.resolveMessageToEdit(conversationMessage)
@@ -3563,15 +3581,115 @@ class ConversationFragment :
     return isScrolledToBottom() || layoutManager.findFirstVisibleItemPosition() <= 0
   }
 
+  private fun openChatSearch() {
+    if (binding.conversationSearchQuery.isVisible) {
+      return
+    }
+
+    isSearchRequested = true
+    searchViewModel.onSearchOpened()
+    binding.toolbar.hideOverflowMenu()
+    binding.lightTopBar.isInvisible = true
+    binding.conversationSearchQuery.apply {
+      query = searchQuery
+      visible = true
+      post { requestSearchFocus() }
+    }
+    searchNav.visible = true
+    val retainedResults = searchViewModel.searchResults.value
+    when {
+      searchQuery.isEmpty() -> {
+        searchNav.setData(0, 0)
+        viewModel.setSearchQuery("")
+      }
+      retainedResults != null -> {
+        searchNav.setData(retainedResults.position, retainedResults.results.size)
+        viewModel.setSearchQuery(searchQuery)
+      }
+      else -> {
+        searchNav.setData(0, 0)
+        updateChatSearchQuery(searchQuery, forced = false)
+      }
+    }
+    inputPanel.setHideForSearch(true)
+    updateLightInputChrome()
+    viewModel.onChatSearchOpened()
+    binding.conversationDisabledInput.visible = false
+  }
+
+  private fun updateChatSearchQuery(query: String, forced: Boolean) {
+    searchQuery = query
+    searchViewModel.onQueryUpdated(query, args.threadId, forced)
+    searchNav.showLoading()
+    viewModel.setSearchQuery(query)
+  }
+
   private fun closeChatSearch() {
+    if (!isSearchRequested && !binding.conversationSearchQuery.isVisible) {
+      return
+    }
+
+    closeSearchDatePicker()
     isSearchRequested = false
     searchViewModel.onSearchClosed()
+    binding.conversationSearchQuery.apply {
+      clearSearchFocus()
+      ViewUtil.hideKeyboard(requireContext(), this)
+      visible = false
+      query = ""
+    }
+    searchQuery = ""
+    binding.lightTopBar.isInvisible = false
     searchNav.visible = false
     inputPanel.setHideForSearch(false)
     updateLightInputChrome()
     viewModel.setSearchQuery(null)
     binding.conversationDisabledInput.visible = true
     invalidateOptionsMenu()
+  }
+
+  private fun openSearchDatePicker() {
+    disposables += viewModel.getEarliestMessageSentDate().subscribe { earliestDate ->
+      val zoneId = ZoneId.systemDefault()
+      binding.conversationSearchQuery.clearSearchFocus()
+      ViewUtil.hideKeyboard(requireContext(), binding.conversationSearchQuery)
+      binding.conversationSearchDatePicker.show(
+        earliestTimestamp = earliestDate,
+        latestDate = LocalDate.now(zoneId),
+        zoneId = zoneId
+      )
+      binding.conversationSearchDatePicker.visible = true
+    }
+  }
+
+  private fun closeSearchDatePicker(restoreSearchFocus: Boolean = false) {
+    val wasOpen = binding.conversationSearchDatePicker.isOpen
+    binding.conversationSearchDatePicker.close()
+    binding.conversationSearchDatePicker.visible = false
+    if (wasOpen && restoreSearchFocus && isSearchRequested) {
+      binding.conversationSearchQuery.post {
+        binding.conversationSearchQuery.requestSearchFocus()
+      }
+    }
+  }
+
+  /** Preserves the Material picker timestamp-to-local-midnight conversion used by message lookup. */
+  private fun onSearchDateSelected(selectedDate: Long) {
+    closeSearchDatePicker()
+    val localMidnightTimestamp = Instant.ofEpochMilli(selectedDate)
+      .atZone(ZoneId.systemDefault())
+      .toLocalDate()
+      .atStartOfDay(ZoneId.systemDefault())
+      .toInstant()
+      .toEpochMilli()
+
+    disposables += viewModel
+      .moveToDate(localMidnightTimestamp)
+      .observeOn(AndroidSchedulers.mainThread())
+      .subscribeBy { position ->
+        moveToPosition(position - 1)
+        closeChatSearch()
+      }
   }
 
   private fun scrollToBottom() {
@@ -4321,67 +4439,7 @@ class ConversationFragment :
       return composeText.isTextHighlighted
     }
 
-    override fun onOptionsMenuCreated(menu: Menu) {
-      searchMenuItem = menu.findItem(R.id.menu_search)
-
-      val searchView: SearchView = searchMenuItem!!.actionView as SearchView
-      val queryListener: SearchView.OnQueryTextListener = object : SearchView.OnQueryTextListener {
-        override fun onQueryTextSubmit(query: String): Boolean {
-          searchViewModel.onQueryUpdated(query, args.threadId, true)
-          searchNav.showLoading()
-          viewModel.setSearchQuery(query)
-          return true
-        }
-
-        override fun onQueryTextChange(newText: String): Boolean {
-          searchViewModel.onQueryUpdated(newText, args.threadId, false)
-          searchNav.showLoading()
-          viewModel.setSearchQuery(newText)
-          return true
-        }
-      }
-
-      searchMenuItem!!.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
-        override fun onMenuItemActionExpand(item: MenuItem): Boolean {
-          searchView.setIncognitoKeyboardEnabled(TextSecurePreferences.isIncognitoKeyboardEnabled(requireContext()))
-          searchView.setOnQueryTextListener(queryListener)
-          isSearchRequested = true
-          searchViewModel.onSearchOpened()
-          searchNav.visible = true
-          searchNav.setData(0, 0)
-          inputPanel.setHideForSearch(true)
-          updateLightInputChrome()
-          viewModel.onChatSearchOpened()
-          binding.conversationDisabledInput.visible = false
-          // The SearchView expands into the Toolbar that the Light bar is painted over, so the
-          // Light bar has to step aside for as long as the search is open.
-          binding.lightTopBar.isInvisible = true
-
-          (0 until menu.size()).forEach {
-            if (menu.getItem(it) != searchMenuItem) {
-              menu.getItem(it).isVisible = false
-            }
-          }
-
-          return true
-        }
-
-        override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
-          searchView.setOnQueryTextListener(null)
-          binding.lightTopBar.isInvisible = false
-          closeChatSearch()
-          return true
-        }
-      })
-
-      searchView.maxWidth = Integer.MAX_VALUE
-
-      if (isSearchRequested) {
-        if (searchMenuItem!!.expandActionView()) {
-          searchViewModel.onSearchOpened()
-        }
-      }
-    }
+    override fun onOptionsMenuCreated(menu: Menu) = Unit
 
     override fun onCallActionsAvailable(canVoiceCall: Boolean, canVideoCall: Boolean) {
       lightCanVoiceCall = canVoiceCall
@@ -4431,7 +4489,7 @@ class ConversationFragment :
     }
 
     override fun handleSearch() {
-      searchViewModel.onSearchOpened()
+      openChatSearch()
     }
 
     override fun handleAddToContacts() {
@@ -5289,14 +5347,14 @@ class ConversationFragment :
     }
 
     override fun onKeyboardShown() {
-      if (searchMenuItem?.isActionViewExpanded == true && searchMenuItem?.actionView?.hasFocus() == false) {
-        searchMenuItem?.actionView?.requestFocus()
+      if (isSearchRequested && !binding.conversationSearchQuery.hasFocus()) {
+        binding.conversationSearchQuery.requestSearchFocus()
       }
     }
 
     override fun onKeyboardHidden() {
-      if (searchMenuItem?.isActionViewExpanded == true && searchMenuItem?.actionView?.hasFocus() == true) {
-        searchMenuItem?.actionView?.clearFocus()
+      if (isSearchRequested) {
+        binding.conversationSearchQuery.clearSearchFocus()
       }
     }
 
@@ -5343,64 +5401,6 @@ class ConversationFragment :
   }
 
   //endregion
-
-  private inner class SearchEventListener : ConversationSearchBottomBar.EventListener {
-    override fun onSearchMoveUpPressed() {
-      searchViewModel.onMoveUp()
-    }
-
-    override fun onSearchMoveDownPressed() {
-      searchViewModel.onMoveDown()
-    }
-
-    override fun onDatePickerSelected() {
-      disposables += viewModel.getEarliestMessageSentDate().subscribe { earliestDate ->
-        val local = LocalDateTime.now()
-          .atMidnight()
-          .atUTC()
-          .toMillis()
-        val datePicker =
-          MaterialDatePicker.Builder
-            .datePicker()
-            .setTitleText(getString(R.string.ScheduleMessageTimePickerBottomSheet__select_date_title))
-            .setSelection(local)
-            .setCalendarConstraints(
-              CalendarConstraints.Builder()
-                .setValidator(viewModel.jumpToDateValidator)
-                .setStart(earliestDate)
-                .setEnd(local)
-                .build()
-            )
-            .build()
-
-        datePicker.addOnDismissListener {
-          datePicker.clearOnDismissListeners()
-          datePicker.clearOnPositiveButtonClickListeners()
-        }
-
-        datePicker.addOnPositiveButtonClickListener { selectedDate ->
-          if (selectedDate != null) {
-            val localMidnightTimestamp = Instant.ofEpochMilli(selectedDate)
-              .atZone(ZoneId.systemDefault())
-              .toLocalDate()
-              .atStartOfDay(ZoneId.systemDefault())
-              .toInstant()
-              .toEpochMilli()
-
-            disposables += viewModel
-              .moveToDate(localMidnightTimestamp)
-              .observeOn(AndroidSchedulers.mainThread())
-              .subscribeBy { position ->
-                moveToPosition(position - 1)
-                closeChatSearch()
-              }
-          }
-        }
-
-        datePicker.show(childFragmentManager, "DATE_PICKER")
-      }
-    }
-  }
 
   private inner class VoiceMessageRecordingSessionCallbacks : VoiceMessageRecordingDelegate.SessionCallback {
     override fun onSessionWillBegin() {

@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
@@ -67,6 +68,19 @@ class LightSearchFieldTest {
     composeTestRule.onNode(hasSetTextAction()).performTextInput("ada")
 
     assertThat(query).isEqualTo("ada")
+  }
+
+  @Test
+  fun `IME search reaches the optional forced submit callback`() {
+    var submits = 0
+
+    composeTestRule.setContent {
+      Bar(query = "ada", onSubmit = { submits++ })
+    }
+
+    composeTestRule.onNode(hasSetTextAction()).performImeAction()
+
+    assertThat(submits).isEqualTo(1)
   }
 
   @Test
@@ -200,13 +214,19 @@ class LightSearchFieldTest {
   }
 
   @Composable
-  private fun Bar(query: String, onQueryChange: (String) -> Unit = {}, onBack: (() -> Unit)? = null) {
+  private fun Bar(
+    query: String,
+    onQueryChange: (String) -> Unit = {},
+    onBack: (() -> Unit)? = null,
+    onSubmit: (() -> Unit)? = null
+  ) {
     MollyLightTheme {
       LightSearchField(
         query = query,
         onQueryChange = onQueryChange,
         hint = HINT,
         onBack = onBack,
+        onSubmit = onSubmit,
         modifier = Modifier.fillMaxWidth()
       )
     }

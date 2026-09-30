@@ -480,6 +480,14 @@
     <string name="ConversationActivity_no">No</string>
     <string name="ConversationActivity_search_position">%1$d of %2$d</string>
     <string name="ConversationActivity_no_results">No results</string>
+    <string name="ConversationSearch__searching">Searching…</string>
+    <string name="ConversationSearch__jump_to_date">Jump to date</string>
+    <string name="ConversationSearch__previous_result">Previous result</string>
+    <string name="ConversationSearch__next_result">Next result</string>
+    <string name="ConversationSearch__close_date_picker">Close date picker</string>
+    <string name="ConversationSearch__previous_month">Previous month</string>
+    <string name="ConversationSearch__next_month">Next month</string>
+    <string name="ConversationSearch__select_date">Select</string>
 
     <string name="ConversationActivity_sticker_pack_installed">Sticker pack installed</string>
     <string name="ConversationActivity_new_say_it_with_stickers">New! Say it with stickers</string>

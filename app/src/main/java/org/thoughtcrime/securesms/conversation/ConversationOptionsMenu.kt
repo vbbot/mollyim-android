@@ -37,16 +37,12 @@ internal object ConversationOptionsMenu {
    * into the overflow, where they are still reachable, and guarantees an overflow button exists at
    * all, which is what the Light bar's ellipses anchors its popup on.
    *
-   * The search item is left alone: it is already overflow-only (`collapseActionView` without
-   * `ifRoom`), and that flag is what lets `expandActionView()` expand the `SearchView` into the
-   * toolbar.
+   * Search is a normal overflow action too. Its app-owned Light field is installed by
+   * `ConversationFragment`; no toolbar action view remains to expand.
    */
   fun forceIntoOverflow(menu: Menu) {
     for (i in 0 until menu.size()) {
-      val item = menu.getItem(i)
-      if (item.itemId != R.id.menu_search) {
-        item.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
-      }
+      menu.getItem(i).setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
     }
   }
 

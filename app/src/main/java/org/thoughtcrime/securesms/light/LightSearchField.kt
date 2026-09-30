@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -35,6 +36,7 @@ import com.thelightphone.sdk.ui.LightThemeTokens
 import com.thelightphone.sdk.ui.designVerticalPxToDp
 import com.thelightphone.sdk.ui.gridUnitsAsDp
 import com.thelightphone.sdk.ui.lightClickable
+import org.signal.core.ui.compose.ProvideIncognitoKeyboard
 import org.thoughtcrime.securesms.R
 
 /** The field sits on the list's row rhythm, so it is the same height as a list row. */
@@ -55,10 +57,10 @@ private const val UNDERLINE_THICKNESS_PX = 3f
 /**
  * **The** Light search field. One control, every caller in the app that searches.
  *
- * Introduced for the contact picker (as `LightRecipientSearchBar`) and generalised here when the
- * chat/call search needed the same thing; it now serves both, which is the point -- a second search
- * field that merely looked similar would drift from this one the first time either was touched.
- * The two callers are `recipients/ui/RecipientPicker.kt` and `main/MainToolbar.kt`.
+ * Introduced for the contact picker (as `LightRecipientSearchBar`) and generalised when chat/call
+ * and in-conversation search needed the same thing; one shared field prevents lookalike controls
+ * from drifting apart. Its callers live in `recipients/ui/RecipientPicker.kt`, `main/MainToolbar.kt`,
+ * and `conversation/v2/light/LightConversationSearch.kt`.
  *
  * **The shape** is the SDK's own text-entry shape, taken from `LightTextField` (which is a display
  * field that opens an editor, so it could not be reused directly, only followed): the value in
@@ -82,6 +84,11 @@ private const val UNDERLINE_THICKNESS_PX = 3f
  *   When null the slot holds a decorative [LightIcons.SEARCH], for callers whose field is a filter
  *   over a list that is on screen either way.
  * @param trailing an optional extra glyph, drawn between the entry and the clear affordance.
+ * @param onSubmit optional callback for callers that distinguish an IME search action from ordinary
+ *   typing. The keyboard is hidden after the callback, as it was for existing callers.
+ * @param onFocusChanged optional focus callback for hosts that mirror search mode outside Compose.
+ * @param incognitoKeyboard requests the platform's no-personalized-learning mode without changing
+ *   the default behavior of existing callers.
  */
 @Composable
 fun LightSearchField(
@@ -91,7 +98,10 @@ fun LightSearchField(
   hint: String = stringResource(R.string.RecipientSearchBar__search_name_or_number),
   focusRequester: FocusRequester? = null,
   onBack: (() -> Unit)? = null,
-  trailing: (@Composable () -> Unit)? = null
+  trailing: (@Composable () -> Unit)? = null,
+  onSubmit: (() -> Unit)? = null,
+  onFocusChanged: ((Boolean) -> Unit)? = null,
+  incognitoKeyboard: Boolean = false
 ) {
   val colors = LightThemeTokens.colors
   val keyboardController = LocalSoftwareKeyboardController.current
@@ -129,39 +139,52 @@ fun LightSearchField(
 
       Box(modifier = Modifier.width(COLUMN_GAP_UNITS.gridUnitsAsDp()))
 
-      BasicTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        singleLine = true,
-        textStyle = LightThemeTokens.typography.copy.copy(color = colors.content),
-        cursorBrush = SolidColor(colors.content),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        // The list is already filtered by the time this can be pressed -- every keystroke has gone
-        // through onQueryChange -- so the search key's only remaining job is to get the keyboard out
-        // of the way of the results it just produced.
-        keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
-        modifier = Modifier
-          .weight(1f)
-          .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
-        // The Box is explicit rather than relying on how `BasicTextField` happens to lay its
-        // decoration out. Both arrangements measure the same today -- the hint and the entry end up
-        // on one line either way -- but "the hint sits behind the entry" is the thing this field
-        // needs to be true, and an overlay is how you say it rather than how you get it.
-        decorationBox = { innerTextField ->
-          Box(contentAlignment = Alignment.CenterStart) {
-            if (query.isEmpty()) {
-              LightText(
-                text = hint,
-                variant = LightTextVariant.Copy,
-                lighten = true,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-              )
+      ProvideIncognitoKeyboard(enabled = incognitoKeyboard) {
+        BasicTextField(
+          value = query,
+          onValueChange = onQueryChange,
+          singleLine = true,
+          textStyle = LightThemeTokens.typography.copy.copy(color = colors.content),
+          cursorBrush = SolidColor(colors.content),
+          keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+          // Existing filter callers only need the keyboard dismissed. Conversation search also uses
+          // this distinct callback to force an immediate repository submission for the current text.
+          keyboardActions = KeyboardActions(
+            onSearch = {
+              onSubmit?.invoke()
+              keyboardController?.hide()
             }
-            innerTextField()
+          ),
+          modifier = Modifier
+            .weight(1f)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .then(
+              if (onFocusChanged != null) {
+                Modifier.onFocusChanged { onFocusChanged(it.isFocused) }
+              } else {
+                Modifier
+              }
+            ),
+          // The Box is explicit rather than relying on how `BasicTextField` happens to lay its
+          // decoration out. Both arrangements measure the same today -- the hint and the entry end up
+          // on one line either way -- but "the hint sits behind the entry" is the thing this field
+          // needs to be true, and an overlay is how you say it rather than how you get it.
+          decorationBox = { innerTextField ->
+            Box(contentAlignment = Alignment.CenterStart) {
+              if (query.isEmpty()) {
+                LightText(
+                  text = hint,
+                  variant = LightTextVariant.Copy,
+                  lighten = true,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis
+                )
+              }
+              innerTextField()
+            }
           }
-        }
-      )
+        )
+      }
 
       if (trailing != null) {
         Box(modifier = Modifier.width(COLUMN_GAP_UNITS.gridUnitsAsDp()))

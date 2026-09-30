@@ -91,10 +91,10 @@
 
     <!--
         LIGHT PHONE: the visible top bar is @id/light_top_bar below. This toolbar is kept purely as
-        the functional host that Compose cannot replace: it is the `MenuProvider` host, it owns the
-        collapsible `SearchView` action view that "Search in conversation" expands into, its height
-        is what the message list pads itself by, and its overflow button is the anchor the Light
-        bar's ellipses opens the popup against. It draws nothing of its own — no navigation icon,
+        the functional `MenuProvider` host: its height is what the message list pads itself by, and
+        its overflow button is the anchor the Light bar's ellipses opens the popup against. Search is
+        rendered by @id/conversation_search_query over this same slot. The toolbar draws nothing of
+        its own — no navigation icon,
         no title, no action items (ConversationFragment forces every item into the overflow) — and
         what little it does lay out sits behind the opaque Light bar.
     -->
@@ -117,6 +117,16 @@
         android:id="@+id/light_top_bar"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="@id/toolbar"
+        app:layout_constraintEnd_toEndOf="@id/toolbar"
+        app:layout_constraintStart_toStartOf="@id/toolbar"
+        app:layout_constraintTop_toTopOf="@id/toolbar" />
+
+    <org.thoughtcrime.securesms.conversation.v2.light.LightConversationSearchQueryView
+        android:id="@+id/conversation_search_query"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="@id/toolbar"
         app:layout_constraintEnd_toEndOf="@id/toolbar"
         app:layout_constraintStart_toStartOf="@id/toolbar"
@@ -322,9 +332,8 @@
         app:layout_constraintEnd_toEndOf="@id/parent_end_guideline"
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline" />
 
-    <include
+    <org.thoughtcrime.securesms.conversation.v2.light.LightConversationSearchNavigationView
         android:id="@+id/conversation_search_bottom_bar"
-        layout="@layout/conversation_search_nav"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:visibility="gone"
@@ -475,6 +484,18 @@
         app:layout_constraintEnd_toEndOf="@id/parent_end_guideline"
         app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- App-owned Light date selector. It covers the thread but keeps search state alive beneath it. -->
+    <org.thoughtcrime.securesms.conversation.v2.light.LightConversationDatePickerView
+        android:id="@+id/conversation_search_date_picker"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:elevation="15dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/navigation_bar_guideline"
+        app:layout_constraintEnd_toEndOf="@id/parent_end_guideline"
+        app:layout_constraintStart_toStartOf="@id/parent_start_guideline"
+        app:layout_constraintTop_toTopOf="@id/status_bar_guideline" />
 
     <FrameLayout
         android:id="@+id/reactions_shade"
