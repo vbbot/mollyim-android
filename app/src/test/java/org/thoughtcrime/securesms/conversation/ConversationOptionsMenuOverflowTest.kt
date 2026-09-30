@@ -69,29 +69,49 @@ class ConversationOptionsMenuOverflowTest {
   }
 
   /**
-   * The search item keeps its `collapseActionView` flag: that flag is what lets
-   * `MenuItem.expandActionView()` put the `SearchView` into the toolbar when "Search in conversation"
-   * is chosen. Demoting it along with everything else would silently break in-conversation search.
+   * `forceIntoOverflow` demotes every item and removes none.
+   *
+   * This used to assert the opposite for search -- that it kept `collapseActionView` so
+   * `expandActionView()` could raise a `SearchView` in the toolbar. That invariant was retired when
+   * in-conversation search moved to its own Light field: `ConversationFragment.openChatSearch()`
+   * hides `lightTopBar` and shows `conversationSearchQuery`, and the fragment no longer calls
+   * `expandActionView()` at all. Nothing is left for the flag to expand into, and demoting search is
+   * what keeps it reachable -- `menu_search` still routes through `handleSearch()` into the overflow.
+   *
+   * So the guarantee worth keeping is that demotion is uniform (no item survives as an invisible
+   * action) and non-destructive (the overflow still offers search).
    */
   @Test
-  fun `search keeps the flag that lets it expand while its neighbours lose theirs`() {
+  fun `every item is demoted into the overflow and none is dropped`() {
     val toolbar = toolbar()
     val menu = toolbar.menu
 
-    val search = menu.add(Menu.NONE, R.id.menu_search, 0, "Search").apply {
+    menu.add(Menu.NONE, R.id.menu_search, 0, "Search").apply {
       actionView = View(toolbar.context)
       setShowAsAction(MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW)
     }
-    val media = menu.add(Menu.NONE, R.id.menu_view_media, 1, "Media").apply {
+    menu.add(Menu.NONE, R.id.menu_view_media, 1, "Media").apply {
       actionView = View(toolbar.context)
       setShowAsAction(MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW)
     }
+    val before = menu.size()
     layOut(toolbar)
 
     ConversationOptionsMenu.forceIntoOverflow(menu)
+    layOut(toolbar)
 
-    assertThat(media.expandActionView()).isFalse()
-    assertThat(search.expandActionView()).isTrue()
+    // Uniform: nothing renders as an action, so the overflow button is the only child the
+    // ActionMenuView lays out. Had either item kept its collapse-action-view flag it would be a
+    // second and third child here -- invisible and untappable under the painted-over Light bar.
+    val actionMenuView = toolbar.firstChildOfType<ActionMenuView>()
+    assertThat(actionMenuView).isNotNull()
+    assertThat(actionMenuView!!.childCount).isEqualTo(1)
+    assertThat(actionMenuView.getChildAt(0)::class.java.simpleName).contains("Overflow")
+
+    // Non-destructive: the overflow still offers search, which is the only route to it now.
+    assertThat(menu.size()).isEqualTo(before)
+    assertThat(menu.findItem(R.id.menu_search)).isNotNull()
+    assertThat(menu.findItem(R.id.menu_search).isVisible).isTrue()
   }
 
   private fun callableToolbar(): DarkOverflowToolbar {
