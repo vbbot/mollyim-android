@@ -28,10 +28,13 @@ import java.util.List;
 /**
  * The shared base for the two Signal PIN screens -- create and confirm.
  *
- * <p>Presentation is {@link LightSvrPinView}'s: this class no longer finds views by id, and neither
- * screen has a Material widget left on it. What it still owns is everything that must not change --
- * the entry-length gate on the confirm action, the keyboard-type switch, the IME action, the opt-out
- * menu's gating, and the navigation out of the graph.
+ * <p>Presentation is {@link LightSvrPinView}'s: this class no longer finds views by id, and no
+ * screen chrome is Material any more. The one exception is stated rather than hidden -- the
+ * credential field is still a {@link org.thoughtcrime.securesms.components.NoAutofillEditText}, a
+ * {@code TextInputEditText}, because it has to be a real focusable field for the device's system
+ * IME. What this class still owns is everything that must not change -- the entry-length gate on
+ * the confirm action, the keyboard-type switch, the IME action, the opt-out menu's gating, and the
+ * navigation out of the graph.
  *
  * <p><strong>Nothing here may weaken a PIN check.</strong> The Signal PIN is not an app lock; it is
  * the credential that makes a backup restorable after losing the phone. The length gate, the
@@ -71,12 +74,10 @@ public abstract class BaseSvrPinFragment<ViewModel extends BaseSvrPinViewModel> 
     viewModel = initializeViewModel();
 
     viewModel.getUserEntry().observe(getViewLifecycleOwner(), svrPin -> {
-      boolean isEntryValid = svrPin.length() >= SvrConstants.MINIMUM_PIN_LENGTH;
-
       // Same gate as before, and the same ordering consequence: this observer is attached after
       // the subclass's own setup, so on first delivery it is what decides the confirm action's
       // state, not whatever `initializeViewStates` set.
-      setConfirmEnabled(isEntryValid);
+      setConfirmEnabled(isEntryLongEnough(svrPin));
     });
 
     viewModel.getKeyboard().observe(getViewLifecycleOwner(), this::applyKeyboardType);
@@ -214,6 +215,25 @@ public abstract class BaseSvrPinFragment<ViewModel extends BaseSvrPinViewModel> 
     } else {
       return getString(R.string.BaseKbsPinFragment__create_alphanumeric_pin);
     }
+  }
+
+  /**
+   * Whether {@code userEntry} is long enough to submit.
+   *
+   * <p>The Signal PIN is the credential that makes a backup restorable after losing the phone, so
+   * this is the one line on these screens that must not drift. It counts <em>characters</em>, not
+   * digits: a PIN may be alphanumeric ({@link PinKeyboardType#ALPHA_NUMERIC}), and a four-character
+   * alphanumeric PIN is four characters long. {@link SvrPin#from} trims first, so a stray space is
+   * not a character the user gets to count, and a null entry is {@link SvrPin#EMPTY} rather than a
+   * pass.
+   *
+   * <p>Package-private so it can be pinned by a test; it is called from exactly one place, the
+   * {@code userEntry} observer above, which is attached <em>after</em> {@link
+   * #initializeViewStates()}. That ordering is deliberate: it is what makes the flag a function of
+   * what is in the field rather than something a screen's own setup can leave stuck on.
+   */
+  static boolean isEntryLongEnough(@NonNull SvrPin userEntry) {
+    return userEntry.length() >= SvrConstants.MINIMUM_PIN_LENGTH;
   }
 
   /** Sets the confirm action's liveness without disturbing whether it is in flight. */
