@@ -80,12 +80,18 @@ private val LONG_PRESS_HAPTIC = 150.milliseconds
  *
  * Settings keep their existing fragment, ViewModel and navigation owners. These composables only
  * replace app-owned chrome and rows; callers continue to own validation, side effects and results.
+ *
+ * [dismissable] is for the surfaces that are not screens the user was *pushed* to -- a dialog that
+ * reports work already in flight. Those have nothing to navigate back to, and offering a close that
+ * only cleared the notice would be a dead control, so the slot is left empty and the SDK's spacer is
+ * drawn instead of an inert chevron. Every pushed screen leaves this on.
  */
 @Composable
 fun LightSettingsScreen(
   title: String,
   onBack: () -> Unit,
   modifier: Modifier = Modifier,
+  dismissable: Boolean = true,
   content: @Composable ColumnScope.() -> Unit
 ) {
   Column(
@@ -94,11 +100,15 @@ fun LightSettingsScreen(
       .background(LightThemeTokens.colors.background)
   ) {
     LightTopBar(
-      leftButton = LightBarButton.LightIcon(
-        icon = LightIcons.BACK,
-        onClick = onBack,
-        contentDescription = stringResource(R.string.CallScreenTopBar__go_back)
-      ),
+      leftButton = if (dismissable) {
+        LightBarButton.LightIcon(
+          icon = LightIcons.BACK,
+          onClick = onBack,
+          contentDescription = stringResource(R.string.CallScreenTopBar__go_back)
+        )
+      } else {
+        null
+      },
       center = LightTopBarCenter.Text(title.toString())
     )
 
@@ -494,6 +504,117 @@ fun LightConfirmationDialog(
             )
           )
         )
+      }
+    }
+  }
+}
+
+/**
+ * One action row of a [LightActionDialog].
+ *
+ * [label] is shown verbatim, so callers pass it already upper-cased -- the same grammar
+ * `LightActionPanel`'s rows use.
+ */
+data class LightDialogAction(val label: String, val onSelected: () -> Unit)
+
+/**
+ * A Light dialog that offers a statement and a stack of actions.
+ *
+ * The counterpart to [LightConfirmationDialog], for the two cases that one does not cover:
+ *
+ *  - **More than two actions.** `LightConfirmationDialog` puts its actions in the bottom bar, and
+ *    `LightBottomBar` allows at most three *text* items -- three long labels on the LP3's 360dp of
+ *    width collide, which is why this shape stacks them at full width instead.
+ *  - **A statement with no decision in it.** [LightNoticeDialog] is that case written out.
+ *
+ * Unlike [LightConfirmationDialog] this does not dismiss for you: [LightDialogAction.onSelected] is
+ * responsible for calling [onDismiss] when its action completes, because the actions are not all of
+ * one kind -- "cancel" completes the dialog, "learn more" opens a browser and returns to a screen
+ * with no dialog on it, and a caller is better placed than this file to know which is which.
+ */
+@Composable
+fun LightActionDialog(
+  title: String,
+  body: String,
+  actions: List<LightDialogAction>,
+  onDismiss: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  require(actions.isNotEmpty()) { "A Light action dialog needs at least one action to leave by" }
+
+  Dialog(
+    onDismissRequest = onDismiss,
+    properties = DialogProperties(usePlatformDefaultWidth = false)
+  ) {
+    MollyLightTheme {
+      LightSettingsScreen(title = title, onBack = onDismiss, modifier = modifier) {
+        LightSettingsRow(title = body, onClick = null)
+        LightSettingsDivider()
+        actions.forEach { action ->
+          LightSettingsRow(title = action.label, onClick = action.onSelected)
+        }
+      }
+    }
+  }
+}
+
+/** [LightActionDialog] reduced to its one "that is all" case. */
+@Composable
+fun LightNoticeDialog(
+  title: String,
+  body: String,
+  onDismiss: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  LightActionDialog(
+    title = title,
+    body = body,
+    actions = listOf(
+      LightDialogAction(stringResource(android.R.string.ok).uppercase(Locale.getDefault())) {
+        onDismiss()
+      }
+    ),
+    onDismiss = onDismiss,
+    modifier = modifier
+  )
+}
+
+/**
+ * A Light dialog reporting work already in flight.
+ *
+ * [dismissable] mirrors the work: something the user started and the app is waiting on is not
+ * something they can back out of, so those pass `false` and the dialog offers no close. When it is
+ * dismissible, [onDismiss] is what the close chevron calls.
+ *
+ * [onCancelLabel] adds the one action a progress dialog can legitimately carry -- cancelling the
+ * work itself, as opposed to dismissing its report of it. [onCancel] is then the only callback that
+ * runs; leaving [onCancelLabel] null omits the row.
+ */
+@Composable
+fun LightProgressDialog(
+  title: String,
+  onDismiss: () -> Unit,
+  modifier: Modifier = Modifier,
+  dismissable: Boolean = true,
+  onCancelLabel: String? = null,
+  onCancel: () -> Unit = {}
+) {
+  Dialog(
+    onDismissRequest = onDismiss,
+    properties = DialogProperties(usePlatformDefaultWidth = false)
+  ) {
+    MollyLightTheme {
+      LightSettingsScreen(
+        title = title,
+        onBack = onDismiss,
+        modifier = modifier,
+        dismissable = dismissable
+      ) {
+        LightSettingsProgressRow(title = title)
+        if (onCancelLabel != null) {
+          LightSettingsDivider()
+          LightSettingsRow(title = onCancelLabel, onClick = onCancel)
+        }
       }
     }
   }

@@ -48,7 +48,11 @@ import org.thoughtcrime.securesms.help.HelpFragment
 import org.thoughtcrime.securesms.keyvalue.BackupValues
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.keyvalue.protos.ArchiveUploadProgressState
+import org.thoughtcrime.securesms.light.LightActionDialog
 import org.thoughtcrime.securesms.light.LightConfirmationDialog
+import org.thoughtcrime.securesms.light.LightDialogAction
+import org.thoughtcrime.securesms.light.LightNoticeDialog
+import org.thoughtcrime.securesms.light.LightProgressDialog
 import org.thoughtcrime.securesms.light.LightSettingsDivider
 import org.thoughtcrime.securesms.light.LightSettingsProgressRow
 import org.thoughtcrime.securesms.light.LightSettingsRow
@@ -992,10 +996,15 @@ private fun RemoteBackupDialog(
         state.freeTierMediaRetentionDays,
         state.freeTierMediaRetentionDays
       ),
-      primaryLabel = stringResource(android.R.string.ok),
-      onPrimary = {},
-      secondaryLabel = stringResource(R.string.RemoteBackupsSettingsFragment__learn_more),
-      onSecondary = callbacks::onFreeTierBackupSizeLearnMore,
+      actions = listOf(
+        LightDialogAction(stringResource(android.R.string.ok).uppercase(Locale.getDefault())) {
+          callbacks.onDialogDismissed()
+        },
+        LightDialogAction(stringResource(R.string.RemoteBackupsSettingsFragment__learn_more).uppercase(Locale.getDefault())) {
+          callbacks.onDialogDismissed()
+          callbacks.onFreeTierBackupSizeLearnMore()
+        }
+      ),
       onDismiss = callbacks::onDialogDismissed
     )
     RemoteBackupsSettingsState.Dialog.KEY_ROTATION_LIMIT_REACHED -> LightNoticeDialog(
@@ -1007,70 +1016,6 @@ private fun RemoteBackupDialog(
       onScanQrCodeClick = callbacks::onTransferScanQrCodeClick,
       onDismiss = callbacks::onDialogDismissed
     )
-  }
-}
-
-@Composable
-private fun LightNoticeDialog(title: String, body: String, onDismiss: () -> Unit) {
-  LightActionDialog(
-    title = title,
-    body = body,
-    primaryLabel = stringResource(android.R.string.ok),
-    onPrimary = {},
-    onDismiss = onDismiss
-  )
-}
-
-@Composable
-private fun LightActionDialog(
-  title: String,
-  body: String,
-  primaryLabel: String,
-  onPrimary: () -> Unit,
-  onDismiss: () -> Unit,
-  secondaryLabel: String? = null,
-  onSecondary: (() -> Unit)? = null
-) {
-  Dialog(
-    onDismissRequest = onDismiss,
-    properties = DialogProperties(usePlatformDefaultWidth = false)
-  ) {
-    MollyLightTheme {
-      LightSettingsScreen(title = title, onBack = onDismiss) {
-        LightSettingsRow(title = body, onClick = null)
-        LightSettingsDivider()
-        LightSettingsRow(
-          title = primaryLabel,
-          onClick = {
-            onPrimary()
-            onDismiss()
-          }
-        )
-        if (secondaryLabel != null && onSecondary != null) {
-          LightSettingsRow(
-            title = secondaryLabel,
-            onClick = {
-              onSecondary()
-              onDismiss()
-            }
-          )
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun LightProgressDialog(title: String, onDismiss: () -> Unit) {
-  Dialog(
-    onDismissRequest = onDismiss,
-    properties = DialogProperties(usePlatformDefaultWidth = false)
-  ) {
-    MollyLightTheme {
-      LightSettingsScreen(title = title, onBack = onDismiss) {
-        LightSettingsProgressRow(title = title)
-      }
-    }
   }
 }
 

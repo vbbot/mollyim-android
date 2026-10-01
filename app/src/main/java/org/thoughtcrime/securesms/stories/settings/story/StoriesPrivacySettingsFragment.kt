@@ -120,8 +120,12 @@ class StoriesPrivacySettingsFragment :
 
         space(20.dp)
 
-        sectionHeaderPref(R.string.StoriesPrivacySettingsFragment__stories)
-
+        // No section header here. The bar above already names this screen -- "Stories" when it is
+        // reached from the row in App Settings, "Story privacy" when it is reached from the stories
+        // tab -- and a second "Stories" immediately beneath it read as the heading having been set
+        // twice, with the back chevron sitting alongside the copy. `StoriesPrivacySettingsFragment__stories`
+        // is a separate resource from the title's `preferences__stories` and both resolve to the same
+        // word, which is what hid the duplication in the source.
         customPref(
           NewStoryItem.Model {
             ChooseStoryTypeBottomSheet().show(childFragmentManager, BottomSheetUtil.STANDARD_BOTTOM_SHEET_FRAGMENT_TAG)

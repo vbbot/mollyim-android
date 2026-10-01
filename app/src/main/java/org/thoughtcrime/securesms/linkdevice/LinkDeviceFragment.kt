@@ -3,85 +3,84 @@ package org.thoughtcrime.securesms.linkdevice
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.ActivityResultLauncher
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.ClickableText
-import androidx.compose.foundation.text.InlineTextContent
-import androidx.compose.foundation.text.appendInlineContent
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.fragment.findNavController
-import com.google.android.material.snackbar.Snackbar
-import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dialogs
-import org.signal.core.ui.compose.Dividers
-import org.signal.core.ui.compose.DropdownMenus
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Scaffolds
-import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.BiometricDeviceAuthentication
 import org.thoughtcrime.securesms.BiometricDeviceLockContract
 import org.thoughtcrime.securesms.DevicePinAuthEducationSheet
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.linkdevice.LinkDeviceSettingsState.DialogState
+import org.thoughtcrime.securesms.light.LightActionDialog
+import org.thoughtcrime.securesms.light.LightActionPanelOverlay
+import org.thoughtcrime.securesms.light.LightConfirmationDialog
+import org.thoughtcrime.securesms.light.LightDialogAction
+import org.thoughtcrime.securesms.light.LightNoticeDialog
+import org.thoughtcrime.securesms.light.LightPanelAction
+import org.thoughtcrime.securesms.light.LightProgressDialog
+import org.thoughtcrime.securesms.light.LightSettingsDivider
+import org.thoughtcrime.securesms.light.LightSettingsProgressRow
+import org.thoughtcrime.securesms.light.LightSettingsRow
+import org.thoughtcrime.securesms.light.LightSettingsScreen
+import org.thoughtcrime.securesms.light.LightSettingsSection
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.DateUtils
 import org.thoughtcrime.securesms.util.SupportEmailUtil
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
-import org.signal.core.ui.R as CoreUiR
-
-private const val PLACEHOLDER = "__ICON_PLACEHOLDER__"
+import java.util.Locale
 
 /**
- * Fragment that shows current linked devices
+ * The Linked Devices settings screen: the devices this account is linked to, and the way to link
+ * another one.
+ *
+ * This is the settings sub-screen the user reaches from the row in the settings root, and it was the
+ * last screen in the settings tree still wearing Signal's own material: a `Scaffolds.Settings` top
+ * bar, a `CircularProgressIndicator` tinted with `colorScheme.primary`, a filled `Buttons.LargeTonal`
+ * pill 300dp wide, rows whose avatars were grey circles, and every margin in raw dp.
+ *
+ * What replaced each of those, and why:
+ *
+ *  - The scaffold is [org.thoughtcrime.securesms.light.LightSettingsScreen]: the Light top bar with
+ *    the back chevron and the centred title, over a Light scroll view on true black.
+ *  - The three-dot overflow on a device is gone. A long press raises
+ *    [org.thoughtcrime.securesms.light.LightActionPanel] instead, which is how the Light Phone
+ *    opens any context window, and the device row's actions are filtered against what that device
+ *    can actually do -- the Signal menu rendered "Edit name" greyed out for a device that could not
+ *    be renamed, and a long press is a gesture, not a menu, so there is nothing to read a greyed
+ *    row against.
+ *  - The filled pill is a settings row. On a monochrome panel a filled rectangle is a solid block
+ *    with text in it; the Light Phone states an action with type on black.
+ *  - The row avatars are gone. They were decorative, and grey circles are the one thing the design
+ *    language has no place for.
+ *  - The inline lock glyph in the closing footnote is gone, because the string that holds it puts a
+ *    glyph in the middle of a sentence and the sentence already says "end-to-end encryption" in
+ *    words.
+ *
+ * The linking flow itself is untouched: the biometric prompt, the QR scanner, the education sheet
+ * and the progress states are all still driven by [LinkDeviceViewModel], and the dialogs those
+ * states raise are still the same questions asked in the same words -- only their container changed.
  */
 class LinkDeviceFragment : ComposeFragment() {
 
@@ -128,7 +127,6 @@ class LinkDeviceFragment : ComposeFragment() {
   override fun FragmentContent() {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navController: NavController by remember { mutableStateOf(findNavController()) }
-    val context = LocalContext.current
 
     LaunchedEffect(state.dialogState) {
       when (state.dialogState) {
@@ -156,12 +154,15 @@ class LinkDeviceFragment : ComposeFragment() {
           Toast.makeText(requireContext(), getString(R.string.LinkDeviceFragment__s_unlinked, event.name), Toast.LENGTH_LONG).show()
         }
         LinkDeviceSettingsState.OneTimeEvent.SnackbarLinkCancelled -> {
-          Snackbar.make(requireView(), getString(R.string.LinkDeviceFragment__linking_cancelled), Snackbar.LENGTH_LONG).show()
+          // A Toast, as the two events above already are. This one arrived as a Material Snackbar,
+          // which put a rounded, accent-tinted card across the bottom of a black screen -- the last
+          // Material widget left on it, for a message identical in kind to the two beside it.
+          Toast.makeText(requireContext(), getString(R.string.LinkDeviceFragment__linking_cancelled), Toast.LENGTH_LONG).show()
         }
-        LinkDeviceSettingsState.OneTimeEvent.ToastNetworkFailed -> {
+        is LinkDeviceSettingsState.OneTimeEvent.ToastNetworkFailed -> {
           Toast.makeText(requireContext(), getString(R.string.DeviceListActivity_network_failed), Toast.LENGTH_LONG).show()
         }
-        LinkDeviceSettingsState.OneTimeEvent.LaunchQrCodeScanner -> {
+        is LinkDeviceSettingsState.OneTimeEvent.LaunchQrCodeScanner -> {
           navController.navigateToQrScannerIfAuthed()
         }
         LinkDeviceSettingsState.OneTimeEvent.ShowFinishedSheet -> {
@@ -186,36 +187,29 @@ class LinkDeviceFragment : ComposeFragment() {
       }
     }
 
-    Scaffolds.Settings(
-      title = stringResource(id = R.string.preferences__linked_devices),
+    DeviceListScreen(
+      state = state,
       onNavigationClick = { navController.popOrFinish() },
-      navigationIcon = SignalIcons.ArrowStart.imageVector,
-      navigationContentDescription = stringResource(id = R.string.Material3SearchToolbar__close)
-    ) { contentPadding: PaddingValues ->
-      DeviceListScreen(
-        state = state,
-        modifier = Modifier.padding(contentPadding),
-        onLearnMoreClicked = { navController.safeNavigate(R.id.action_linkDeviceFragment_to_linkDeviceLearnMoreBottomSheet) },
-        onLinkNewDeviceClicked = {
-          viewModel.stopExistingPolling()
-          navController.navigateToQrScannerIfAuthed()
-        },
-        onDeviceSelectedForRemoval = { device -> viewModel.setDeviceToRemove(device) },
-        onDeviceRemovalConfirmed = { device -> viewModel.removeDevice(device) },
-        onSyncFailureRetryRequested = { viewModel.onSyncErrorRetryRequested() },
-        onSyncFailureIgnored = { viewModel.onSyncErrorIgnored() },
-        onSyncFailureLearnMore = { CommunicationActions.openBrowserLink(requireContext(), requireContext().getString(R.string.LinkDeviceFragment__learn_more_url)) },
-        onSyncFailureContactSupport = { viewModel.onSyncErrorContactSupport() },
-        onSyncCancelled = { viewModel.onSyncCancelled() },
-        onEditDevice = { device ->
-          viewModel.setDeviceToEdit(device)
-          navController.safeNavigate(R.id.action_linkDeviceFragment_to_editDeviceNameFragment)
-        },
-        onDialogDismissed = { viewModel.onDialogDismissed() },
-        onContactWithLogs = { viewModel.onContactSupport(includeLogs = true) },
-        onContactWithoutLogs = { viewModel.onContactSupport(includeLogs = false) }
-      )
-    }
+      onLearnMoreClicked = { navController.safeNavigate(R.id.action_linkDeviceFragment_to_linkDeviceLearnMoreBottomSheet) },
+      onLinkNewDeviceClicked = {
+        viewModel.stopExistingPolling()
+        navController.navigateToQrScannerIfAuthed()
+      },
+      onDeviceSelectedForRemoval = { device -> viewModel.setDeviceToRemove(device) },
+      onDeviceRemovalConfirmed = { device -> viewModel.removeDevice(device) },
+      onSyncFailureRetryRequested = { viewModel.onSyncErrorRetryRequested() },
+      onSyncFailureIgnored = { viewModel.onSyncErrorIgnored() },
+      onSyncFailureLearnMore = { CommunicationActions.openBrowserLink(requireContext(), requireContext().getString(R.string.LinkDeviceFragment__learn_more_url)) },
+      onSyncFailureContactSupport = { viewModel.onSyncErrorContactSupport() },
+      onSyncCancelled = { viewModel.onSyncCancelled() },
+      onEditDevice = { device ->
+        viewModel.setDeviceToEdit(device)
+        navController.safeNavigate(R.id.action_linkDeviceFragment_to_editDeviceNameFragment)
+      },
+      onDialogDismissed = { viewModel.onDialogDismissed() },
+      onContactWithLogs = { viewModel.onContactSupport(includeLogs = true) },
+      onContactWithoutLogs = { viewModel.onContactSupport(includeLogs = false) }
+    )
   }
 
   private fun getEmailBody(debugLog: String?): String {
@@ -272,6 +266,7 @@ class LinkDeviceFragment : ComposeFragment() {
 fun DeviceListScreen(
   state: LinkDeviceSettingsState,
   modifier: Modifier = Modifier,
+  onNavigationClick: () -> Unit = {},
   onLearnMoreClicked: () -> Unit = {},
   onLinkNewDeviceClicked: () -> Unit = {},
   onDeviceSelectedForRemoval: (Device?) -> Unit = {},
@@ -286,316 +281,332 @@ fun DeviceListScreen(
   onContactWithLogs: () -> Unit = {},
   onContactWithoutLogs: () -> Unit = {}
 ) {
-  // If a bottom sheet is showing, we don't want the spinner underneath
-  if (!state.bottomSheetVisible) {
-    when (state.dialogState) {
-      DialogState.None -> {
-        Unit
-      }
-      DialogState.Linking -> {
-        Dialogs.IndeterminateProgressDialog(stringResource(id = R.string.LinkDeviceFragment__linking_device))
-      }
-      DialogState.Unlinking -> {
-        Dialogs.IndeterminateProgressDialog(stringResource(id = R.string.DeviceListActivity_unlinking_device))
-      }
-      is DialogState.SyncingMessages -> {
-        Dialogs.IndeterminateProgressDialog(
-          message = stringResource(id = R.string.LinkDeviceFragment__syncing_messages),
-          caption = stringResource(id = R.string.LinkDeviceFragment__do_not_close),
-          dismiss = stringResource(id = android.R.string.cancel),
-          onDismiss = onSyncCancelled
-        )
-      }
-      is DialogState.SyncingFailed -> {
-        when (state.dialogState.syncFailType) {
-          LinkDeviceSettingsState.SyncFailType.NOT_RETRYABLE -> {
-            Dialogs.AdvancedAlertDialog(
-              title = stringResource(R.string.LinkDeviceFragment__sync_failure_title),
-              body = stringResource(R.string.LinkDeviceFragment__sync_failure_body_unretryable),
-              positive = stringResource(R.string.LinkDeviceFragment__contact_support),
-              onPositive = onSyncFailureContactSupport,
-              neutral = stringResource(R.string.LinkDeviceFragment__learn_more),
-              onNeutral = onSyncFailureLearnMore,
-              negative = stringResource(R.string.LinkDeviceFragment__continue),
-              onNegative = onSyncFailureIgnored
-            )
-          }
-          LinkDeviceSettingsState.SyncFailType.RETRYABLE -> {
-            Dialogs.SimpleAlertDialog(
-              title = stringResource(R.string.LinkDeviceFragment__sync_failure_title),
-              body = stringResource(R.string.LinkDeviceFragment__sync_failure_body),
-              confirm = stringResource(R.string.LinkDeviceFragment__sync_failure_retry_button),
-              onConfirm = onSyncFailureRetryRequested,
-              dismiss = stringResource(R.string.LinkDeviceFragment__sync_failure_dismiss_button),
-              onDismissRequest = onSyncFailureIgnored,
-              onDeny = onSyncFailureIgnored
-            )
-          }
-          LinkDeviceSettingsState.SyncFailType.NOT_ENOUGH_SPACE -> {
-            Dialogs.SimpleMessageDialog(
-              message = stringResource(R.string.LinkDeviceFragment__you_dont_have_enough),
-              dismiss = stringResource(id = R.string.LinkDeviceFragment__ok),
-              onDismiss = onSyncFailureRetryRequested,
-              title = stringResource(R.string.LinkDeviceFragment__not_enough_storage_space)
-            )
-          }
-        }
-      }
-      DialogState.SyncingTimedOut -> {
-        Dialogs.SimpleAlertDialog(
-          title = stringResource(R.string.LinkDeviceFragment__sync_failure_title),
-          body = stringResource(R.string.LinkDeviceFragment__sync_failure_body),
-          confirm = stringResource(R.string.LinkDeviceFragment__sync_failure_retry_button),
-          onConfirm = onSyncFailureRetryRequested,
-          dismiss = stringResource(R.string.LinkDeviceFragment__sync_failure_dismiss_button),
-          onDismissRequest = onSyncFailureIgnored,
-          onDeny = onSyncFailureIgnored
-        )
-      }
-      is DialogState.DeviceUnlinked -> {
-        val locale = LocalLocale.current.platformLocale
-        val createdAt = DateUtils.getDateTimeString(LocalContext.current, locale, state.dialogState.deviceCreatedAt)
-        Dialogs.SimpleMessageDialog(
-          title = stringResource(id = R.string.LinkDeviceFragment__device_unlinked),
-          message = stringResource(id = R.string.LinkDeviceFragment__the_device_that_was, createdAt),
-          dismiss = stringResource(id = R.string.LinkDeviceFragment__ok),
-          onDismiss = onDialogDismissed
-        )
-      }
-      DialogState.LoadingDebugLog -> { Dialogs.IndeterminateProgressDialog() }
-      DialogState.ContactSupport -> {
-        Dialogs.AdvancedAlertDialog(
-          title = stringResource(R.string.LinkDeviceFragment__submit_debug_log),
-          body = stringResource(R.string.LinkDeviceFragment__your_debug_logs),
-          positive = stringResource(R.string.LinkDeviceFragment__submit_with_debug),
-          onPositive = onContactWithLogs,
-          neutral = stringResource(R.string.LinkDeviceFragment__submit_without_debug),
-          onNeutral = onContactWithoutLogs,
-          negative = stringResource(R.string.LinkDeviceFragment__cancel),
-          onNegative = onDialogDismissed
-        )
-      }
-    }
-  }
+  LinkDeviceDialogs(
+    state = state,
+    onDeviceSelectedForRemoval = onDeviceSelectedForRemoval,
+    onDeviceRemovalConfirmed = onDeviceRemovalConfirmed,
+    onSyncFailureRetryRequested = onSyncFailureRetryRequested,
+    onSyncFailureIgnored = onSyncFailureIgnored,
+    onSyncFailureLearnMore = onSyncFailureLearnMore,
+    onSyncFailureContactSupport = onSyncFailureContactSupport,
+    onSyncCancelled = onSyncCancelled,
+    onDialogDismissed = onDialogDismissed,
+    onContactWithLogs = onContactWithLogs,
+    onContactWithoutLogs = onContactWithoutLogs
+  )
 
-  if (state.deviceToRemove != null) {
-    val device: Device = state.deviceToRemove
-    val name = if (device.name.isNullOrEmpty()) stringResource(R.string.DeviceListItem_unnamed_device) else device.name
-    Dialogs.SimpleAlertDialog(
-      title = stringResource(id = R.string.DeviceListActivity_unlink_s, name),
-      body = stringResource(id = R.string.DeviceListActivity_by_unlinking_this_device_it_will_no_longer_be_able_to_send_or_receive),
-      confirm = stringResource(R.string.LinkDeviceFragment__unlink),
-      dismiss = stringResource(android.R.string.cancel),
-      onConfirm = { onDeviceRemovalConfirmed(device) },
-      onDismiss = { onDeviceSelectedForRemoval(null) }
-    )
-  }
+  // Declared here rather than inside the panel so the panel stays a stateless view of one device:
+  // closing it drops the target, and the next long press starts from nothing.
+  var actionsForDevice by remember { mutableStateOf<Device?>(null) }
+  val panelDevice = actionsForDevice
 
-  Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.verticalScroll(rememberScrollState())) {
-    Icon(
-      painter = painterResource(R.drawable.ic_devices_intro),
-      contentDescription = stringResource(R.string.preferences__linked_devices),
-      tint = Color.Unspecified
-    )
-    Text(
-      text = stringResource(id = R.string.LinkDeviceFragment__use_molly_on_another_devices),
-      textAlign = TextAlign.Center,
-      modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp)
-    )
-    ClickableText(
-      text = AnnotatedString(stringResource(id = R.string.LearnMoreTextView_learn_more)),
-      style = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.primary)
-    ) {
-      onLearnMoreClicked()
-    }
+  MollyLightTheme {
+    val unlinkLabel = stringResource(id = R.string.LinkDeviceFragment__unlink).uppercase(Locale.getDefault())
+    val editNameLabel = stringResource(id = R.string.LinkDeviceFragment__edit_name).uppercase(Locale.getDefault())
 
-    Spacer(modifier = Modifier.size(20.dp))
-
-    Buttons.LargeTonal(
-      onClick = onLinkNewDeviceClicked,
-      enabled = state.canLinkDevices,
-      modifier = Modifier
-        .defaultMinSize(300.dp)
-        .padding(bottom = 8.dp)
-    ) {
-      Text(stringResource(id = R.string.LinkDeviceFragment__link_a_new_device))
-    }
-
-    Dividers.Default()
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-      Text(
-        text = stringResource(R.string.LinkDeviceFragment__my_linked_devices),
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(start = 24.dp, top = 12.dp, bottom = 12.dp)
-      )
-      if (state.deviceListLoading) {
-        Spacer(modifier = Modifier.size(30.dp))
-        CircularProgressIndicator(
-          modifier = Modifier
-            .size(36.dp)
-            .align(Alignment.CenterHorizontally),
-          color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.size(30.dp))
-      } else if (state.devices.isEmpty()) {
-        Text(
-          text = stringResource(R.string.LinkDeviceFragment__no_linked_devices),
-          textAlign = TextAlign.Center,
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = 96.dp)
-            .wrapContentHeight(align = Alignment.CenterVertically)
-        )
-      } else {
-        state.devices.forEach { device ->
-          DeviceRow(device, state.isInternalUser, onDeviceSelectedForRemoval, onEditDevice, canLinkDevices = state.canLinkDevices)
-        }
-      }
-    }
-
-    Row(
-      modifier = Modifier.padding(horizontal = 40.dp, vertical = 12.dp),
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      val message = stringResource(id = R.string.LinkDeviceFragment__messages_and_chat_info_are_protected, PLACEHOLDER)
-      val (messageText, messageInline) = remember(message) {
-        val parts = message.split(PLACEHOLDER)
-        val annotatedString = buildAnnotatedString {
-          append(parts[0])
-          appendInlineContent("icon")
-          append(parts[1])
+    // Panel rows for one linked device, in the order the Light Phone's panels use: the ordinary
+    // action first, the destructive one last and on its own.
+    //
+    // Filtered rather than disabled, which is the difference the design language asks for. A long
+    // press is a gesture with no menu to scan, so a row the user cannot use is not something to
+    // render at a lower contrast and wait to be read -- it is simply not there. An account that may
+    // not manage linked devices at all therefore gets an empty list, and the rows that would open
+    // the panel carry no long-press gesture to open it with.
+    fun actionsFor(device: Device): List<LightPanelAction> = buildList {
+      if (state.canLinkDevices) {
+        if (device.canRename) {
+          add(
+            LightPanelAction(label = editNameLabel) {
+              actionsForDevice = null
+              onEditDevice(device)
+            }
+          )
         }
 
-        val inlineContentMap = mapOf(
-          "icon" to InlineTextContent(Placeholder(16.sp, 16.sp, PlaceholderVerticalAlign.Center)) {
-            Image(
-              imageVector = SignalIcons.Lock.imageVector,
-              contentDescription = null,
-              modifier = Modifier.fillMaxSize(),
-              colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
-            )
+        add(
+          LightPanelAction(label = unlinkLabel) {
+            actionsForDevice = null
+            onDeviceSelectedForRemoval(device)
           }
         )
+      }
+    }
 
-        annotatedString to inlineContentMap
+    Box(modifier = modifier.fillMaxSize()) {
+      LightSettingsScreen(
+        title = stringResource(id = R.string.preferences__linked_devices),
+        onBack = onNavigationClick
+      ) {
+        LightSettingsRow(
+          title = stringResource(id = R.string.LinkDeviceFragment__use_molly_on_another_devices),
+          onClick = null
+        )
+        LightSettingsRow(
+          title = stringResource(id = R.string.LearnMoreTextView_learn_more),
+          onClick = onLearnMoreClicked
+        )
+
+        LightSettingsDivider()
+
+        LightSettingsRow(
+          title = stringResource(id = R.string.LinkDeviceFragment__link_a_new_device),
+          enabled = state.canLinkDevices,
+          onClick = onLinkNewDeviceClicked
+        )
+
+        LightSettingsDivider()
+
+        LightSettingsSection(title = stringResource(id = R.string.LinkDeviceFragment__my_linked_devices))
+
+        when {
+          state.deviceListLoading -> {
+            LightSettingsProgressRow(title = stringResource(id = R.string.LinkDeviceFragment__loading))
+          }
+          state.devices.isEmpty() -> {
+            LightSettingsRow(
+              title = stringResource(id = R.string.LinkDeviceFragment__no_linked_devices),
+              onClick = null
+            )
+          }
+          else -> {
+            state.devices.forEach { device ->
+              DeviceRow(
+                device = device,
+                isInternalUser = state.isInternalUser,
+                actions = actionsFor(device),
+                onShowActions = { actionsForDevice = it }
+              )
+            }
+          }
+        }
+
+        LightSettingsDivider()
+
+        LightSettingsRow(
+          // The string carries a `%1$s` slot for an inline lock glyph. There is no glyph here: the
+          // design language is monochrome and the sentence names the protection in words, so the
+          // slot is filled empty and the space it leaves behind is trimmed off.
+          title = stringResource(id = R.string.LinkDeviceFragment__messages_and_chat_info_are_protected, "").trim(),
+          onClick = null
+        )
       }
 
-      Text(
-        text = messageText,
-        inlineContent = messageInline,
-        style = MaterialTheme.typography.bodySmall,
-        textAlign = TextAlign.Center,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-      )
+      val device = panelDevice
+      if (device != null) {
+        // The panel sits inside the content area rather than over the whole screen, which is what
+        // leaves the top bar -- and the back chevron on it -- reachable while the panel is open.
+        BackHandler { actionsForDevice = null }
+
+        LightActionPanelOverlay(
+          actions = actionsFor(device),
+          onDismiss = { actionsForDevice = null }
+        )
+      }
     }
   }
 }
 
+/**
+ * One linked device.
+ *
+ * The long press is the row's only gesture, and it is installed only when there is something for it
+ * to do -- a device belonging to an account that may not manage linked devices has no actions, so
+ * its row is inert rather than opening an empty panel.
+ */
 @Composable
-fun DeviceRow(device: Device, isInternalUser: Boolean, setDeviceToRemove: (Device) -> Unit, onEditDevice: (Device) -> Unit, canLinkDevices: Boolean) {
-  val titleString = if (device.name.isNullOrEmpty()) stringResource(R.string.DeviceListItem_unnamed_device) else device.name
-  val linkedDate = device.createdMillis?.let { DateUtils.getDayPrecisionTimeSpanString(LocalContext.current, LocalLocale.current.platformLocale, device.createdMillis) }
-  val lastActive = DateUtils.getDayPrecisionTimeSpanString(LocalContext.current, LocalLocale.current.platformLocale, device.lastSeenMillis)
-  val menuController = remember { DropdownMenus.MenuController() }
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-  ) {
-    Image(
-      painter = painterResource(id = CoreUiR.drawable.symbol_devices_24),
-      contentDescription = null,
-      colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface),
-      contentScale = ContentScale.Inside,
-      modifier = Modifier
-        .padding(start = 24.dp, top = 28.dp, bottom = 28.dp)
-        .size(40.dp)
-        .background(
-          color = MaterialTheme.colorScheme.surfaceVariant,
-          shape = CircleShape
-        )
-        .align(Alignment.CenterVertically)
+private fun DeviceRow(
+  device: Device,
+  isInternalUser: Boolean,
+  actions: List<LightPanelAction>,
+  onShowActions: (Device) -> Unit
+) {
+  val locale = LocalLocale.current.platformLocale
+  val title = if (device.name.isNullOrEmpty()) {
+    stringResource(id = R.string.DeviceListItem_unnamed_device)
+  } else {
+    device.name
+  }
+  val detail = listOfNotNull(
+    "[Internal] DeviceId: ${device.id}".takeIf { isInternalUser },
+    device.createdMillis?.let {
+      stringResource(id = R.string.DeviceListItem_linked_s, DateUtils.getDayPrecisionTimeSpanString(LocalContext.current, locale, device.createdMillis))
+    },
+    stringResource(
+      id = R.string.DeviceListItem_last_active_s,
+      DateUtils.getDayPrecisionTimeSpanString(LocalContext.current, locale, device.lastSeenMillis)
+    )
+  ).joinToString("\n")
+
+  LightSettingsRow(
+    title = title,
+    summary = detail,
+    // The row itself does nothing, so the tap is inert and the long press is the whole gesture.
+    // Returning true marks it consumed, which is also what stops the tap that ends a long press
+    // from being delivered as a click.
+    onClick = null,
+    onLongClick = if (actions.isEmpty()) {
+      null
+    } else {
+      {
+        onShowActions(device)
+        true
+      }
+    }
+  )
+}
+
+/**
+ * Every dialog this screen can raise, in the Light grammar.
+ *
+ * Which Light dialog a state gets is decided by what it has to say and how many ways out it has:
+ * two short actions go in the bottom bar ([LightConfirmationDialog]), more than two stack at full
+ * width ([LightActionDialog]), a statement with nothing to decide is a [LightNoticeDialog], and work
+ * already in flight is a [LightProgressDialog] with no close unless the work can be cancelled.
+ */
+@Composable
+private fun LinkDeviceDialogs(
+  state: LinkDeviceSettingsState,
+  onDeviceSelectedForRemoval: (Device?) -> Unit,
+  onDeviceRemovalConfirmed: (Device) -> Unit,
+  onSyncFailureRetryRequested: () -> Unit,
+  onSyncFailureIgnored: () -> Unit,
+  onSyncFailureLearnMore: () -> Unit,
+  onSyncFailureContactSupport: () -> Unit,
+  onSyncCancelled: () -> Unit,
+  onDialogDismissed: () -> Unit,
+  onContactWithLogs: () -> Unit,
+  onContactWithoutLogs: () -> Unit
+) {
+  // Deliberately outside the bottom-sheet guard below: a device can be unlinked while a linking
+  // sheet is still finishing its dismissal, and that question must not be lost to a sheet that is
+  // already on its way out.
+  state.deviceToRemove?.let { device ->
+    val name = if (device.name.isNullOrEmpty()) {
+      stringResource(id = R.string.DeviceListItem_unnamed_device)
+    } else {
+      device.name
+    }
+
+    LightConfirmationDialog(
+      title = stringResource(id = R.string.DeviceListActivity_unlink_s, name),
+      body = stringResource(id = R.string.DeviceListActivity_by_unlinking_this_device_it_will_no_longer_be_able_to_send_or_receive),
+      confirmLabel = stringResource(id = R.string.LinkDeviceFragment__unlink),
+      dismissLabel = stringResource(id = android.R.string.cancel),
+      onConfirm = { onDeviceRemovalConfirmed(device) },
+      onDismiss = { onDeviceSelectedForRemoval(null) },
+      destructive = true
+    )
+  }
+
+  // If a bottom sheet is showing, we don't want the spinner underneath
+  if (state.bottomSheetVisible) {
+    return
+  }
+
+  when (val dialogState = state.dialogState) {
+    DialogState.None -> Unit
+
+    // Linking, unlinking and fetching a debug log are work the app started and is waiting on. None
+    // of them is something the user can back out of, so none of them offers a close -- closing one
+    // used to be refused, and a close that only hid the notice would be worse than that.
+    DialogState.Linking -> LightProgressDialog(
+      title = stringResource(id = R.string.LinkDeviceFragment__linking_device),
+      onDismiss = onDialogDismissed,
+      dismissable = false
+    )
+    DialogState.Unlinking -> LightProgressDialog(
+      title = stringResource(id = R.string.DeviceListActivity_unlinking_device),
+      onDismiss = onDialogDismissed,
+      dismissable = false
+    )
+    DialogState.LoadingDebugLog -> LightProgressDialog(
+      title = stringResource(id = R.string.LinkDeviceFragment__loading),
+      onDismiss = onDialogDismissed,
+      dismissable = false
     )
 
-    Column(
-      modifier = Modifier
-        .align(Alignment.CenterVertically)
-        .padding(start = 16.dp)
-        .weight(1f)
-    ) {
-      Text(text = titleString, style = MaterialTheme.typography.bodyLarge)
-      if (isInternalUser) {
-        Text("[Internal] DeviceId: ${device.id}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-      }
-      if (linkedDate != null) {
-        Text(stringResource(R.string.DeviceListItem_linked_s, linkedDate), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-      }
-      Text(stringResource(R.string.DeviceListItem_last_active_s, lastActive), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+    is DialogState.SyncingMessages -> LightProgressDialog(
+      title = stringResource(id = R.string.LinkDeviceFragment__syncing_messages),
+      onDismiss = onDialogDismissed,
+      dismissable = false,
+      onCancelLabel = stringResource(id = android.R.string.cancel),
+      onCancel = onSyncCancelled
+    )
 
-    Box {
-      Icon(
-        painterResource(id = R.drawable.symbol_more_vertical),
-        contentDescription = null,
-        modifier = Modifier
-          .padding(top = 16.dp, end = 16.dp)
-          .clickable { menuController.show() }
+    is DialogState.SyncingFailed -> when (dialogState.syncFailType) {
+      LinkDeviceSettingsState.SyncFailType.NOT_RETRYABLE -> LightActionDialog(
+        title = stringResource(id = R.string.LinkDeviceFragment__sync_failure_title),
+        body = stringResource(id = R.string.LinkDeviceFragment__sync_failure_body_unretryable),
+        actions = listOf(
+          LightDialogAction(stringResource(id = R.string.LinkDeviceFragment__learn_more).uppercase(Locale.getDefault())) {
+            onDialogDismissed()
+            onSyncFailureLearnMore()
+          },
+          LightDialogAction(stringResource(id = R.string.LinkDeviceFragment__continue).uppercase(Locale.getDefault())) {
+            onDialogDismissed()
+            onSyncFailureIgnored()
+          },
+          LightDialogAction(stringResource(id = R.string.LinkDeviceFragment__contact_support).uppercase(Locale.getDefault())) {
+            onDialogDismissed()
+            onSyncFailureContactSupport()
+          }
+        ),
+        onDismiss = onDialogDismissed
       )
 
-      DropdownMenus.Menu(controller = menuController, offsetX = 16.dp, offsetY = 4.dp) { controller ->
-        DropdownMenus.Item(
-          contentPadding = PaddingValues(0.dp),
-          text = {
-            Row(
-              verticalAlignment = Alignment.CenterVertically,
-              modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-              Icon(
-                painter = painterResource(id = R.drawable.symbol_link_slash_16),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp)
-              )
-              Text(
-                text = stringResource(R.string.LinkDeviceFragment__unlink),
-                modifier = Modifier.padding(horizontal = 16.dp)
-              )
-            }
-          },
-          enabled = canLinkDevices,
-          onClick = {
-            setDeviceToRemove(device)
-            controller.hide()
-          }
-        )
+      LinkDeviceSettingsState.SyncFailType.RETRYABLE -> LightConfirmationDialog(
+        title = stringResource(id = R.string.LinkDeviceFragment__sync_failure_title),
+        body = stringResource(id = R.string.LinkDeviceFragment__sync_failure_body),
+        confirmLabel = stringResource(id = R.string.LinkDeviceFragment__sync_failure_retry_button),
+        dismissLabel = stringResource(id = R.string.LinkDeviceFragment__sync_failure_dismiss_button),
+        onConfirm = onSyncFailureRetryRequested,
+        onDismiss = onSyncFailureIgnored
+      )
 
-        DropdownMenus.Item(
-          contentPadding = PaddingValues(0.dp),
-          text = {
-            Row(
-              verticalAlignment = Alignment.CenterVertically,
-              modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-              Icon(
-                painter = SignalIcons.Edit.painter,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp)
-              )
-              Text(
-                text = stringResource(R.string.LinkDeviceFragment__edit_name),
-                modifier = Modifier.padding(horizontal = 16.dp)
-              )
-            }
-          },
-          enabled = device.canRename && canLinkDevices,
-          onClick = {
-            onEditDevice(device)
-            controller.hide()
-          }
-        )
-      }
+      LinkDeviceSettingsState.SyncFailType.NOT_ENOUGH_SPACE -> LightNoticeDialog(
+        title = stringResource(id = R.string.LinkDeviceFragment__not_enough_storage_space),
+        body = stringResource(id = R.string.LinkDeviceFragment__you_dont_have_enough),
+        onDismiss = onSyncFailureRetryRequested
+      )
     }
+
+    DialogState.SyncingTimedOut -> LightConfirmationDialog(
+      title = stringResource(id = R.string.LinkDeviceFragment__sync_failure_title),
+      body = stringResource(id = R.string.LinkDeviceFragment__sync_failure_body),
+      confirmLabel = stringResource(id = R.string.LinkDeviceFragment__sync_failure_retry_button),
+      dismissLabel = stringResource(id = R.string.LinkDeviceFragment__sync_failure_dismiss_button),
+      onConfirm = onSyncFailureRetryRequested,
+      onDismiss = onSyncFailureIgnored
+    )
+
+    is DialogState.DeviceUnlinked -> {
+      val locale = LocalLocale.current.platformLocale
+      val createdAt = DateUtils.getDateTimeString(LocalContext.current, locale, dialogState.deviceCreatedAt)
+      LightNoticeDialog(
+        title = stringResource(id = R.string.LinkDeviceFragment__device_unlinked),
+        body = stringResource(id = R.string.LinkDeviceFragment__the_device_that_was, createdAt),
+        onDismiss = onDialogDismissed
+      )
+    }
+
+    DialogState.ContactSupport -> LightActionDialog(
+      title = stringResource(id = R.string.LinkDeviceFragment__submit_debug_log),
+      body = stringResource(id = R.string.LinkDeviceFragment__your_debug_logs),
+      actions = listOf(
+        LightDialogAction(stringResource(id = R.string.LinkDeviceFragment__cancel).uppercase(Locale.getDefault())) {
+          onDialogDismissed()
+        },
+        LightDialogAction(stringResource(id = R.string.LinkDeviceFragment__submit_without_debug).uppercase(Locale.getDefault())) {
+          onDialogDismissed()
+          onContactWithoutLogs()
+        },
+        LightDialogAction(stringResource(id = R.string.LinkDeviceFragment__submit_with_debug).uppercase(Locale.getDefault())) {
+          onDialogDismissed()
+          onContactWithLogs()
+        }
+      ),
+      onDismiss = onDialogDismissed
+    )
   }
 }
 
