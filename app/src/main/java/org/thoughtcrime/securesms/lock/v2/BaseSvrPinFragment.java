@@ -206,15 +206,7 @@ public abstract class BaseSvrPinFragment<ViewModel extends BaseSvrPinViewModel> 
    */
   private void applyKeyboardType(@NonNull PinKeyboardType keyboardType) {
     keyboardType.applyInputTypeTo(getInput());
-    pinView.updateKeyboardToggle(resolveKeyboardToggleText(keyboardType));
-  }
-
-  private @NonNull String resolveKeyboardToggleText(@NonNull PinKeyboardType keyboardType) {
-    if (keyboardType == PinKeyboardType.ALPHA_NUMERIC) {
-      return getString(R.string.BaseKbsPinFragment__create_numeric_pin);
-    } else {
-      return getString(R.string.BaseKbsPinFragment__create_alphanumeric_pin);
-    }
+    pinView.updateKeyboardToggle(keyboardType.toggleLabel(requireContext()));
   }
 
   /**

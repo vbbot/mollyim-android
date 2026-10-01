@@ -8,7 +8,6 @@ package org.thoughtcrime.securesms.lock.v2
 import android.content.Context
 import android.util.AttributeSet
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,18 +27,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.disabled
-import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import com.thelightphone.sdk.ui.LightIcons
 import com.thelightphone.sdk.ui.LightScrollBarPosition
@@ -57,17 +51,17 @@ import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle
 import org.thoughtcrime.securesms.light.LightActionPanelDialog
 import org.thoughtcrime.securesms.light.LightAppTopBar
 import org.thoughtcrime.securesms.light.LightBarAction
+import org.thoughtcrime.securesms.light.LightConfirmAction
+import org.thoughtcrime.securesms.light.LightConfirmNotice
 import org.thoughtcrime.securesms.light.LightPanelAction
 import org.thoughtcrime.securesms.light.LightPinFieldStyle
+import org.thoughtcrime.securesms.light.LightTextAction
 import org.thoughtcrime.securesms.light.LightTopBarView
 import org.thoughtcrime.securesms.light.MollyLightTheme
 import java.util.Locale
 
 /** Screen-edge content padding -- the same gutter the registration screens use. */
 private const val SCREEN_PADDING_UNITS = 2f
-
-/** The centered-panel gutter the Light Phone uses for a block of status text. */
-private const val CENTERED_PANEL_PADDING_UNITS = 3f
 
 /** Title to body copy. The LP3's own title/subtitle rhythm. */
 private const val BODY_TOP_UNITS = 0.75f
@@ -77,12 +71,6 @@ private const val UNDERLINE_THICKNESS_PX = 3f
 
 /** `LightTextField`'s rule runs at 80% of the field's width. */
 private const val UNDERLINE_WIDTH_FRACTION = 0.8f
-
-/** The busy label. `LightBottomBar` has no spinner, and neither does the reference client. */
-private const val BUSY_LABEL = "…"
-
-/** Optical centering: centered text reads high, so bias it down. The LP3's own value. */
-private const val OPTICAL_CENTERING_BOTTOM_UNITS = 4f
 
 /** One entry in a PIN screen's overflow panel, in the form a View-land caller can construct. */
 data class LightSvrPinMenuItem(val label: String, val action: Runnable)
@@ -187,24 +175,51 @@ class LightSvrPinView @JvmOverloads constructor(
   /** Switches the field between the numeric and alphanumeric keyboards. */
   var onKeyboardToggle: Runnable? by mutableStateOf(null)
 
+  /**
+   * An extra offer above the confirm action, or null when the screen has none to make.
+   *
+   * The PIN restore screen's "need help": it appears only once a guess has been spent, and it opens
+   * a notice offering a new PIN or support. Null rather than a hidden flag, so a screen that never
+   * sets it does not reserve the row.
+   */
+  var supportLabel: String? by mutableStateOf(null)
+    private set
+
+  /** Runs the extra offer. Ignored while [supportLabel] is null, so the two cannot disagree. */
+  var onSupport: Runnable? by mutableStateOf(null)
+
+  /** Sets the extra offer, or removes it with a null [label]. */
+  fun updateSupport(label: String?, onSelect: Runnable? = null) {
+    this.supportLabel = label
+    this.onSupport = onSelect
+  }
+
   /** Commits the entered PIN to the view model. */
   var onConfirm: Runnable? by mutableStateOf(null)
 
   /**
-   * The blocking failure notice's title, or null when there is nothing to report.
+   * The blocking notice's title, or null when there is nothing to report.
    *
-   * A title, because the failure is the screen's only message: the user pressed confirm, the service
+   * A title, because the notice is the screen's only message: the user pressed confirm, the service
    * refused, and there is no PIN afterwards.
    */
   var failureTitle: String? by mutableStateOf(null)
     private set
 
-  /** The failure notice's body. */
+  /** The blocking notice's body. */
   var failureMessage: String by mutableStateOf("")
     private set
 
-  /** Acknowledges [failureTitle]. */
-  var onFailureDismiss: Runnable? by mutableStateOf(null)
+  /**
+   * What the blocking notice offers.
+   *
+   * A list because the two screens that raise one offer different things: the confirm screen
+   * acknowledges, the PIN restore screen offers "create a new PIN" and "contact support" alongside
+   * its own cancellation. Each action carries its own handler, so there is no separate dismissal
+   * callback that could be left pointing at a notice that has already gone.
+   */
+  var failureActions: List<LightConfirmAction> by mutableStateOf(emptyList())
+    private set
 
   /**
    * What the overflow affordance offers, in panel order. Empty renders no affordance at all.
@@ -263,10 +278,11 @@ class LightSvrPinView @JvmOverloads constructor(
     this.inputEnabled = enabled
   }
 
-  /** Raises the blocking failure notice, or clears it with a null [title]. */
-  fun updateFailure(title: String?, message: String) {
+  /** Raises the blocking notice, or clears it with a null [title]. */
+  fun updateNotice(title: String?, message: String, actions: List<LightConfirmAction>) {
     this.failureTitle = title
     this.failureMessage = message
+    this.failureActions = actions
   }
 
   /**
@@ -306,7 +322,7 @@ class LightSvrPinView @JvmOverloads constructor(
     val learnMore = onLearnMore
     val keyboardToggle = onKeyboardToggle
     val confirm = onConfirm
-    val dismissFailure = onFailureDismiss
+    val support = onSupport
     val failure = failureTitle
 
     MollyLightTheme {
@@ -413,10 +429,17 @@ class LightSvrPinView @JvmOverloads constructor(
               )
           ) {
             keyboardToggleLabel?.let { toggleLabel ->
-              PinAction(label = toggleLabel, onClick = keyboardToggle)
+              LightTextAction(label = toggleLabel, onClick = keyboardToggle)
             }
 
-            PinAction(
+            // Above the confirm action, and hidden until the screen has something to ask: the PIN
+            // restore screen only offers this once a guess has been spent, and an action that is
+            // always there is an action that is always in the way.
+            supportLabel?.let { label ->
+              LightTextAction(label = label, onClick = support, align = Alignment.Center)
+            }
+
+            LightTextAction(
               label = confirmLabel,
               enabled = confirmEnabled,
               busy = busy,
@@ -431,10 +454,10 @@ class LightSvrPinView @JvmOverloads constructor(
         // dialog it replaces was `setCancelable(false)`; the back gesture is swallowed by the host
         // for the same reason.
         if (failure != null) {
-          PinFailureNotice(
+          LightConfirmNotice(
             title = failure,
             message = failureMessage,
-            onDismiss = dismissFailure
+            actions = failureActions
           )
         }
       }
@@ -572,8 +595,8 @@ class LightSvrSplashView @JvmOverloads constructor(
                 vertical = 0.75f.verticalGridUnitsAsDp()
               )
           ) {
-            PinAction(label = primaryLabel, onClick = primary, align = Alignment.Center)
-            PinAction(label = secondaryLabel, onClick = secondary, align = Alignment.Center)
+            LightTextAction(label = primaryLabel, onClick = primary, align = Alignment.Center)
+            LightTextAction(label = secondaryLabel, onClick = secondary, align = Alignment.Center)
           }
         }
 
@@ -629,103 +652,5 @@ private fun PinEntryField(
         .height(UNDERLINE_THICKNESS_PX.designVerticalPxToDp())
         .background(if (enabled) colors.content else colors.contentSecondary)
     )
-  }
-}
-
-/**
- * One action in a PIN screen's fixed bottom area.
- *
- * A text action rather than an SDK bar item: the bar's grammar is three icon slots with no room for
- * two stacked full-width labels, and this screen has exactly the actions Signal put in buttons.
- * Disabled means visibly inert and still readable -- `#BBBBBB` on black, per the design language --
- * never hidden and never a dropped action.
- */
-@Composable
-private fun PinAction(
-  label: String,
-  onClick: Runnable?,
-  enabled: Boolean = true,
-  busy: Boolean = false,
-  align: Alignment = Alignment.CenterStart
-) {
-  val live = enabled && !busy && onClick != null
-
-  Box(
-    modifier = Modifier
-      .fillMaxWidth()
-      .heightIn(min = LightPinFieldStyle.MINIMUM_TOUCH_UNITS.verticalGridUnitsAsDp())
-      .semantics {
-        role = Role.Button
-        if (!live) disabled()
-        if (busy) progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
-      }
-      .lightClickable(enabled = live) { onClick?.run() },
-    contentAlignment = align
-  ) {
-    LightText(
-      text = if (busy) BUSY_LABEL else label.uppercase(Locale.getDefault()),
-      variant = LightTextVariant.Button,
-      lighten = !enabled,
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis
-    )
-  }
-}
-
-/**
- * The blocking "your PIN was not saved" notice.
- *
- * Stands in for the `MaterialAlertDialogBuilder` the confirm screen used, on the same terms: it
- * cannot be dismissed by back or by tapping around it, and it is a message with one acknowledgement.
- * A panel over the screen rather than a `Dialog` window, because a window would need the same Light
- * styling applied in a second place and would still let the fragment's back stack through.
- */
-@Composable
-private fun PinFailureNotice(
-  title: String,
-  message: String,
-  onDismiss: Runnable?
-) {
-  val colors = LightThemeTokens.colors
-
-  Box(
-    modifier = Modifier
-      .fillMaxSize()
-      .background(colors.background)
-      // A background consumes nothing. Without this, a tap beside the text reaches the PIN field.
-      .pointerInput(Unit) { detectTapGestures { } }
-  ) {
-    Column(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(horizontal = CENTERED_PANEL_PADDING_UNITS.gridUnitsAsDp())
-        .padding(bottom = OPTICAL_CENTERING_BOTTOM_UNITS.verticalGridUnitsAsDp()),
-      verticalArrangement = Arrangement.Center,
-      horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-      LightText(
-        text = title,
-        variant = LightTextVariant.Title,
-        align = TextAlign.Center
-      )
-
-      if (message.isNotEmpty()) {
-        LightText(
-          text = message,
-          variant = LightTextVariant.Paragraph,
-          lighten = true,
-          align = TextAlign.Center,
-          modifier = Modifier.padding(top = BODY_TOP_UNITS.gridUnitsAsDp())
-        )
-      }
-
-      Spacer(modifier = Modifier.height(1f.verticalGridUnitsAsDp()))
-
-      PinAction(
-        label = stringResource(android.R.string.ok),
-        onClick = onDismiss,
-        align = Alignment.Center
-      )
-    }
   }
 }

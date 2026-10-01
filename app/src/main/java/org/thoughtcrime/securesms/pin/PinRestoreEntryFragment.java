@@ -8,16 +8,13 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
-import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.Navigation;
-
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.signal.core.util.logging.Log;
 import org.signal.core.ui.logging.LoggingFragment;
@@ -28,32 +25,62 @@ import org.thoughtcrime.securesms.dependencies.AppDependencies;
 import org.thoughtcrime.securesms.jobs.ProfileUploadJob;
 import org.thoughtcrime.securesms.keyvalue.RestoreDecisionStateUtil;
 import org.thoughtcrime.securesms.keyvalue.SignalStore;
+import org.thoughtcrime.securesms.light.LightConfirmAction;
+import org.thoughtcrime.securesms.lock.v2.LightSvrPinMenuItem;
+import org.thoughtcrime.securesms.lock.v2.LightSvrPinView;
+import org.thoughtcrime.securesms.lock.v2.PinKeyboardType;
 import org.thoughtcrime.securesms.lock.v2.SvrConstants;
 import org.thoughtcrime.securesms.profiles.AvatarHelper;
 import org.thoughtcrime.securesms.profiles.edit.CreateProfileActivity;
 import org.thoughtcrime.securesms.recipients.Recipient;
-import org.thoughtcrime.securesms.registration.fragments.RegistrationViewDelegate;
 import org.thoughtcrime.securesms.registration.util.RegistrationUtil;
 import org.thoughtcrime.securesms.restore.RestoreActivity;
 import org.thoughtcrime.securesms.util.CommunicationActions;
-import org.thoughtcrime.securesms.util.RemoteConfig;
 import org.thoughtcrime.securesms.util.SupportEmailUtil;
 import org.thoughtcrime.securesms.util.ViewUtil;
 import org.thoughtcrime.securesms.util.navigation.SafeNavigation;
-import org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton;
 
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * "Enter your Signal PIN", on the way into a restored account.
+ *
+ * <p>Presentation is {@link LightSvrPinView}'s -- the same view the create and confirm screens use,
+ * because this is the same screen: a credential field, a status line, a keyboard switch, a confirm
+ * action, and notices that stop the user getting anywhere until they have read them. What this class
+ * still owns is everything that must not change: the length gate, the order the observers are
+ * attached in, what each failure event does to the field, and where a rejected PIN leads.
+ *
+ * <p><strong>The Signal PIN is not an app lock.</strong> It is the credential that makes a backup
+ * restorable after losing the phone, so every check below is reproduced exactly rather than
+ * tidied. The one capability that did not survive the move to a Compose-hosted screen is the
+ * debug-log multi-tap on the title, which needed a title {@code TextView} by id; the create and
+ * confirm screens lost the same affordance when they moved, so this screen is now consistent with
+ * them rather than uniquely missing it.
+ */
 public class PinRestoreEntryFragment extends LoggingFragment {
   private static final String TAG = Log.tag(PinRestoreActivity.class);
 
   private static final int MINIMUM_PIN_LENGTH = 4;
 
-  private EditText                       pinEntry;
-  private View                           helpButton;
-  private View                           skipButton;
-  private CircularProgressMaterialButton pinButton;
-  private TextView                       errorLabel;
-  private MaterialButton                 keyboardToggle;
-  private PinRestoreViewModel            viewModel;
+  private LightSvrPinView       pinView;
+  private PinRestoreViewModel   viewModel;
+
+  /**
+   * Back closes a notice rather than the screen.
+   *
+   * <p>The notices this screen raises were all cancelable upstream -- none of them called
+   * {@code setCancelable(false)} -- so back dismissed them and left the user on the PIN screen with
+   * their entry intact. The notice is drawn in place rather than in a window, which would have let
+   * the back stack through instead, so this is what keeps that behaviour true.
+   */
+  private final OnBackPressedCallback dismissNoticeOnBack = new OnBackPressedCallback(false) {
+    @Override
+    public void handleOnBackPressed() {
+      clearNotice();
+    }
+  };
 
   @Override
   public @Nullable View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -62,27 +89,28 @@ public class PinRestoreEntryFragment extends LoggingFragment {
 
   @Override
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-    initViews(view);
-    initViewModel();
-  }
+    pinView = view.findViewById(R.id.light_svr_pin_view);
 
-  private void initViews(@NonNull View root) {
-    RegistrationViewDelegate.setDebugLogSubmitMultiTapView(root.findViewById(R.id.pin_restore_pin_title));
+    pinView.updateHeader(
+        getString(R.string.RegistrationLockFragment__enter_your_pin),
+        getString(R.string.RegistrationLockFragment__enter_the_pin_you_created),
+        false
+    );
+    // `R` is non-transitive in this build, and Java has no import alias, so the one string that
+    // lives in the registration module is named in full. It is the confirm label the button always
+    // had; there is no app-local equivalent and borrowing another screen's string would be worse.
+    pinView.updateConfirm(getString(org.signal.registration.R.string.RegistrationActivity_continue), true, false);
+    pinView.updateLabel("", false);
+    pinView.updateSupport(null, null);
+    pinView.updateOverflowItems(Collections.singletonList(
+        new LightSvrPinMenuItem(getString(R.string.PinRestoreEntryFragment_skip), this::onSkipClicked)
+    ));
 
-    pinEntry       = root.findViewById(R.id.pin_restore_pin_input);
-    pinButton      = root.findViewById(R.id.pin_restore_pin_confirm);
-    errorLabel     = root.findViewById(R.id.pin_restore_pin_input_label);
-    keyboardToggle = root.findViewById(R.id.pin_restore_keyboard_toggle);
-    helpButton     = root.findViewById(R.id.pin_restore_forgot_pin);
-    skipButton     = root.findViewById(R.id.pin_restore_skip_button);
+    requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), dismissNoticeOnBack);
 
-    helpButton.setVisibility(View.GONE);
-    helpButton.setOnClickListener(v -> onNeedHelpClicked());
-
-    skipButton.setOnClickListener(v -> onSkipClicked());
-
-    pinEntry.setImeOptions(EditorInfo.IME_ACTION_DONE);
-    pinEntry.setOnEditorActionListener((v, actionId, event) -> {
+    EditText input = pinView.getInput();
+    input.setImeOptions(EditorInfo.IME_ACTION_DONE);
+    input.setOnEditorActionListener((v, actionId, event) -> {
       if (actionId == EditorInfo.IME_ACTION_DONE) {
         ViewUtil.hideKeyboard(requireContext(), v);
         onPinSubmitted();
@@ -93,44 +121,60 @@ public class PinRestoreEntryFragment extends LoggingFragment {
 
     enableAndFocusPinEntry();
 
-    pinButton.setOnClickListener((v) -> {
-      ViewUtil.hideKeyboard(requireContext(), pinEntry);
+    pinView.setOnConfirm(() -> {
+      ViewUtil.hideKeyboard(requireContext(), pinView.getInput());
       onPinSubmitted();
     });
 
-    keyboardToggle.setOnClickListener((v) -> viewModel.toggleKeyboardType());
+    pinView.setOnKeyboardToggle(() -> viewModel.toggleKeyboardType());
+
+    initViewModel();
   }
 
   private void initViewModel() {
     viewModel = new ViewModelProvider(this).get(PinRestoreViewModel.class);
 
-    viewModel.getKeyboardType().observe(getViewLifecycleOwner(), keyboardType -> keyboardType.applyTo(pinEntry, keyboardToggle));
+    viewModel.getKeyboardType().observe(getViewLifecycleOwner(), this::applyKeyboardType);
 
     viewModel.triesRemaining.observe(getViewLifecycleOwner(), this::presentTriesRemaining);
     viewModel.getEvent().observe(getViewLifecycleOwner(), this::presentEvent);
   }
 
+  /**
+   * Applies the keyboard type to the credential field and renames the toggle.
+   *
+   * <p>{@code PinKeyboardType.applyTo} is deliberately not called: its second argument is a
+   * {@code MaterialButton} it sets an icon on, and there is no Material button here. Nothing
+   * observable is lost but the icon, which the Light grammar replaces with a text action anyway.
+   */
+  private void applyKeyboardType(@NonNull PinKeyboardType keyboardType) {
+    keyboardType.applyInputTypeTo(pinView.getInput());
+    pinView.updateKeyboardToggle(keyboardType.toggleLabel(requireContext()));
+  }
+
   private void presentTriesRemaining(PinRestoreViewModel.TriesRemaining triesRemaining) {
     if (triesRemaining.hasIncorrectGuess()) {
       if (triesRemaining.getCount() == 1) {
-        new MaterialAlertDialogBuilder(requireContext())
-            .setTitle(R.string.PinRestoreEntryFragment_incorrect_pin)
-            .setMessage(getResources().getQuantityString(R.plurals.PinRestoreEntryFragment_you_have_d_attempt_remaining, triesRemaining.getCount(), triesRemaining.getCount()))
-            .setPositiveButton(android.R.string.ok, null)
-            .show();
+        showNotice(
+            getString(R.string.PinRestoreEntryFragment_incorrect_pin),
+            attemptsRemaining(triesRemaining.getCount())
+        );
       }
 
-      errorLabel.setText(R.string.PinRestoreEntryFragment_incorrect_pin);
-      helpButton.setVisibility(View.VISIBLE);
-    } else {
-      if (triesRemaining.getCount() == 1) {
-        helpButton.setVisibility(View.VISIBLE);
-        new MaterialAlertDialogBuilder(requireContext())
-            .setMessage(getResources().getQuantityString(R.plurals.PinRestoreEntryFragment_you_have_d_attempt_remaining, triesRemaining.getCount(), triesRemaining.getCount()))
-            .setPositiveButton(android.R.string.ok, null)
-            .show();
-      }
+      pinView.updateLabel(getString(R.string.PinRestoreEntryFragment_incorrect_pin), true);
+    } else if (triesRemaining.getCount() == 1) {
+      showNotice("", attemptsRemaining(triesRemaining.getCount()));
     }
+
+    // Shown once a guess has been spent, or once only one is left. The old code set the button
+    // visible in both branches and never hid it again; deriving it each time gives the same result,
+    // because the count only ever falls.
+    pinView.updateSupport(
+        triesRemaining.hasIncorrectGuess() || triesRemaining.getCount() == 1
+            ? getString(R.string.PinRestoreEntryFragment_need_help)
+            : null,
+        this::onNeedHelpClicked
+    );
 
     if (triesRemaining.getCount() == 0) {
       Log.w(TAG, "Account locked. User out of attempts on KBS.");
@@ -144,72 +188,102 @@ public class PinRestoreEntryFragment extends LoggingFragment {
         handleSuccess();
         break;
       case EMPTY_PIN:
+        // A toast upstream, and the only feedback this branch gave: the field is cleared and
+        // refocused, so nothing stays on screen to explain what just happened.
         Toast.makeText(requireContext(), R.string.RegistrationActivity_you_must_enter_your_registration_lock_PIN, Toast.LENGTH_LONG).show();
-        pinButton.cancelSpinning();
-        pinEntry.getText().clear();
-        enableAndFocusPinEntry();
+        setBusy(false);
+        clearInputAndRefocus();
         break;
       case PIN_TOO_SHORT:
         Toast.makeText(requireContext(), getString(R.string.RegistrationActivity_your_pin_has_at_least_d_digits_or_characters, MINIMUM_PIN_LENGTH), Toast.LENGTH_LONG).show();
-        pinButton.cancelSpinning();
-        pinEntry.getText().clear();
-        enableAndFocusPinEntry();
+        setBusy(false);
+        clearInputAndRefocus();
         break;
       case PIN_INCORRECT:
-        pinButton.cancelSpinning();
-        pinEntry.getText().clear();
-        enableAndFocusPinEntry();
+        // Deliberately silent: `triesRemaining` fires alongside this and puts the failure on the
+        // status line, so a toast here would say it twice.
+        setBusy(false);
+        clearInputAndRefocus();
         break;
       case PIN_LOCKED:
         onAccountLocked();
         break;
       case NETWORK_ERROR:
         Toast.makeText(requireContext(), R.string.RegistrationActivity_error_connecting_to_service, Toast.LENGTH_LONG).show();
-        pinButton.cancelSpinning();
-        pinEntry.setEnabled(true);
+        setBusy(false);
         enableAndFocusPinEntry();
         break;
     }
   }
 
   private void onPinSubmitted() {
-    pinEntry.setEnabled(false);
-    viewModel.onPinSubmitted(pinEntry.getText().toString());
-    pinButton.setSpinning();
+    pinView.getInput().setEnabled(false);
+    viewModel.onPinSubmitted(pinView.getInput().getText().toString());
+    setBusy(true);
   }
 
   private void onNeedHelpClicked() {
-    new MaterialAlertDialogBuilder(requireContext())
-        .setTitle(R.string.PinRestoreEntryFragment_need_help)
-        .setMessage(getString(R.string.PinRestoreEntryFragment_your_pin_is_a_d_digit_code, SvrConstants.MINIMUM_PIN_LENGTH))
-        .setPositiveButton(R.string.PinRestoreEntryFragment_create_new_pin, ((dialog, which) -> {
-          SvrRepository.onPinRestoreForgottenOrSkipped();
-          ((PinRestoreActivity) requireActivity()).navigateToPinCreation();
-        }))
-        .setNeutralButton(R.string.PinRestoreEntryFragment_contact_support, (dialog, which) -> {
-          String body = SupportEmailUtil.generateSupportEmailBody(requireContext(),
-                                                                  R.string.PinRestoreEntryFragment_signal_registration_need_help_with_pin,
-                                                                  null,
-                                                                  null);
-          CommunicationActions.openEmail(requireContext(),
-                                         SupportEmailUtil.getSupportEmailAddress(requireContext()),
-                                         getString(R.string.PinRestoreEntryFragment_signal_registration_need_help_with_pin),
-                                         body);
-        })
-        .setNegativeButton(R.string.PinRestoreEntryFragment_cancel, null)
-        .show();
+    String subject = getString(R.string.PinRestoreEntryFragment_signal_registration_need_help_with_pin);
+
+    showNotice(
+        getString(R.string.PinRestoreEntryFragment_need_help),
+        getString(R.string.PinRestoreEntryFragment_your_pin_is_a_d_digit_code, SvrConstants.MINIMUM_PIN_LENGTH),
+        // Destructive last and separated: creating a new PIN is what unsticks this screen, and
+        // contacting support is the ordinary way to ask about it first. Cancelling is the row that
+        // does nothing, so it goes first and the row that gives up the old PIN is last.
+        List.of(
+            new LightConfirmAction(getString(R.string.PinRestoreEntryFragment_cancel), this::clearNotice),
+            new LightConfirmAction(getString(R.string.PinRestoreEntryFragment_contact_support), () -> {
+              clearNotice();
+              CommunicationActions.openEmail(
+                  requireContext(),
+                  SupportEmailUtil.getSupportEmailAddress(requireContext()),
+                  subject,
+                  SupportEmailUtil.generateSupportEmailBody(requireContext(),
+                                                              R.string.PinRestoreEntryFragment_signal_registration_need_help_with_pin,
+                                                              null,
+                                                              null)
+              );
+            }),
+            new LightConfirmAction(getString(R.string.PinRestoreEntryFragment_create_new_pin), this::navigateToPinCreation)
+        )
+    );
   }
 
   private void onSkipClicked() {
-    new MaterialAlertDialogBuilder(requireContext())
-        .setTitle(R.string.PinRestoreEntryFragment_skip_pin_entry)
-        .setMessage(R.string.PinRestoreEntryFragment_if_you_cant_remember_your_pin)
-        .setPositiveButton(R.string.PinRestoreEntryFragment_create_new_pin, (dialog, which) -> {
-          SvrRepository.onPinRestoreForgottenOrSkipped();
-          ((PinRestoreActivity) requireActivity()).navigateToPinCreation();
-        })
-        .setNegativeButton(R.string.PinRestoreEntryFragment_cancel, null)
-        .show();
+    showNotice(
+        getString(R.string.PinRestoreEntryFragment_skip_pin_entry),
+        getString(R.string.PinRestoreEntryFragment_if_you_cant_remember_your_pin),
+        List.of(
+            new LightConfirmAction(getString(R.string.PinRestoreEntryFragment_cancel), this::clearNotice),
+            new LightConfirmAction(getString(R.string.PinRestoreEntryFragment_create_new_pin), this::navigateToPinCreation)
+        )
+    );
+  }
+
+  /** Raises the informational notice: a title, a body and one acknowledgement. */
+  private void showNotice(@NonNull String title, @NonNull String message) {
+    showNotice(title, message, Collections.singletonList(
+        new LightConfirmAction(getString(android.R.string.ok), this::clearNotice)
+    ));
+  }
+
+  private void showNotice(@NonNull String title, @NonNull String message, @NonNull List<LightConfirmAction> actions) {
+    pinView.updateNotice(title, message, actions);
+    dismissNoticeOnBack.setEnabled(true);
+  }
+
+  private void clearNotice() {
+    pinView.updateNotice(null, "", Collections.emptyList());
+    dismissNoticeOnBack.setEnabled(false);
+  }
+
+  private String attemptsRemaining(int count) {
+    return getResources().getQuantityString(R.plurals.PinRestoreEntryFragment_you_have_d_attempt_remaining, count, count);
+  }
+
+  private void setBusy(boolean busy) {
+    pinView.updateConfirm(pinView.getConfirmLabel(), pinView.getConfirmEnabled(), busy);
   }
 
   private void onAccountLocked() {
@@ -217,8 +291,14 @@ public class PinRestoreEntryFragment extends LoggingFragment {
     SafeNavigation.safeNavigate(Navigation.findNavController(requireView()), PinRestoreEntryFragmentDirections.actionAccountLocked());
   }
 
+  private void navigateToPinCreation() {
+    clearNotice();
+    SvrRepository.onPinRestoreForgottenOrSkipped();
+    ((PinRestoreActivity) requireActivity()).navigateToPinCreation();
+  }
+
   private void handleSuccess() {
-    pinButton.cancelSpinning();
+    setBusy(false);
     SignalStore.onboarding().clearAll();
 
     Activity activity = requireActivity();
@@ -242,9 +322,16 @@ public class PinRestoreEntryFragment extends LoggingFragment {
     activity.finish();
   }
 
+  /** The rejection paths: drop what was typed, make the field usable again, and take the focus back. */
+  private void clearInputAndRefocus() {
+    pinView.clearInput();
+    enableAndFocusPinEntry();
+  }
+
   private void enableAndFocusPinEntry() {
-    pinEntry.setEnabled(true);
-    pinEntry.setFocusable(true);
-    ViewUtil.focusAndShowKeyboard(pinEntry);
+    EditText input = pinView.getInput();
+    input.setEnabled(true);
+    input.setFocusable(true);
+    ViewUtil.focusAndShowKeyboard(input);
   }
 }

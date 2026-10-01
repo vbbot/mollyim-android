@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.TemporaryScreenshotSecurity
 import org.thoughtcrime.securesms.dependencies.AppDependencies
+import org.thoughtcrime.securesms.light.LightConfirmAction
 import org.thoughtcrime.securesms.lock.v2.ConfirmSvrPinViewModel.SaveAnimation
 import org.thoughtcrime.securesms.megaphone.Megaphones
 import org.thoughtcrime.securesms.registration.util.RegistrationUtil
@@ -133,17 +134,18 @@ internal class ConfirmSvrPinFragment : BaseSvrPinFragment<ConfirmSvrPinViewModel
    * activity result, and leaving the graph.
    */
   private fun displayFailedNotice() {
-    pinView.updateFailure(
-      getString(R.string.ConfirmKbsPinFragment__pin_creation_failed),
-      getString(R.string.ConfirmKbsPinFragment__your_pin_was_not_saved)
+    pinView.updateNotice(
+      title = getString(R.string.ConfirmKbsPinFragment__pin_creation_failed),
+      message = getString(R.string.ConfirmKbsPinFragment__your_pin_was_not_saved),
+      actions = listOf(
+        LightConfirmAction(getString(android.R.string.ok), Runnable { dismissFailedNotice() })
+      )
     )
-    pinView.onFailureDismiss = Runnable { dismissFailedNotice() }
     failureBlocksBack.isEnabled = true
   }
 
   private fun dismissFailedNotice() {
-    pinView.updateFailure(null, "")
-    pinView.onFailureDismiss = null
+    pinView.updateNotice(null, "", emptyList())
     failureBlocksBack.isEnabled = false
 
     markMegaphoneSeenIfNecessary()

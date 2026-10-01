@@ -76,4 +76,18 @@ enum class PinKeyboardType(val code: String) {
   private fun applyToggleIconTo(toggleTypeButton: MaterialButton) {
     toggleTypeButton.setIconResource(this.other.toggleIconResource)
   }
+
+  /**
+   * The label for the control that switches *away* from this type.
+   *
+   * Lives here rather than on a screen because the mapping is about the type and not about the
+   * screen: it is what "switch keyboards" is called when the thing being switched to is a numeric
+   * pad rather than a full one, and both PIN screens have to say the same thing about it.
+   */
+  fun toggleLabel(context: android.content.Context): String {
+    return when (this) {
+      NUMERIC -> context.getString(R.string.BaseKbsPinFragment__create_alphanumeric_pin)
+      ALPHA_NUMERIC -> context.getString(R.string.BaseKbsPinFragment__create_numeric_pin)
+    }
+  }
 }
