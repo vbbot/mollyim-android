@@ -7,6 +7,7 @@ package org.thoughtcrime.securesms.components.webrtc.v2
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement.spacedBy
 import androidx.compose.foundation.layout.Box
@@ -31,13 +32,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import org.signal.core.ui.compose.NightPreview
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.TriggerAlignedPopup
 import org.signal.core.ui.compose.TriggerAlignedPopupState
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.emoji.EmojiImage
 
@@ -117,7 +120,12 @@ private fun CallReactionScrubber(
     horizontalArrangement = spacedBy(12.dp),
     modifier = Modifier
       .fillMaxWidth()
-      .background(SignalTheme.colors.colorSurface2, RoundedCornerShape(percent = 50))
+      .background(LightThemeTokens.colors.background, RoundedCornerShape(percent = 50))
+      .border(
+        width = 1.dp,
+        color = LightThemeTokens.colors.content,
+        shape = RoundedCornerShape(percent = 50)
+      )
       .padding(12.dp)
   ) {
     reactions.forEach {
@@ -155,7 +163,12 @@ private fun CallScreenMenu(
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .background(SignalTheme.colors.colorSurface2, RoundedCornerShape(18.dp))
+      .background(LightThemeTokens.colors.background, RoundedCornerShape(18.dp))
+      .border(
+        width = 1.dp,
+        color = LightThemeTokens.colors.content,
+        shape = RoundedCornerShape(18.dp)
+      )
   ) {
     if (isGroupCall) {
       CallScreenMenuOption(
@@ -192,13 +205,15 @@ private fun CallScreenMenuOption(
     Icon(
       imageVector = imageVector,
       contentDescription = title,
-      tint = MaterialTheme.colorScheme.onSurface
+      tint = LightThemeTokens.colors.content
     )
 
-    Text(
+    // `Copy`, not `bodyLarge`. Material's `bodyLarge` is Roboto at 16sp; the Light scale's `Copy` is
+    // 30sp in the Light face, which is the difference between a menu row you can read across a room
+    // and one you have to lean in for.
+    LightText(
       text = title,
-      style = MaterialTheme.typography.bodyLarge,
-      color = MaterialTheme.colorScheme.onSurface
+      variant = LightTextVariant.Copy
     )
   }
 }

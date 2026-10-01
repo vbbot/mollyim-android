@@ -8,6 +8,7 @@ package org.thoughtcrime.securesms.components.webrtc.v2
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement.spacedBy
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,19 +16,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.gridUnitsAsDp
 import org.signal.core.ui.compose.NightPreview
 import org.signal.core.ui.compose.Previews
 import org.thoughtcrime.securesms.R
-import org.signal.core.ui.R as CoreUiR
 
 /**
  * Enumeration of the different call states we can display in the CallStateUpdate component.
@@ -59,24 +60,33 @@ fun CallStateUpdatePopup(
     verticalAlignment = Alignment.CenterVertically,
     modifier = modifier
       .background(
-        color = colorResource(id = CoreUiR.color.signal_light_colorSecondaryContainer),
+        color = LightThemeTokens.colors.background,
         shape = RoundedCornerShape(50)
       )
-      .padding(horizontal = 16.dp, vertical = 8.dp)
+      .border(
+        width = 1.dp,
+        color = LightThemeTokens.colors.content,
+        shape = RoundedCornerShape(50)
+      )
+      .padding(horizontal = 2f.gridUnitsAsDp(), vertical = 8.dp)
   ) {
     if (callControlsChange.iconRes != null) {
       Icon(
         painter = painterResource(id = callControlsChange.iconRes),
         contentDescription = null,
-        tint = colorResource(id = CoreUiR.color.signal_light_colorOnSecondaryContainer),
+        tint = LightThemeTokens.colors.content,
         modifier = Modifier.size(16.dp)
       )
     }
 
-    Text(
+    // `LightText` rather than `Text`: `LightTheme` installs its own `colorScheme` but not its own
+    // `typography`, so a Material `Text` here is Roboto at 14sp -- a third the size of the Light
+    // scale's `Detail`, and in the wrong face, on a 360dp screen meant to be read at arm's length.
+    // `colorResource` likewise names a Signal palette entry; the Light content colour is what this
+    // line should be.
+    LightText(
       text = stringResource(id = callControlsChange.stringRes),
-      style = MaterialTheme.typography.bodyMedium,
-      color = colorResource(id = CoreUiR.color.signal_light_colorOnSecondaryContainer)
+      variant = LightTextVariant.Detail
     )
   }
 }

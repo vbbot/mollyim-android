@@ -41,10 +41,13 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import kotlin.math.max
 import org.signal.core.ui.compose.AllNightPreviews
 import org.signal.core.ui.compose.NightPreview
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.signal.core.ui.isWidthCompact
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.avatar.AvatarImage
@@ -53,7 +56,6 @@ import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.rememberRecipientField
 import org.thoughtcrime.securesms.service.webrtc.links.CallLinkRoomId
-import kotlin.math.max
 
 /**
  * Pre-join call screen overlay.
@@ -179,19 +181,18 @@ private fun PreJoinHeader(
         .size(96.dp)
     )
 
-    Text(
+    LightText(
       text = callRecipient.getDisplayName(LocalContext.current),
-      style = MaterialTheme.typography.headlineMedium,
-      color = Color.White,
+      variant = LightTextVariant.Subheading,
+      align = TextAlign.Center,
       modifier = Modifier.padding(top = 16.dp)
     )
 
     if (callStatus != null) {
-      Text(
+      LightText(
         text = callStatus,
-        style = MaterialTheme.typography.bodyMedium,
-        color = Color.White,
-        textAlign = TextAlign.Center,
+        variant = LightTextVariant.Detail,
+        align = TextAlign.Center,
         modifier = Modifier.padding(top = 8.dp, start = 16.dp, end = 16.dp)
       )
     }
@@ -264,18 +265,8 @@ private fun CallLinkInfoCard(
 
   Box(
     modifier = modifier
-      .background(
-        color = SignalTheme.colors.colorSurface1,
-        shape = MaterialTheme.shapes.medium
-      )
-      .padding(horizontal = 16.dp, vertical = 13.dp)
   ) {
-    Text(
-      text = text,
-      style = MaterialTheme.typography.bodyMedium,
-      textAlign = TextAlign.Center,
-      color = MaterialTheme.colorScheme.onSurface
-    )
+    LightCallNotice(text = text)
   }
 }
 

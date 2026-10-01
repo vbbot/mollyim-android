@@ -6,18 +6,19 @@
 package org.thoughtcrime.securesms.components.webrtc.v2
 
 import android.os.Build
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -28,101 +29,38 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.colorResource
-import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import org.signal.core.ui.compose.IconButtons
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.gridUnitsAsDp
+import com.thelightphone.sdk.ui.lightClickable
 import org.signal.core.ui.compose.NightPreview
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.webrtc.AudioStateUpdater
 import org.thoughtcrime.securesms.components.webrtc.ToggleButtonOutputState
 import org.thoughtcrime.securesms.components.webrtc.WebRtcAudioDevice
 import org.thoughtcrime.securesms.components.webrtc.WebRtcAudioOutput
 import org.thoughtcrime.securesms.components.webrtc.WebRtcAudioPicker31
-import org.signal.core.ui.R as CoreUiR
+import org.thoughtcrime.securesms.light.rememberLightTintedPainter
 
 private const val SHOW_PICKER_THRESHOLD = 3
 
 /**
- * Button which allows user to select from different audio devices to play back call audio through.
+ * Remembered factory for [AudioOutputPickerController].
+ *
+ * This file used to also hold `CallAudioToggleButton`, the Material icon button that opened the
+ * picker. It is gone: [LightCallChrome] draws the audio-output control now, and the only remaining
+ * callers of the old button were its own `@Preview`s. The controller and the picker itself stay --
+ * `CallControls` still calls `Sheet()` on it.
  */
-@Composable
-fun CallAudioToggleButton(
-  contentDescription: String,
-  onSheetDisplayChanged: (Boolean) -> Unit,
-  pickerController: AudioOutputPickerController,
-  modifier: Modifier = Modifier,
-  enabled: Boolean = true
-) {
-  val buttonSize = dimensionResource(id = R.dimen.webrtc_button_size)
-
-  val currentOutput = pickerController.outputState.currentDevice
-  val allOutputs = pickerController.outputState.availableDevices
-
-  val containerColor = if (currentOutput == WebRtcAudioOutput.HANDSET || allOutputs.size >= SHOW_PICKER_THRESHOLD) {
-    MaterialTheme.colorScheme.secondaryContainer
-  } else {
-    colorResource(id = CoreUiR.color.signal_light_colorSecondaryContainer)
-  }
-
-  val contentColor = if (currentOutput == WebRtcAudioOutput.HANDSET || allOutputs.size >= SHOW_PICKER_THRESHOLD) {
-    colorResource(id = CoreUiR.color.signal_light_colorOnPrimary)
-  } else {
-    colorResource(id = CoreUiR.color.signal_light_colorOnSecondaryContainer)
-  }
-
-  IconButtons.IconButton(
-    size = buttonSize,
-    onClick = {
-      pickerController.show()
-    },
-    enabled = enabled,
-    colors = IconButtons.iconButtonColors(
-      containerColor = containerColor,
-      contentColor = contentColor,
-      disabledContainerColor = containerColor.copy(alpha = 0.38f),
-      disabledContentColor = contentColor.copy(alpha = 0.38f)
-    ),
-    modifier = modifier.size(buttonSize)
-  ) {
-    val iconRes = remember(currentOutput, pickerController.willDisplayPicker) {
-      if (!pickerController.willDisplayPicker && currentOutput == WebRtcAudioOutput.HANDSET) {
-        WebRtcAudioOutput.SPEAKER.iconRes
-      } else {
-        currentOutput.iconRes
-      }
-    }
-
-    Row(
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Icon(
-        painter = painterResource(id = iconRes),
-        contentDescription = contentDescription,
-        modifier = Modifier.size(28.dp)
-      )
-
-      if (pickerController.willDisplayPicker) {
-        Icon(
-          painter = painterResource(id = R.drawable.symbol_dropdown_triangle_compat_bold_16),
-          contentDescription = null,
-          modifier = Modifier.size(16.dp)
-        )
-      }
-    }
-  }
-
-  pickerController.Sheet()
-
-  LaunchedEffect(pickerController.displaySheet) {
-    onSheetDisplayChanged(pickerController.displaySheet)
-  }
-}
-
 @Composable
 fun rememberAudioOutputPickerController(
   onSelectedDeviceChanged: (WebRtcAudioDevice) -> Unit,
@@ -216,31 +154,36 @@ class AudioOutputPickerController(
 
 /**
  * Picker for pre-api-31 devices.
+ *
+ * On API 31 and up the platform picker ([WebRtcAudioPicker31]) is used instead, so this is only
+ * reached on older hardware -- but it is still reachable, so it is converted rather than deleted.
+ * The row reads as a selection without a radio dot: on a panel with one foreground colour the dot
+ * carried the "which one is current" signal, and a filled indicator on the left does it better than
+ * an outline that differs only by a pixel of grey.
  */
 @Composable
 private fun LegacyAudioPickerContent(
   toggleButtonOutputState: ToggleButtonOutputState,
   onSelectedDeviceChanged: (WebRtcAudioOutput) -> Unit
 ) {
-  Text(
+  LightText(
     text = stringResource(R.string.WebRtcAudioOutputToggle__audio_output),
-    style = MaterialTheme.typography.headlineMedium,
-    color = MaterialTheme.colorScheme.onSurface,
-    modifier = Modifier
-      .padding(8.dp)
-      .padding(
-        horizontal = dimensionResource(id = CoreUiR.dimen.gutter)
-      )
+    variant = LightTextVariant.Subheading,
+    modifier = Modifier.padding(
+      start = GUTTER_UNITS.gridUnitsAsDp(),
+      end = GUTTER_UNITS.gridUnitsAsDp(),
+      top = 2f.gridUnitsAsDp(),
+      bottom = 1f.gridUnitsAsDp()
+    )
   )
 
   LazyColumn(
-    modifier = Modifier.padding(
-      horizontal = dimensionResource(id = CoreUiR.dimen.gutter)
-    )
+    modifier = Modifier.background(LightThemeTokens.colors.background)
   ) {
     items(
       items = toggleButtonOutputState.availableDevices
     ) { item ->
+      val selected = item == toggleButtonOutputState.currentDevice
       val icon = when (item) {
         WebRtcAudioOutput.HANDSET -> R.drawable.symbol_phone_speaker_outline_24
         WebRtcAudioOutput.SPEAKER -> R.drawable.symbol_speaker_outline_24
@@ -248,88 +191,63 @@ private fun LegacyAudioPickerContent(
         WebRtcAudioOutput.WIRED_HEADSET -> R.drawable.symbol_headphones_outline_24
       }
 
-      Rows.RadioRow(
-        selected = item == toggleButtonOutputState.currentDevice,
-        content = {
-          Icon(
-            painter = painterResource(id = icon),
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(ROW_HEIGHT_UNITS.gridUnitsAsDp())
+          .lightClickable(role = Role.RadioButton) { onSelectedDeviceChanged(item) }
+          .semantics { this.selected = selected }
+          .padding(horizontal = GUTTER_UNITS.gridUnitsAsDp())
+      ) {
+        Image(
+          painter = painterResource(id = icon),
+          contentDescription = null,
+          colorFilter = ColorFilter.tint(LightThemeTokens.colors.content),
+          modifier = Modifier.size(ICON_SIZE_UNITS.gridUnitsAsDp())
+        )
+        Spacer(modifier = Modifier.width(1f.gridUnitsAsDp()))
+        // Weight rather than a trailing tick: the device name is the thing being chosen, and on the
+        // LP3 "BLUETOOTH HEADSET" is wider than the row it sits in.
+        LightText(
+          text = stringResource(id = item.labelRes),
+          variant = LightTextVariant.Copy,
+          lighten = !selected,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.weight(1f)
+        )
+        if (selected) {
+          Image(
+            painter = rememberLightTintedPainter(R.drawable.symbol_check_white_24),
             contentDescription = null,
-            modifier = Modifier.padding(end = 16.dp)
+            modifier = Modifier.size(ICON_SIZE_UNITS.gridUnitsAsDp())
           )
-
-          Text(
-            text = stringResource(id = item.labelRes),
-            style = MaterialTheme.typography.bodyLarge
-          )
-        },
-        modifier = Modifier.clickable {
-          onSelectedDeviceChanged(item)
         }
-      )
+      }
     }
   }
 }
 
-@NightPreview
-@Composable
-private fun CallAudioPickerSheetContentPreview() {
-  Previews.BottomSheetContentPreview {
-    Column {
-      LegacyAudioPickerContent(
-        toggleButtonOutputState = ToggleButtonOutputState().apply {
-          isEarpieceAvailable = true
-          isBluetoothHeadsetAvailable = true
-          isWiredHeadsetAvailable = true
-        },
-        onSelectedDeviceChanged = {}
-      )
-    }
-  }
-}
+private const val ROW_HEIGHT_UNITS = 4f
+private const val ICON_SIZE_UNITS = 2f
+private const val GUTTER_UNITS = 2f
 
 @NightPreview
 @Composable
-private fun TwoDeviceCallAudioToggleButtonPreview() {
-  val outputState = remember {
-    ToggleButtonOutputState().apply {
-      isEarpieceAvailable = true
-    }
-  }
-
-  Previews.Preview {
-    CallAudioToggleButton(
-      contentDescription = "",
-      onSheetDisplayChanged = {},
-      pickerController = rememberAudioOutputPickerController(
-        outputState = outputState,
-        onSelectedDeviceChanged = {
-          outputState.setCurrentOutput(it.webRtcAudioOutput)
-        }
-      )
-    )
-  }
-}
-
-@NightPreview
-@Composable
-private fun ThreeDeviceCallAudioToggleButtonPreview() {
+private fun LegacyAudioPickerContentPreview() {
   val outputState = remember {
     ToggleButtonOutputState().apply {
       isEarpieceAvailable = true
       isBluetoothHeadsetAvailable = true
+      isWiredHeadsetAvailable = true
     }
   }
 
-  Previews.Preview {
-    CallAudioToggleButton(
-      contentDescription = "",
-      onSheetDisplayChanged = {},
-      pickerController = rememberAudioOutputPickerController(
-        outputState = outputState,
-        onSelectedDeviceChanged = {
-          outputState.setCurrentOutput(it.webRtcAudioOutput)
-        }
-      )
+  Previews.BottomSheetContentPreview {
+    LegacyAudioPickerContent(
+      toggleButtonOutputState = outputState,
+      onSelectedDeviceChanged = {}
     )
   }
 }

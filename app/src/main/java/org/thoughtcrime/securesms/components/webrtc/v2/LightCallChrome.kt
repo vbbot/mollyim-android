@@ -8,6 +8,7 @@ package org.thoughtcrime.securesms.components.webrtc.v2
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
@@ -465,14 +469,72 @@ fun LightCallTopBar(
   )
 }
 
+/**
+ * A short status notice floating over the call: a spinner and one line of text, on its own surface.
+ *
+ * Two call states need exactly this -- "waiting to be let in" while a group call is moderated, and
+ * the pre-join explanation of whether anyone with the phone number can join. Both were the same
+ * `SignalTheme.colors.colorSurface1` pill with a Material `Text`, so they are one component here
+ * rather than two that can drift.
+ *
+ * The white hairline is not decoration. A call screen is video or black, and this notice sits on
+ * top of both; on black, a black surface with no edge is not a surface at all, and over video the
+ * panel has to separate from whatever is moving behind it. The Light Phone has one resting
+ * surface, so the edge -- not a second shade of grey -- is what says "this is above that".
+ */
+@Composable
+fun LightCallNotice(
+  text: String,
+  modifier: Modifier = Modifier,
+  showSpinner: Boolean = false
+) {
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = modifier
+      .background(LightThemeTokens.colors.background, RoundedCornerShape(NOTICE_CORNER_UNITS.gridUnitsAsDp()))
+      .border(
+        width = NOTICE_BORDER_DP.dp,
+        color = LightThemeTokens.colors.content,
+        shape = RoundedCornerShape(NOTICE_CORNER_UNITS.gridUnitsAsDp())
+      )
+      .padding(
+        horizontal = 2f.gridUnitsAsDp(),
+        vertical = 1.5f.gridUnitsAsDp()
+      )
+      .testTag(LIGHT_CALL_NOTICE_TAG)
+  ) {
+    if (showSpinner) {
+      CircularProgressIndicator(
+        color = LightThemeTokens.colors.content,
+        strokeWidth = NOTICE_SPINNER_DP.dp,
+        modifier = Modifier
+          .size(1.5f.gridUnitsAsDp())
+          .testTag(LIGHT_CALL_NOTICE_SPINNER_TAG)
+      )
+      Spacer(modifier = Modifier.width(1f.gridUnitsAsDp()))
+    }
+    LightText(
+      text = text,
+      variant = LightTextVariant.Detail,
+      align = TextAlign.Center
+    )
+  }
+}
+
 internal fun lightCallControlTag(action: LightCallControlAction): String = "light-call-control-${action.name.lowercase()}"
 
 internal const val LIGHT_CALL_CONTROLS_TAG = "light-call-controls"
 internal const val LIGHT_CALL_START_BAR_TAG = "light-call-start-bar"
 internal const val LIGHT_CALL_TOP_BAR_TAG = "light-call-top-bar"
+internal const val LIGHT_CALL_NOTICE_TAG = "light-call-notice"
+internal const val LIGHT_CALL_NOTICE_SPINNER_TAG = "light-call-notice-spinner"
 internal const val LIGHT_INCOMING_CALL_CHROME_TAG = "light-incoming-call-chrome"
 internal const val LIGHT_INCOMING_TOP_BAR_TAG = "light-incoming-top-bar"
 internal const val LIGHT_INCOMING_ACTION_BAR_TAG = "light-incoming-action-bar"
+
+private const val NOTICE_CORNER_UNITS = 0.5f
+private const val NOTICE_BORDER_DP = 1
+private const val NOTICE_SPINNER_DP = 2
 
 private const val ACTIVE_CONTROLS_HEIGHT_UNITS = 4f
 private const val CONTROL_ICON_SIZE_UNITS = 2f

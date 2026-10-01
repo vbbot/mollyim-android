@@ -49,6 +49,8 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
 import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.NightPreview
 import org.signal.core.ui.compose.Previews
@@ -627,10 +629,9 @@ private fun RaiseHandIndicator(
     )
 
     if (name.isNotBlank()) {
-      Text(
+      LightText(
         text = name,
-        color = colorResource(CoreUiR.color.signal_light_colorOnSurface),
-        style = MaterialTheme.typography.bodyMedium,
+        variant = LightTextVariant.Detail,
         modifier = Modifier.padding(end = 12.dp)
       )
     }

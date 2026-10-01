@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,9 +30,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowSizeClass
+import com.thelightphone.sdk.ui.LightThemeTokens
 import org.signal.core.ui.compose.AllNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.events.CallParticipant
 import org.thoughtcrime.securesms.recipients.Recipient
@@ -135,30 +134,13 @@ fun CallScreenJoiningOverlay(
 private fun WaitingToBeLetInBar(
   modifier: Modifier = Modifier
 ) {
-  Row(
-    horizontalArrangement = Arrangement.spacedBy(12.dp),
-    verticalAlignment = Alignment.CenterVertically,
+  LightCallNotice(
+    text = stringResource(R.string.WebRtcCallView__waiting_to_be_let_in),
+    showSpinner = true,
     modifier = modifier
       .widthIn(max = CallScreenMetrics.SheetMaxWidth)
       .fillMaxWidth()
-      .background(
-        color = SignalTheme.colors.colorSurface1,
-        shape = MaterialTheme.shapes.medium
-      )
-      .padding(horizontal = 16.dp, vertical = 13.dp)
-  ) {
-    CircularProgressIndicator(
-      color = MaterialTheme.colorScheme.onSurface,
-      strokeWidth = 2.dp,
-      modifier = Modifier.size(20.dp)
-    )
-
-    Text(
-      text = stringResource(R.string.WebRtcCallView__waiting_to_be_let_in),
-      style = MaterialTheme.typography.bodyMedium,
-      color = MaterialTheme.colorScheme.onSurface
-    )
-  }
+  )
 }
 
 @Composable

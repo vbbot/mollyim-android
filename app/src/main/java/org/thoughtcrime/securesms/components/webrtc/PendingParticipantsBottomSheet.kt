@@ -34,10 +34,15 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.os.bundleOf
 import androidx.fragment.app.setFragmentResult
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.flow.map
 import org.signal.core.ui.compose.BottomSheets
 import org.signal.core.ui.compose.Buttons
@@ -51,7 +56,6 @@ import org.thoughtcrime.securesms.dependencies.AppDependencies
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.service.webrtc.PendingParticipantCollection
 import org.thoughtcrime.securesms.util.activityViewModel
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Displays a list of pending participants attempting to join this call.
@@ -177,21 +181,25 @@ private fun PendingParticipantsSheet(
         horizontalAlignment = Alignment.CenterHorizontally
       ) {
         item {
-          Text(
+          LightText(
             text = stringResource(id = R.string.PendingParticipantsBottomSheet__requests_to_join_this_call),
-            style = MaterialTheme.typography.titleLarge
+            variant = LightTextVariant.Heading,
+            align = TextAlign.Center
           )
         }
 
         item {
-          Text(
+          // `Fine` and lightened: this is a count under a heading, not a second heading. The
+          // Light scale has no "onSurfaceVariant" grey, and `contentSecondary` is what stands in.
+          LightText(
             text = pluralStringResource(
               id = R.plurals.PendingParticipantsBottomSheet__d_people_waiting,
               count = pendingParticipants.size,
               pendingParticipants.size
             ),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            variant = LightTextVariant.Fine,
+            lighten = true,
+            align = TextAlign.Center
           )
         }
 
@@ -252,9 +260,11 @@ private fun PendingParticipantRow(
   ) {
     PendingParticipantAvatar(recipient = participant.recipient)
 
-    Text(
+    LightText(
       text = participant.recipient.getDisplayName(LocalContext.current),
-      style = MaterialTheme.typography.bodyLarge,
+      variant = LightTextVariant.Copy,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
       modifier = Modifier
         .weight(1f)
         .padding(horizontal = 16.dp)

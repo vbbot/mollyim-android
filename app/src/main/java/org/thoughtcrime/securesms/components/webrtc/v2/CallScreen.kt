@@ -59,6 +59,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import kotlin.math.max
+import kotlin.math.round
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.signal.core.ui.compose.AllNightPreviews
@@ -82,10 +89,6 @@ import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.ringrtc.CameraState
 import org.thoughtcrime.securesms.service.webrtc.PendingParticipantCollection
 import org.thoughtcrime.securesms.util.RemoteConfig
-import kotlin.math.max
-import kotlin.math.round
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 private const val DRAG_HANDLE_HEIGHT = 22
 private const val SHEET_TOP_PADDING = 9
@@ -602,22 +605,23 @@ private fun ParticipantContextMenu(
 
     DropdownMenuItem(
       text = {
-        Text(
+        LightText(
           text = resolved.recipient.getShortDisplayName(androidx.compose.ui.platform.LocalContext.current),
-          style = MaterialTheme.typography.labelLarge,
-          color = MaterialTheme.colorScheme.onSurface
+          variant = LightTextVariant.Heading
         )
       },
       onClick = {},
       enabled = false
     )
 
-    // Divider (default divider has too much padding)
+    // A rule in the content colour rather than `surfaceVariant`: that token is a grey, and grey is
+    // the one thing this panel has none of. Hairline width, because it separates two sections and
+    // is not itself a thing to read.
     Box(
       Modifier
         .fillMaxWidth()
-        .height(1.5.dp)
-        .background(color = MaterialTheme.colorScheme.surfaceVariant)
+        .height(1.dp)
+        .background(color = LightThemeTokens.colors.content)
     )
 
     if (resolved.isMicrophoneEnabled) {

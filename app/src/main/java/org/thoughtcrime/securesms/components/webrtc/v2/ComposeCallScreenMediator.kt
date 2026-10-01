@@ -22,6 +22,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import io.reactivex.rxjava3.kotlin.subscribeBy
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -32,7 +33,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.signal.core.ui.compose.rememberIsInPipMode
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
@@ -46,13 +46,13 @@ import org.thoughtcrime.securesms.components.webrtc.controls.RaiseHandSnackbar
 import org.thoughtcrime.securesms.dependencies.AppDependencies
 import org.thoughtcrime.securesms.events.WebRtcViewModel
 import org.thoughtcrime.securesms.keyvalue.SignalStore
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.reactions.any.ReactWithAnyEmojiBottomSheetDialogFragment
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.service.webrtc.links.UpdateCallLinkResult
 import org.thoughtcrime.securesms.service.webrtc.state.WebRtcEphemeralState
 import org.thoughtcrime.securesms.util.WindowUtil
 import org.thoughtcrime.securesms.webrtc.CallParticipantsViewState
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * Compose call screen wrapper
@@ -194,7 +194,20 @@ class ComposeCallScreenMediator(private val activity: WebRtcCallActivity, viewMo
 
       val controlAndInfoState by controlsAndInfoViewModel.state
 
-      SignalTheme(isDarkMode = true) {
+      // The whole call screen sits under the Light theme, not only the four subtrees that asked
+      // for it. Everything here reads its surface and content colours from `MaterialTheme`'s
+      // `ColorScheme` -- the participant tiles, the grid, the PiP chrome, the tooltips -- and under
+      // `SignalTheme` those resolved to Signal's dark blue-grey, so a screen whose controls and
+      // incoming chrome were already black-on-white had a blue-grey body around them. `LightTheme`
+      // installs its own Material `ColorScheme` precisely so that interop keeps working, so this is
+      // a one-line change that re-themes several thousand lines without touching them.
+      //
+      // It does *not* fix typography: `LightTheme` overrides `colorScheme` and not `typography`, so
+      // a Material `Text` under this scope is still Roboto. Every call site in the call screen has
+      // been moved to `LightText` for that reason, one at a time; the ones that remain are `Text`
+      // calls reached through Material widgets (`DropdownMenuItem`, `RadioButton`), which take
+      // their label as a slot rather than as a style.
+      MollyLightTheme {
         CallScreen(
           callRecipient = recipient,
           webRtcCallState = webRtcCallState,
