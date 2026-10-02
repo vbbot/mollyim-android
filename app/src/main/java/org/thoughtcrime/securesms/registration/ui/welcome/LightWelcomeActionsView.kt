@@ -30,6 +30,7 @@ import com.thelightphone.sdk.ui.LightThemeTokens
 import com.thelightphone.sdk.ui.gridUnitsAsDp
 import com.thelightphone.sdk.ui.lightClickable
 import org.thoughtcrime.securesms.light.MollyLightTheme
+import java.util.Locale
 
 /**
  * One row of the Welcome screen's action stack.
@@ -104,7 +105,11 @@ fun LightWelcomeActions(
       // Painted explicitly: neither `MollyLightTheme` nor this app's window background is
       // guaranteed to be black, and the resting state of the Light Phone is.
       .background(LightThemeTokens.colors.background)
-      .padding(horizontal = GUTTER_UNITS.gridUnitsAsDp())
+      .padding(
+        start = GUTTER_UNITS.gridUnitsAsDp(),
+        end = GUTTER_UNITS.gridUnitsAsDp(),
+        bottom = STACK_BOTTOM_UNITS.gridUnitsAsDp()
+      )
   ) {
     actions.forEach { action ->
       Box(
@@ -114,7 +119,12 @@ fun LightWelcomeActions(
           .lightClickable(role = Role.Button, onClick = action.onClick)
       ) {
         LightText(
-          text = action.label,
+          // Upper case here rather than at the call site: the labels arrive from the registration
+          // feature module as prose ("Continue", "Restore or transfer"), and this is the one place
+          // that decides the screen's register. Leaving it to callers made this the only action
+          // surface in the app rendering sentence case, next to a panel that uppercases and a
+          // bottom bar that uppercases.
+          text = action.label.uppercase(Locale.getDefault()),
           variant = action.variant,
           lighten = action.lighten
         )
@@ -131,7 +141,16 @@ fun LightWelcomeActions(
 internal const val ROW_HEIGHT_UNITS = 4f
 
 /** The gap between rows. */
-private const val ROW_SPACING_UNITS = 1f
+internal const val ROW_SPACING_UNITS = 1f
 
 /** Side inset, so a centred label is not flush to the bezel. Matches the registration gutter. */
 private const val GUTTER_UNITS = 2f
+
+/**
+ * Clearance between the last row and the bottom of the screen.
+ *
+ * This replaces a `layout_marginBottom="48dp"` in the layout, which was 3.6 grid units -- not a
+ * number the grid produces, and one that did not move with the screen. A grid-derived gap keeps the
+ * stack off the navigation bar at whatever width the device actually is.
+ */
+internal const val STACK_BOTTOM_UNITS = 2f

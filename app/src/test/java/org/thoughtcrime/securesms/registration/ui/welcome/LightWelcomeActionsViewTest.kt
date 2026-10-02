@@ -14,9 +14,11 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -24,10 +26,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import assertk.assertThat
 import assertk.assertions.isCloseTo
+import assertk.assertions.doesNotContain
 import assertk.assertions.isEqualTo
 import assertk.assertions.isGreaterThan
 import assertk.assertions.isLessThan
 import com.thelightphone.sdk.ui.LightGrid
+import org.thoughtcrime.securesms.R
 import com.thelightphone.sdk.ui.LightTextVariant
 import org.junit.Rule
 import org.junit.Test
@@ -173,6 +177,55 @@ class LightWelcomeActionsViewTest {
       .isEqualTo(LightTextVariant.Button)
   }
 
+  /**
+   * The stack renders every label upper case, whatever case it is handed.
+   *
+   * The labels arrive from the registration feature module as prose -- "Continue", "Restore or
+   * transfer" -- so this is a real transformation rather than a restatement of the caller's string.
+   * It is the screen's own decision: this used to be the only action surface in the app rendering
+   * sentence case, sitting next to a panel and a bottom bar that both upper case.
+   */
+  @Test
+  fun `labels are uppercased whatever case they arrive in`() {
+    setActions("Continue", "Restore or transfer", "Link device", "Terms & Privacy Policy")
+
+    composeTestRule.onNodeWithText("CONTINUE").assertIsDisplayed()
+    composeTestRule.onNodeWithText("RESTORE OR TRANSFER").assertIsDisplayed()
+    composeTestRule.onNodeWithText("LINK DEVICE").assertIsDisplayed()
+    composeTestRule.onNodeWithText("TERMS & PRIVACY POLICY").assertIsDisplayed()
+    composeTestRule.onAllNodes(hasText("Continue")).assertCountEquals(0)
+  }
+
+  /**
+   * The labels Molly actually passes in render as the words on the screen -- not Signal's, and not
+   * a two-line legal footnote. The registration module's copy of this string is
+   * "Signal is a 501c3 nonprofit\nTerms & Privacy Policy"; a Molly build reads it from the app's
+   * `strings2.xml` instead.
+   */
+  @Test
+  fun `the terms row is a single line and does not name Signal`() {
+    val terms = RuntimeEnvironment.getApplication().getString(R.string.RegistrationActivity_terms_and_privacy)
+
+    assertThat(terms).doesNotContain("Signal")
+    assertThat(terms).doesNotContain("\n")
+  }
+
+  /**
+   * The stack keeps itself off the bottom edge. This used to be `layout_marginBottom="48dp"` on the
+   * view, which is 3.6 grid units -- not a number the grid produces, and fixed rather than derived,
+   * so it did not track the screen it was written for.
+   */
+  @Test
+  fun `the stack clears the bottom edge by a grid-derived gap`() {
+    setActions("CONTINUE")
+
+    val root = composeTestRule.onRoot().getUnclippedBoundsInRoot()
+    val label = composeTestRule.onNodeWithText("CONTINUE").getUnclippedBoundsInRoot()
+
+    assertThat((root.bottom - label.bottom).value)
+      .isCloseTo(STACK_BOTTOM_UNITS * GRID_UNIT_DP, toleranceDp)
+  }
+
   private fun setActions(vararg labels: String) {
     composeTestRule.setContent {
       MollyLightTheme {
@@ -187,10 +240,14 @@ class LightWelcomeActionsViewTest {
     /** 1 grid unit at LP3 width: 360dp / 27. */
     const val GRID_UNIT_DP = 360f / LightGrid.WIDTH
 
+    /** Read from the screen rather than restated, so the test moves when the screen moves. */
+    const val ROW_SPACING_UNITS = org.thoughtcrime.securesms.registration.ui.welcome.ROW_SPACING_UNITS
+    const val STACK_BOTTOM_UNITS = org.thoughtcrime.securesms.registration.ui.welcome.STACK_BOTTOM_UNITS
+
     /** The platform's minimum accessible touch target. */
     const val MINIMUM_TOUCH_DP = 44f
 
-    const val ROW_SPACING_UNITS = 1f
+
     const val toleranceDp = 1f
   }
 }

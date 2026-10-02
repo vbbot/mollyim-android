@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     tools:context="org.thoughtcrime.securesms.registration.ui.welcome.WelcomeFragment">
 
     <!--
@@ -29,13 +30,15 @@
       anchored to the bottom, so the screen reads the way the device does everywhere else.
 
       The rows set their own type, colour and hit targets from the grid, so this view is given
-      nothing but its position.
+      nothing but its position, including the clearance below it, which the stack draws itself from
+      the grid. That margin used to be a hardcoded 48dp here, which is 3.6 grid units: not a number
+      the grid produces, and fixed rather than derived, so it did not track the screen it was
+      written for.
     -->
     <org.thoughtcrime.securesms.registration.ui.welcome.LightWelcomeActionsView
         android:id="@+id/welcome_actions"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="48dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />

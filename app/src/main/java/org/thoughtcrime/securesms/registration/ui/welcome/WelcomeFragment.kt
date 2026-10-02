@@ -117,7 +117,12 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
 
     list += LightWelcomeAction(getString(RegistrationR.string.RegistrationActivity_link_device), ::onLinkDeviceClicked)
     list += LightWelcomeAction(
-      label = getString(RegistrationR.string.RegistrationActivity_terms_and_privacy),
+      // Read from the app's own `R`, not the registration module's. The module's copy is Signal's:
+      // "Signal is a 501c3 nonprofit\nTerms & Privacy Policy" -- a two-line label naming Signal and
+      // its US tax status, on a fork that has renamed itself Molly and dropped the wordmark from
+      // this very screen. The app's `strings2.xml` is where Molly overrides the module's copy, the
+      // same file `RegistrationActivity_network_settings` above already comes from.
+      label = getString(R.string.RegistrationActivity_terms_and_privacy),
       onClick = ::onTermsClicked,
       variant = LightTextVariant.Fine,
       lighten = true
