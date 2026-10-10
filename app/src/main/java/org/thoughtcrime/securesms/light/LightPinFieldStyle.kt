@@ -44,10 +44,15 @@ object LightPinFieldStyle {
   /**
    * Restyles a PIN [EditText] without touching anything about how it behaves.
    *
-   * Deliberately does *not* set the input type, the transformation method, the IME options, the
+   * Deliberately does *not* set the input type, the transformation method, the IME action, the
    * text watcher or the autofill mode. Those belong to the credential flow -- `PinKeyboardType`
    * owns the first two, the fragment that owns the screen owns the rest -- and a styling seam that
    * can reach them is a styling seam that can weaken a PIN.
+   *
+   * The one IME change it makes is additive and presentational: it ORs in
+   * [LIGHT_NO_EXTRACT_UI_IME_FLAGS] so the keyboard never takes over the LP3's short screen. The
+   * action and every other flag, the incognito one included, are kept. A host that later assigns
+   * `imeOptions` outright replaces these too; see [applyLightNoExtractUi].
    */
   @JvmStatic
   @JvmOverloads
@@ -72,5 +77,7 @@ object LightPinFieldStyle {
 
     val vertical = PADDING_VERTICAL_UNITS.gridUnitsAsDp(context).roundToInt()
     editText.setPadding(editText.paddingLeft, vertical, editText.paddingRight, vertical)
+
+    editText.applyLightNoExtractUi()
   }
 }

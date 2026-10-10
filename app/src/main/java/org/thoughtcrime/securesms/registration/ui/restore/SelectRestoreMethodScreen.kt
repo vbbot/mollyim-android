@@ -25,7 +25,7 @@ fun SelectRestoreMethodScreen(
   extraContent: @Composable ColumnScope.() -> Unit = {}
 ) {
   RegistrationScreen(
-    title = stringResource(id = R.string.SelectRestoreMethodFragment__restore_or_transfer_account),
+    title = stringResource(id = R.string.SelectRestoreMethodFragment__restore_or_transfer_top_bar),
     subtitle = stringResource(id = R.string.SelectRestoreMethodFragment__get_your_signal_account),
     bottomContent = {
       RegistrationBottomActions(

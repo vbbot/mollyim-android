@@ -84,9 +84,10 @@
     <style name="TextSecure.LightIntroTheme" parent="@style/Signal.DayNight.Registration">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:windowBackground">@color/white</item>
-        <item name="android:statusBarColor">@color/core_ultramarine</item>
-        <item name="android:navigationBarColor">@color/core_grey_95</item>
+        <!-- LIGHT PHONE: true black to the edges. The layout already paints itself core_black. -->
+        <item name="android:windowBackground">@color/core_black</item>
+        <item name="android:statusBarColor">@color/core_black</item>
+        <item name="android:navigationBarColor">@color/core_black</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
     </style>

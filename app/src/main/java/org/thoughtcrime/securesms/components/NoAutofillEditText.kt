@@ -12,7 +12,7 @@ import com.google.android.material.textfield.TextInputEditText
 /**
  * An EditText that completely disables Android's auto-fill functionality.
  */
-class NoAutofillEditText : TextInputEditText {
+open class NoAutofillEditText : TextInputEditText {
   constructor(context: Context) : super(context, null)
   constructor(context: Context, attrs: AttributeSet?) : super(context, attrs)
   constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)

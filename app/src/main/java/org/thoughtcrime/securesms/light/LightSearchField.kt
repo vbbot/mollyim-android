@@ -26,14 +26,17 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import com.thelightphone.sdk.ui.LightIcon
 import com.thelightphone.sdk.ui.LightIcons
 import com.thelightphone.sdk.ui.LightText
 import com.thelightphone.sdk.ui.LightTextVariant
 import com.thelightphone.sdk.ui.LightThemeTokens
 import com.thelightphone.sdk.ui.designVerticalPxToDp
+import com.thelightphone.sdk.ui.designVerticalPxToSp
 import com.thelightphone.sdk.ui.gridUnitsAsDp
 import com.thelightphone.sdk.ui.lightClickable
 import org.signal.core.ui.compose.ProvideIncognitoKeyboard
@@ -144,7 +147,7 @@ fun LightSearchField(
           value = query,
           onValueChange = onQueryChange,
           singleLine = true,
-          textStyle = LightThemeTokens.typography.copy.copy(color = colors.content),
+          textStyle = scaledCopyStyle().copy(color = colors.content),
           cursorBrush = SolidColor(colors.content),
           keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
           // Existing filter callers only need the keyboard dismissed. Conversation search also uses
@@ -218,4 +221,24 @@ fun LightSearchField(
         .background(colors.content)
     )
   }
+}
+
+/**
+ * The SDK's `Copy` token with the screen-height scale `LightText` applies folded in. Reading
+ * `LightThemeTokens.typography` directly skips that scale, which on the LP3 renders typed text at
+ * the raw 30sp design size -- about 46% larger than the hint it replaces.
+ */
+@Composable
+private fun scaledCopyStyle(): TextStyle {
+  val copy = LightThemeTokens.typography.copy
+  return copy.copy(
+    fontSize = copy.fontSize.scaledDesignTextUnit(),
+    lineHeight = copy.lineHeight.scaledDesignTextUnit(),
+    letterSpacing = copy.letterSpacing.scaledDesignTextUnit()
+  )
+}
+
+@Composable
+private fun TextUnit.scaledDesignTextUnit(): TextUnit {
+  return if (this == TextUnit.Unspecified) this else value.designVerticalPxToSp()
 }

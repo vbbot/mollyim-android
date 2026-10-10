@@ -18,6 +18,7 @@ import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
 import org.thoughtcrime.securesms.databinding.FragmentRegistrationPinRestoreEntryV2Binding
+import org.thoughtcrime.securesms.light.applyLightNoExtractUi
 import org.thoughtcrime.securesms.lock.v2.SvrConstants
 import org.thoughtcrime.securesms.registration.data.network.RegisterAccountResult
 import org.thoughtcrime.securesms.registration.fragments.RegistrationViewDelegate
@@ -65,6 +66,8 @@ class ReRegisterWithPinFragment : LoggingFragment(R.layout.fragment_registration
     binding.pinRestoreSkipButton.setOnClickListener { onSkipClicked() }
 
     binding.pinRestorePinInput.imeOptions = EditorInfo.IME_ACTION_DONE
+    // Assigning `imeOptions` replaced the flags the Light styling added above; put them back.
+    binding.pinRestorePinInput.applyLightNoExtractUi()
     binding.pinRestorePinInput.setOnEditorActionListener { v, actionId, _ ->
       if (actionId == EditorInfo.IME_ACTION_DONE) {
         ViewUtil.hideKeyboard(requireContext(), v!!)

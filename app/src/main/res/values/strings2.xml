@@ -243,4 +243,15 @@
     <string name="LightCallLog__group">GROUP</string>
     <!-- Call log row token for a call link. -->
     <string name="LightCallLog__link">LINK</string>
+
+    <!-- LIGHT PHONE: registration top bars. The centre of the Light top bar holds one short line, so these stand in for longer upstream titles. -->
+
+    <!-- Top bar title of the restore-method screen. Short form of "Restore or transfer account". -->
+    <string name="SelectRestoreMethodFragment__restore_or_transfer_top_bar">Restore or transfer</string>
+    <!-- Top bar title of the screen that shows a QR code for the old phone to scan. Short form of "Scan this code with your old phone". -->
+    <string name="RestoreViaQr_top_bar_title">Scan with old phone</string>
+    <!-- Content description of the top bar back icon on a registration screen that returns to the welcome screen. -->
+    <string name="RegistrationScreen__back_to_welcome">Back to welcome screen</string>
+    <!-- Content description of the top bar back icon on a registration screen whose back destination depends on how it was reached. -->
+    <string name="RegistrationScreen__back_to_previous_screen">Back to previous screen</string>
 </resources>

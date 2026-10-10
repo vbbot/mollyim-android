@@ -26,6 +26,7 @@ import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBack
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
 
@@ -43,7 +44,12 @@ fun SelectLocalBackupTypeScreen(
       RegistrationBottomActions(
         center = RegistrationAction(stringResource(android.R.string.cancel), onCancelClick)
       )
-    }
+    },
+    // Cancel is the system back press (see RestoreLocalBackupNavDisplay), so back is the same action.
+    back = RegistrationBack(
+      contentDescription = stringResource(R.string.RegistrationScreen__back_to_previous_screen),
+      onBack = onCancelClick
+    )
   ) {
     BackupTypeRow(
       title = stringResource(R.string.SelectLocalBackupTypeScreen__choose_backup_folder),

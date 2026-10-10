@@ -19,6 +19,7 @@ import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
 import org.thoughtcrime.securesms.databinding.FragmentRegistrationLockBinding
+import org.thoughtcrime.securesms.light.applyLightNoExtractUi
 import org.thoughtcrime.securesms.lock.v2.SvrConstants
 import org.thoughtcrime.securesms.registration.data.network.RegisterAccountResult
 import org.thoughtcrime.securesms.registration.data.network.VerificationCodeRequestResult
@@ -64,6 +65,8 @@ class RegistrationLockFragment : LoggingFragment(R.layout.fragment_registration_
     binding.kbsLockForgotPin.setOnClickListener { handleForgottenPin(timeRemaining) }
 
     binding.kbsLockPinInput.setImeOptions(EditorInfo.IME_ACTION_DONE)
+    // `setImeOptions` replaced the flags the Light styling added above; put them back.
+    binding.kbsLockPinInput.applyLightNoExtractUi()
     binding.kbsLockPinInput.setOnEditorActionListener { v: TextView?, actionId: Int, _: KeyEvent? ->
       if (actionId == EditorInfo.IME_ACTION_DONE) {
         ViewUtil.hideKeyboard(requireContext(), v!!)

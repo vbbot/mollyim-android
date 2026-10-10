@@ -22,14 +22,17 @@ import com.thelightphone.sdk.ui.LocalHapticsEnabled
  * [LightTheme] installs its own Material 3 `ColorScheme`, so it must never wrap something that also
  * expects `SignalTheme`'s scheme. Every caller therefore scopes this as tightly as it can -- around
  * the conversation list view, around the bottom bar -- rather than around the activity.
+ *
+ * Every Light text field sits inside one of these, so this is also where the keyboard is kept out
+ * of full-screen extract mode (see [ProvideLightNoExtractUiKeyboard]). That chains with, rather
+ * than replaces, the incognito-keyboard interceptor `SignalTheme` installs.
  */
 @Composable
 fun MollyLightTheme(content: @Composable () -> Unit) {
   CompositionLocalProvider(LocalHapticsEnabled provides rememberSystemHapticsEnabled()) {
-    LightTheme(
-      colors = rememberMollyLightColors(),
-      content = content
-    )
+    LightTheme(colors = rememberMollyLightColors()) {
+      ProvideLightNoExtractUiKeyboard(content)
+    }
   }
 }
 

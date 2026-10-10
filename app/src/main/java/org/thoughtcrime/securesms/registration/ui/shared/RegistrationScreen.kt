@@ -8,7 +8,6 @@ package org.thoughtcrime.securesms.registration.ui.shared
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -47,11 +46,15 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightIcons
 import com.thelightphone.sdk.ui.LightScrollBarPosition
 import com.thelightphone.sdk.ui.LightScrollView
 import com.thelightphone.sdk.ui.LightText
 import com.thelightphone.sdk.ui.LightTextVariant
 import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.LightTopBar
+import com.thelightphone.sdk.ui.LightTopBarCenter
 import com.thelightphone.sdk.ui.designVerticalPxToDp
 import com.thelightphone.sdk.ui.designVerticalPxToSp
 import com.thelightphone.sdk.ui.gridUnitsAsDp
@@ -246,15 +249,25 @@ private fun TextUnit.scaledDesignTextUnit(): TextUnit {
   return if (this == TextUnit.Unspecified) this else value.designVerticalPxToSp()
 }
 
+/**
+ * The top bar's back affordance. Back is always the SDK's [LightIcons.BACK] glyph, never a text
+ * label, and [contentDescription] names where it goes ("Back to welcome screen"), not the glyph.
+ */
+data class RegistrationBack(
+  val contentDescription: String,
+  val onBack: () -> Unit
+)
+
 /** A base framework for rendering the active v3 registration screens. */
 @Composable
 fun RegistrationScreen(
   title: String,
   subtitle: String,
   bottomContent: @Composable (BoxScope.() -> Unit),
+  back: RegistrationBack? = null,
   mainContent: @Composable ColumnScope.() -> Unit
 ) {
-  RegistrationScreen(title, AnnotatedString(subtitle), bottomContent, mainContent)
+  RegistrationScreen(title, AnnotatedString(subtitle), bottomContent, back, mainContent)
 }
 
 /** A base framework for rendering the active v3 registration screens. */
@@ -263,29 +276,27 @@ fun RegistrationScreen(
   title: String,
   subtitle: AnnotatedString?,
   bottomContent: @Composable BoxScope.() -> Unit,
+  back: RegistrationBack? = null,
   mainContent: @Composable ColumnScope.() -> Unit
 ) {
   RegistrationScreen(
-    menu = null,
-    topContent = { RegistrationScreenTitleSubtitle(title, subtitle) },
+    title = title,
+    back = back,
+    rightButton = null,
+    topContent = { RegistrationScreenSubtitle(subtitle) },
     bottomContent = bottomContent,
     mainContent = mainContent
   )
 }
 
+/**
+ * The explanatory copy under the top bar. An [AnnotatedString] so that callers' link and style
+ * spans survive; rendered at the Light `Copy` size, scaled for the screen as `LightText` would.
+ */
 @Composable
-fun RegistrationScreenTitleSubtitle(
-  title: String,
-  subtitle: AnnotatedString?
-) {
-  LightText(
-    text = title,
-    variant = LightTextVariant.Title,
-    modifier = Modifier.fillMaxWidth()
-  )
-
+fun RegistrationScreenSubtitle(subtitle: AnnotatedString?) {
   if (subtitle != null) {
-    val paragraphStyle = LightThemeTokens.typography.paragraph.let { style ->
+    val copyStyle = LightThemeTokens.typography.copy.let { style ->
       style.copy(
         fontSize = style.fontSize.scaledDesignTextUnit(),
         lineHeight = style.lineHeight.scaledDesignTextUnit(),
@@ -294,9 +305,9 @@ fun RegistrationScreenTitleSubtitle(
     }
     Text(
       text = subtitle,
-      style = paragraphStyle,
-      color = LightThemeTokens.colors.contentSecondary,
-      modifier = Modifier.padding(top = 0.75f.gridUnitsAsDp())
+      style = copyStyle,
+      color = LightThemeTokens.colors.content,
+      modifier = Modifier.fillMaxWidth()
     )
   }
 
@@ -304,12 +315,22 @@ fun RegistrationScreenTitleSubtitle(
 }
 
 /**
- * Light shell for the active registration graph. The top region retains the existing eight-tap
- * debug-log affordance, and the fixed bottom slot remains callback-owned by each destination.
+ * Light shell for the active registration graph.
+ *
+ * The screen title lives in the top bar, in the SDK's `Fine` centre slot -- the same place the
+ * reference client puts every title -- rather than as an in-body heading: `Title` is ~79sp on the
+ * LP3 and a two-word heading at that size fills the screen. The centre slot is capped at 18 grid
+ * units and ellipsises, so callers pass a title that fits rather than a sentence.
+ *
+ * The title also carries the existing eight-tap debug-log affordance. It is the centre slot's own
+ * click target, so it never overlaps the back glyph's. The fixed bottom slot remains callback-owned
+ * by each destination.
  */
 @Composable
 fun RegistrationScreen(
-  menu: @Composable (ColumnScope.() -> Unit)?,
+  title: String,
+  back: RegistrationBack?,
+  rightButton: LightBarButton?,
   topContent: @Composable ColumnScope.() -> Unit,
   bottomContent: @Composable BoxScope.() -> Unit,
   mainContent: @Composable ColumnScope.() -> Unit
@@ -320,11 +341,44 @@ fun RegistrationScreen(
     var titleTapCount by remember { mutableIntStateOf(0) }
     var previousToast by remember { mutableStateOf<Toast?>(null) }
 
+    val onTitleTapped: () -> Unit = {
+      titleTapCount++
+
+      if (titleTapCount >= TAP_TARGET) {
+        context.startActivity(Intent(context, SubmitDebugLogActivity::class.java))
+        previousToast?.cancel()
+        previousToast = null
+      } else {
+        val remaining = TAP_TARGET - titleTapCount
+        previousToast?.cancel()
+        previousToast = Toast.makeText(
+          context,
+          context.resources.getQuantityString(R.plurals.RegistrationActivity_debug_log_hint, remaining, remaining),
+          Toast.LENGTH_SHORT
+        ).apply { show() }
+      }
+    }
+
     Column(
       modifier = Modifier
         .fillMaxSize()
         .background(LightThemeTokens.colors.background)
     ) {
+      LightTopBar(
+        leftButton = back?.let {
+          LightBarButton.LightIcon(
+            icon = LightIcons.BACK,
+            onClick = it.onBack,
+            contentDescription = it.contentDescription
+          )
+        },
+        center = LightTopBarCenter.Text(text = title, onClick = onTitleTapped),
+        rightButton = rightButton,
+        modifier = Modifier
+          .background(LightThemeTokens.colors.background)
+          .statusBarsPadding()
+      )
+
       LightScrollView(
         scrollState = scrollState,
         scrollBarPosition = LightScrollBarPosition.Outside,
@@ -332,37 +386,14 @@ fun RegistrationScreen(
           .weight(1f)
           .fillMaxWidth()
       ) {
+        // Start padding only: the Outside scroll bar already reserves a 2 grid unit gutter at the
+        // end, which is the other half of the 2 unit content margin.
         Column(
           modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
             .padding(start = 2f.gridUnitsAsDp(), top = 1f.gridUnitsAsDp(), bottom = 1f.gridUnitsAsDp())
         ) {
-          menu?.invoke(this)
-
-          Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .clickable {
-                titleTapCount++
-
-                if (titleTapCount >= TAP_TARGET) {
-                  context.startActivity(Intent(context, SubmitDebugLogActivity::class.java))
-                  previousToast?.cancel()
-                  previousToast = null
-                } else {
-                  val remaining = TAP_TARGET - titleTapCount
-                  previousToast?.cancel()
-                  previousToast = Toast.makeText(
-                    context,
-                    context.resources.getQuantityString(R.plurals.RegistrationActivity_debug_log_hint, remaining, remaining),
-                    Toast.LENGTH_SHORT
-                  ).apply { show() }
-                }
-              }
-          ) {
-            topContent()
-          }
+          topContent()
 
           mainContent()
         }
@@ -389,7 +420,8 @@ private fun RegistrationScreenPreview() {
       subtitle = "Subtitle",
       bottomContent = {
         RegistrationBottomActions(right = RegistrationAction("Next", {}))
-      }
+      },
+      back = RegistrationBack(contentDescription = "Back to welcome screen", onBack = {})
     ) {
       LightText("Main content", LightTextVariant.Copy)
     }
@@ -398,11 +430,13 @@ private fun RegistrationScreenPreview() {
 
 @DayNightPreviews
 @Composable
-private fun RegistrationScreenNoTitlePreview() {
+private fun RegistrationScreenBackAndActionPreview() {
   Previews.Preview {
     RegistrationScreen(
-      menu = null,
-      topContent = { LightText("Top content", LightTextVariant.Title) },
+      title = "Title",
+      back = RegistrationBack(contentDescription = "Back to welcome screen", onBack = {}),
+      rightButton = LightBarButton.Text(text = "PROXY", onClick = {}),
+      topContent = { RegistrationScreenSubtitle(AnnotatedString("Top content")) },
       bottomContent = {
         RegistrationBottomActions(center = RegistrationAction("Done", {}))
       }

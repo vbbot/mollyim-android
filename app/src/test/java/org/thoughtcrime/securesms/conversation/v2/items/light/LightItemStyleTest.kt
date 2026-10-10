@@ -7,13 +7,16 @@ package org.thoughtcrime.securesms.conversation.v2.items.light
 
 import android.app.Application
 import android.graphics.Color
+import android.widget.TextView
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import com.thelightphone.sdk.ui.LightTextVariant
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * The colour half of the Light message row.
@@ -32,6 +35,8 @@ import org.robolectric.annotation.Config
  * reading the code, not by a test. Both want eyes on a device.
  */
 @RunWith(RobolectricTestRunner::class)
+// Native graphics, so that a Typeface reports the weight it was really created at.
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 // LP3 geometry: 1080x1240 at 3x, i.e. 360dp x 413dp.
 @Config(application = Application::class, qualifiers = "w360dp-h413dp-xxhdpi")
 class LightItemStyleTest {
@@ -54,5 +59,21 @@ class LightItemStyleTest {
 
     assertThat(minOf(contentInk, surfaceInk)).isEqualTo(0)
     assertThat(maxOf(contentInk, surfaceInk)).isEqualTo(765)
+  }
+
+  /**
+   * A View-hosted label has to carry its variant's weight, not just its size: `Button` is Medium on
+   * the Compose side, so a View-hosted button drawn Regular looks lighter than the Compose one next
+   * to it. The expectation is each variant's own token weight, read from the SDK.
+   */
+  @Test
+  fun `a styled view takes its variant's weight`() {
+    for (variant in listOf(LightTextVariant.Button, LightTextVariant.Copy, LightTextVariant.Title)) {
+      val view = TextView(context)
+      LightItemStyle.apply(view, variant)
+
+      val expected = LightItemStyle.style(context, variant).fontWeight!!.weight
+      assertThat(view.typeface.weight, variant.name).isEqualTo(expected)
+    }
   }
 }

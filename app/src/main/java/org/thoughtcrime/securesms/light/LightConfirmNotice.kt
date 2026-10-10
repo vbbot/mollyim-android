@@ -123,10 +123,13 @@ fun LightConfirmNotice(
       // An empty title renders nothing rather than an empty line. One caller -- the PIN restore
       // screen's "you have one attempt remaining" notice -- has a body and no heading upstream, and
       // inventing a heading for it would be inventing copy.
+      //
+      // Heading, the reference client's centred status size: Title is ~79sp on the LP3, and a
+      // two-word notice title at that size breaks mid-word and pushes the actions off screen.
       if (title.isNotEmpty()) {
         LightText(
           text = title,
-          variant = LightTextVariant.Title,
+          variant = LightTextVariant.Heading,
           align = TextAlign.Center
         )
       }

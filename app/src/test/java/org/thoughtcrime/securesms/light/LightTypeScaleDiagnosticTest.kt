@@ -17,8 +17,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.thelightphone.sdk.ui.LightText
 import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
 import com.thelightphone.sdk.ui.designVerticalPxToSp
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -130,27 +130,27 @@ class LightTypeScaleDiagnosticTest {
   }
 
   /**
-   * A red pin on a real defect, ignored so the suite stays green until it is fixed.
+   * `LightSearchField` used to hand `LightThemeTokens.typography.copy` straight to `BasicTextField`,
+   * bypassing the `scaledForScreenHeight()` that `LightText` applies, so the country picker in the
+   * login flow rendered its search text at the raw 30sp design token -- 46% larger than every other
+   * line of copy around it. The field now scales its style; this pins that it stays scaled.
    *
-   * `LightSearchField` hands `LightThemeTokens.typography.copy` straight to `BasicTextField`,
-   * bypassing the `scaledForScreenHeight()` that `LightText` applies. The country picker in the
-   * login flow therefore renders its search text at the raw 30sp design token -- 46% larger than
-   * every other line of copy around it. Removing the `@Ignore` after the field scales its style is
-   * the check that the fix landed.
+   * Both sizes come from the SDK's own `Copy` token as the composition sees it, not from the table
+   * above, so a change to the token moves the expectation with it.
    */
-  @Ignore
   @Test
   fun `LightSearchField scales its text style`() {
+    var rawCopy = 0f
     var scaledCopy = 0f
     composeTestRule.setContent {
-      scaledCopy = tokens.getValue(LightTextVariant.Copy).first.designVerticalPxToSp().value
+      rawCopy = LightThemeTokens.typography.copy.fontSize.value
+      scaledCopy = rawCopy.designVerticalPxToSp().value
       // The same calibration node the first test uses, so `k` is derived the same way.
       LightText(text = "x-" + LightTextVariant.Copy.name, variant = LightTextVariant.Copy)
       LightSearchField(query = "United Kingdom", onQueryChange = {})
     }
     composeTestRule.waitForIdle()
 
-    val rawCopy = tokens.getValue(LightTextVariant.Copy).first
     val k = heightSp("x-" + LightTextVariant.Copy.name) / scaledCopy
     // The field's own node, not the calibration LightText rendered before it.
     val measured = composeTestRule.onNodeWithText("United Kingdom").layoutHeightSp()

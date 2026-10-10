@@ -23,6 +23,7 @@ import com.google.android.material.textfield.TextInputLayout
 import com.thelightphone.sdk.ui.LightTextVariant
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.conversation.v2.items.light.LightItemStyle
+import org.thoughtcrime.securesms.light.applyLightNoExtractUi
 import org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton
 import kotlin.math.roundToInt
 
@@ -145,6 +146,9 @@ object LightRegistrationViewStyle {
     // padding that pushes the text down, misaligning it with adjacent bare EditTexts.
     editText.gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
     editText.setPadding(editText.paddingLeft, 0, editText.paddingRight, 0)
+    // Additive: the host's IME action and flags stay. A host that assigns `imeOptions` outright
+    // afterwards has to re-apply this; see applyLightNoExtractUi.
+    editText.applyLightNoExtractUi()
   }
 
   /** Styles all six OTP cells without replacing their paste watcher or completion callback. */

@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.activityViewModels
@@ -45,6 +46,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import com.thelightphone.sdk.ui.LightBarButton
 import com.thelightphone.sdk.ui.LightText
 import com.thelightphone.sdk.ui.LightTextVariant
 import com.thelightphone.sdk.ui.LightThemeTokens
@@ -69,9 +71,10 @@ import org.thoughtcrime.securesms.components.settings.app.usernamelinks.QrCodeDa
 import org.thoughtcrime.securesms.registration.data.network.RegisterAccountResult
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBack
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
-import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreenTitleSubtitle
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreenSubtitle
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 import java.util.Locale
 
@@ -170,27 +173,20 @@ private fun RestoreViaQrScreen(
   onUseProxy: () -> Unit = {}
 ) {
   RegistrationScreen(
-    menu = {
-      Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(end = 2f.gridUnitsAsDp()),
-        contentAlignment = Alignment.CenterEnd
-      ) {
-        LightText(
-          text = stringResource(R.string.preferences_use_proxy).uppercase(Locale.getDefault()),
-          variant = LightTextVariant.Button,
-          modifier = Modifier
-            .lightClickable(onClick = onUseProxy)
-            .padding(0.5f.gridUnitsAsDp())
-        )
-      }
-    },
+    title = stringResource(R.string.RestoreViaQr_top_bar_title),
+    // Cancel already pops back to the welcome screen, which is exactly where back goes.
+    back = RegistrationBack(
+      contentDescription = stringResource(R.string.RegistrationScreen__back_to_welcome),
+      onBack = onCancel
+    ),
+    rightButton = LightBarButton.Text(
+      text = stringResource(R.string.preferences_proxy).uppercase(Locale.getDefault()),
+      contentDescription = stringResource(R.string.preferences_use_proxy),
+      onClick = onUseProxy
+    ),
     topContent = {
-      RegistrationScreenTitleSubtitle(
-        title = stringResource(R.string.RestoreViaQr_title),
-        subtitle = null
-      )
+      // The full instruction no longer fits the top bar, so it leads the body instead.
+      RegistrationScreenSubtitle(AnnotatedString(stringResource(R.string.RestoreViaQr_title)))
     },
     bottomContent = {
       RegistrationBottomActions(

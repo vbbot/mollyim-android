@@ -32,8 +32,10 @@
           This is what darkens CreateSvrPinActivity, SvrMigrationActivity, CreateProfileActivity and
           OldDeviceTransferActivity.
 
-        `TextSecure.LightIntroTheme` (PassphraseCreateActivity) is deliberately left alone: it
-        parents through `Signal.DayNight.Registration`, which is already dark.
+        `TextSecure.LightIntroTheme` (PassphraseCreateActivity) is not redirected here: it parents
+        through `Signal.DayNight.Registration`, which is already dark. Its own explicit window,
+        status bar and navigation bar colours override that parent, though, so they are set to
+        true black in values/themes.xml itself.
     -->
     <style name="TextSecure.BaseLightTheme" parent="@style/TextSecure.BaseDarkTheme" />
 

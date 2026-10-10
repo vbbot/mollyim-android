@@ -24,6 +24,7 @@ import com.thelightphone.sdk.ui.LightThemeColors
 import com.thelightphone.sdk.ui.LightTypography
 import com.thelightphone.sdk.ui.designVerticalPxToSp
 import com.thelightphone.sdk.ui.lightTypography
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Applies The Light Phone SDK's typography scale to plain Android [TextView]s.
@@ -51,14 +52,28 @@ object LightItemStyle {
   private class Resolved(context: Context) {
     val typography: LightTypography = lightTypography(context)
 
-    val typeface: Typeface = createFontFamilyResolver(context)
-      .resolve(
-        fontFamily = typography.paragraph.fontFamily,
-        fontWeight = FontWeight.Normal,
-        fontStyle = FontStyle.Normal,
-        fontSynthesis = FontSynthesis.All
-      )
-      .value as? Typeface ?: Typeface.DEFAULT
+    private val fontFamilyResolver = createFontFamilyResolver(context)
+
+    /**
+     * One [Typeface] per weight the scale uses -- Light for `Title`, Medium for `Button`, Regular for
+     * the rest -- resolved on first use and then kept. Resolving through Compose's own resolver keeps
+     * the SDK's Akkurat lookup order (system font, then bundled, then platform default; see
+     * `lightFontFamily`), picks the matching Akkurat file for each weight, and handles the
+     * platform's API split itself: a weight-exact default typeface on API 28+, and below that the
+     * nearest of regular and bold, since there is no other weight to give.
+     */
+    private val typefaces = ConcurrentHashMap<FontWeight, Typeface>()
+
+    fun typeface(weight: FontWeight): Typeface = typefaces.getOrPut(weight) {
+      fontFamilyResolver
+        .resolve(
+          fontFamily = typography.paragraph.fontFamily,
+          fontWeight = weight,
+          fontStyle = FontStyle.Normal,
+          fontSynthesis = FontSynthesis.All
+        )
+        .value as? Typeface ?: Typeface.DEFAULT
+    }
   }
 
   @Volatile
@@ -71,10 +86,12 @@ object LightItemStyle {
   }
 
   /**
-   * The Akkurat [Typeface] behind the SDK's `FontFamily`, or the platform default when the device has
-   * no Akkurat (any non-LP3 build, and Robolectric).
+   * The Akkurat [Typeface] behind the SDK's `FontFamily` at [variant]'s weight, or the platform
+   * default at that weight when the device has no Akkurat (any non-LP3 build, and Robolectric).
    */
-  private fun typeface(context: Context): Typeface = resolved(context).typeface
+  private fun typeface(context: Context, variant: LightTextVariant): Typeface {
+    return resolved(context).typeface(style(context, variant).fontWeight ?: FontWeight.Normal)
+  }
 
   /** The [TextStyle] token backing [variant], unscaled. */
   fun style(context: Context, variant: LightTextVariant): TextStyle {
@@ -125,7 +142,7 @@ object LightItemStyle {
     val context = textView.context
     val style = style(context, variant)
 
-    textView.typeface = typeface(context)
+    textView.typeface = typeface(context, variant)
 
     val sizeSp = style.fontSize.value.designVerticalPxToSp(context)
     textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)

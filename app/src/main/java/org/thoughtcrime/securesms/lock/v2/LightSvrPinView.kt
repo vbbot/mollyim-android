@@ -7,6 +7,8 @@ package org.thoughtcrime.securesms.lock.v2
 
 import android.content.Context
 import android.util.AttributeSet
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,6 +60,7 @@ import org.thoughtcrime.securesms.light.LightPinFieldStyle
 import org.thoughtcrime.securesms.light.LightTextAction
 import org.thoughtcrime.securesms.light.LightTopBarView
 import org.thoughtcrime.securesms.light.MollyLightTheme
+import org.thoughtcrime.securesms.light.withLightNoExtractUi
 import java.util.Locale
 
 /** Screen-edge content padding -- the same gutter the registration screens use. */
@@ -65,6 +68,9 @@ private const val SCREEN_PADDING_UNITS = 2f
 
 /** Title to body copy. The LP3's own title/subtitle rhythm. */
 private const val BODY_TOP_UNITS = 0.75f
+
+/** Top bar to the first line of body copy, matching the registration screens' content inset. */
+private const val CONTENT_TOP_UNITS = 1f
 
 /** Rule thickness, in the SDK's design-space vertical pixels. Straight from `LightTextField`. */
 private const val UNDERLINE_THICKNESS_PX = 3f
@@ -113,8 +119,18 @@ class LightSvrPinView @JvmOverloads constructor(
    *
    * Public and stable so the fragment can attach its text watcher, IME action, enabled state and
    * shake animation to it directly, exactly as it did when this was a View found by id.
+   *
+   * The keyboard's no-extract-UI flags are added as the input connection is created rather than to
+   * `imeOptions`: every host assigns its own action with `setImeOptions` after this view is built,
+   * which would silently drop flags set any earlier. The host's action and flags are kept.
    */
-  val input: NoAutofillEditText = NoAutofillEditText(context)
+  val input: NoAutofillEditText = object : NoAutofillEditText(context) {
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+      return super.onCreateInputConnection(outAttrs).also {
+        outAttrs.imeOptions = withLightNoExtractUi(outAttrs.imeOptions)
+      }
+    }
+  }
 
   /** Screen title. */
   var title: String by mutableStateOf("")
@@ -339,7 +355,7 @@ class LightSvrPinView @JvmOverloads constructor(
               .statusBarsPadding()
           ) {
             LightAppTopBar(
-              title = null,
+              title = title,
               leftAction = back?.let {
                 LightTopBarView.backAction(backContentDescription, it::run)
               },
@@ -367,19 +383,14 @@ class LightSvrPinView @JvmOverloads constructor(
                 .fillMaxWidth()
                 .padding(horizontal = SCREEN_PADDING_UNITS.gridUnitsAsDp())
             ) {
-              LightText(
-                text = title,
-                variant = LightTextVariant.Title,
-                modifier = Modifier.fillMaxWidth()
-              )
-
+              // The title is in the top bar; the body copy leads the content.
               LightText(
                 text = description,
                 variant = LightTextVariant.Paragraph,
                 lighten = true,
                 modifier = Modifier
                   .fillMaxWidth()
-                  .padding(top = BODY_TOP_UNITS.gridUnitsAsDp())
+                  .padding(top = CONTENT_TOP_UNITS.gridUnitsAsDp())
               )
 
               if (learnMoreVisible && learnMore != null) {
@@ -568,9 +579,10 @@ class LightSvrSplashView @JvmOverloads constructor(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
           ) {
+            // Centred status text, as the reference client draws it: Heading, not Title.
             LightText(
               text = title,
-              variant = LightTextVariant.Title,
+              variant = LightTextVariant.Heading,
               align = TextAlign.Center
             )
 

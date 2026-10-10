@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +45,8 @@ import com.thelightphone.sdk.ui.LightScrollView
 import com.thelightphone.sdk.ui.LightText
 import com.thelightphone.sdk.ui.LightTextVariant
 import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.LightTopBar
+import com.thelightphone.sdk.ui.LightTopBarCenter
 import com.thelightphone.sdk.ui.gridUnitsAsDp
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -350,6 +353,13 @@ private fun BackupAvailableContent(
       .fillMaxSize()
       .background(LightThemeTokens.colors.background)
   ) {
+    // The title lives in the top bar, as it does on every Light screen. No back glyph: leaving is
+    // the bottom bar's cancel/skip, which has its own rules, and system back is unchanged.
+    LightTopBar(
+      center = LightTopBarCenter.Text(stringResource(R.string.RemoteRestoreActivity__restore_from_backup)),
+      modifier = Modifier.statusBarsPadding()
+    )
+
     LightScrollView(
       scrollBarPosition = LightScrollBarPosition.Inside,
       modifier = Modifier
@@ -358,15 +368,10 @@ private fun BackupAvailableContent(
         .padding(horizontal = 2f.gridUnitsAsDp())
     ) {
       LightText(
-        text = stringResource(R.string.RemoteRestoreActivity__restore_from_backup),
-        variant = LightTextVariant.Title,
-        modifier = Modifier.padding(top = 1.5f.gridUnitsAsDp())
-      )
-      LightText(
         text = subtitle,
         variant = LightTextVariant.Detail,
         lighten = true,
-        modifier = Modifier.padding(top = 0.75f.gridUnitsAsDp())
+        modifier = Modifier.padding(top = 1f.gridUnitsAsDp())
       )
 
       if (state.backupTier != null) {

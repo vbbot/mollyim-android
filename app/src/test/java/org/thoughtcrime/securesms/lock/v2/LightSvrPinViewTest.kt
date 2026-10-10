@@ -10,6 +10,7 @@ import android.content.Context
 import androidx.appcompat.view.ContextThemeWrapper
 import android.text.Editable
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,6 +20,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.signal.core.ui.CoreUiDependenciesRule
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.light.LIGHT_NO_EXTRACT_UI_IME_FLAGS
 import org.thoughtcrime.securesms.util.text.AfterTextChanged
 import assertk.assertThat
 import assertk.assertions.isEmpty
@@ -269,6 +271,23 @@ class LightSvrPinViewTest {
   @Test
   fun `the credential field suppresses autofill`() {
     assertThat(LightSvrPinView(context).input.autofillType).isEqualTo(View.AUTOFILL_TYPE_NONE)
+  }
+
+  /**
+   * The keyboard must not take over the LP3's short screen, and the hosts all assign their own IME
+   * action *after* building the view (`setImeOptions(IME_ACTION_NEXT)` in `BaseSvrPinFragment`), so
+   * the flags have to be added where that assignment cannot reach them: as the connection is made.
+   */
+  @Test
+  fun `the credential field keeps the host's action and still refuses the extract UI`() {
+    val input = LightSvrPinView(context).input
+    input.imeOptions = EditorInfo.IME_ACTION_NEXT
+
+    val editorInfo = EditorInfo()
+    input.onCreateInputConnection(editorInfo)
+
+    assertThat(editorInfo.imeOptions and EditorInfo.IME_MASK_ACTION).isEqualTo(EditorInfo.IME_ACTION_NEXT)
+    assertThat(editorInfo.imeOptions and LIGHT_NO_EXTRACT_UI_IME_FLAGS).isEqualTo(LIGHT_NO_EXTRACT_UI_IME_FLAGS)
   }
 
   /**
