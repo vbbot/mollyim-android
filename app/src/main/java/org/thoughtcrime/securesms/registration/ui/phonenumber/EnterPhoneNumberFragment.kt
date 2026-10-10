@@ -48,7 +48,6 @@ import org.thoughtcrime.securesms.registration.ui.RegistrationState
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
 import org.thoughtcrime.securesms.registration.ui.countrycode.Country
 import org.thoughtcrime.securesms.registration.ui.countrycode.CountryCodeFragment
-import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationContracts
 import org.thoughtcrime.securesms.registration.ui.toE164
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.Dialogs
@@ -72,13 +71,13 @@ class EnterPhoneNumberFragment : ComposeFragment() {
   private val skipToNextScreen: DialogInterface.OnClickListener =
     DialogInterface.OnClickListener { _, _ -> moveToVerificationEntryScreen() }
 
-  private var currentPhoneNumberFormatter: com.google.i18n.phonenumbers.AsYouTypeFormatter? = null
-
-  // Compose-observable UI state
+  // Compose-observable UI state. The number is only ever a formatted copy of the view model's; edits
+  // go back through applyPhoneNumber so the view models never hold a stale number or a null country.
   private var countryEmoji by mutableStateOf<String?>(null)
   private var countryName by mutableStateOf("")
-  private var countryCode by mutableStateOf("")
+  private var countrySelected by mutableStateOf(false)
   private var phoneNumber by mutableStateOf("")
+  private var editorOpen by mutableStateOf(false)
   private var nextEnabled by mutableStateOf(false)
   private var inProgress by mutableStateOf(false)
   private var showCancel by mutableStateOf(false)
@@ -89,16 +88,18 @@ class EnterPhoneNumberFragment : ComposeFragment() {
     EnterPhoneNumberScreen(
       countryEmoji = countryEmoji,
       countryName = countryName,
-      countryCode = countryCode,
+      countrySelected = countrySelected,
       phoneNumber = phoneNumber,
+      editorOpen = editorOpen,
       nextEnabled = nextEnabled,
       inProgress = inProgress,
       showCancel = showCancel,
       controlsEnabled = controlsEnabled,
       onBackClicked = ::popBackStack,
       onCountryClicked = ::moveToCountryPickerScreen,
-      onCountryCodeChanged = ::onCountryCodeChanged,
-      onPhoneNumberChanged = ::onPhoneNumberChanged,
+      onPhoneNumberClicked = ::openEditor,
+      onEditorBack = ::closeEditor,
+      onEditorDone = ::onEditorDone,
       onNextClicked = ::onRegistrationButtonClicked,
       onCancelClicked = ::popBackStack,
       onProxyClicked = {
@@ -114,7 +115,8 @@ class EnterPhoneNumberFragment : ComposeFragment() {
     requireActivity().onBackPressedDispatcher.addCallback(
       viewLifecycleOwner,
       object : OnBackPressedCallback(true) {
-        override fun handleOnBackPressed() = popBackStack()
+        // The editor is an in-screen state, not a destination: system back discards it like its BACK icon.
+        override fun handleOnBackPressed() = if (editorOpen) closeEditor() else popBackStack()
       }
     )
 
@@ -174,25 +176,12 @@ class EnterPhoneNumberFragment : ComposeFragment() {
         }
       }
 
-    fragmentViewModel.uiState
-      .map { it.phoneNumberRegionCode }
-      .distinctUntilChanged()
-      .observe(viewLifecycleOwner) { regionCode ->
-        if (regionCode.isNotNullOrBlank()) {
-          currentPhoneNumberFormatter =
-            PhoneNumberUtil.getInstance().getAsYouTypeFormatter(regionCode)
-          phoneNumber = reformatForDisplay(phoneNumber)
-        }
-      }
-
     fragmentViewModel.uiState.observe(viewLifecycleOwner) { fragmentState ->
-      if (fragmentViewModel.isEnteredNumberPossible(fragmentState)) {
-        sharedViewModel.setPhoneNumber(fragmentViewModel.parsePhoneNumber(fragmentState))
-        sharedViewModel.nationalNumber = ""
-      } else {
-        sharedViewModel.setPhoneNumber(null)
-      }
+      publishPhoneNumber(fragmentState)
 
+      // Derived from the view model on every change, so a country picked by hand (which rewrites the
+      // "+code") and a server-normalized number both show up without a second, drifting copy.
+      phoneNumber = PhoneNumberEntry.format(fragmentState.internationalNumber)
       updateCountrySelection(fragmentState.country)
 
       if (fragmentState.error != EnterPhoneNumberState.Error.NONE) {
@@ -200,18 +189,15 @@ class EnterPhoneNumberFragment : ComposeFragment() {
       }
     }
 
-    // Restore previously entered number
+    // Restore a previously entered or SIM-prefilled number (RegistrationViewModel.maybePrefillE164), or
+    // start from the default country's code. Both set the country as well as the number.
     val existingPhoneNumber = sharedViewModel.phoneNumber
     val existingNationalNumber = sharedViewModel.nationalNumber
     if (existingPhoneNumber != null) {
-      fragmentViewModel.restoreState(existingPhoneNumber)
-      countryCode = existingPhoneNumber.countryCode.toString()
-      phoneNumber = existingPhoneNumber.nationalNumber.toString()
-    } else {
-      if (countryCode.isEmpty()) {
-        countryCode = fragmentViewModel.getDefaultCountryCode(requireContext()).toString()
-      }
-      phoneNumber = existingNationalNumber ?: ""
+      applyPhoneNumber(existingPhoneNumber)
+    } else if (fragmentViewModel.internationalNumber.isEmpty()) {
+      val defaultCountryCode = fragmentViewModel.getDefaultCountryCode(requireContext())
+      applyPhoneNumber(PhoneNumberEntry.compose(defaultCountryCode, existingNationalNumber))
     }
 
     if (enterPhoneNumberMode == EnterPhoneNumberMode.RESTART_AFTER_COLLECTION &&
@@ -222,40 +208,59 @@ class EnterPhoneNumberFragment : ComposeFragment() {
     }
   }
 
-  private fun onCountryCodeChanged(raw: String) {
-    val sanitized = LightRegistrationContracts.sanitizeCountryCode(raw)
-    countryCode = sanitized
-    if (sanitized.isNotNullOrBlank()) {
-      fragmentViewModel.setCountry(sanitized.toInt())
+  private fun openEditor() {
+    if (controlsEnabled) editorOpen = true
+  }
+
+  private fun closeEditor() {
+    editorOpen = false
+  }
+
+  private fun onEditorDone(text: String) {
+    applyPhoneNumber(text)
+    closeEditor()
+  }
+
+  /**
+   * The one way a whole number reaches the view models: the editor, the default code, and (through the
+   * [PhoneNumber] overload) a restored, prefilled or server-normalized number. The fragment view model
+   * derives and sets the country; the shared view model is then updated at once rather than on the next
+   * observer pass, because callers such as the non-normalized "Yes" request a code straight after.
+   */
+  private fun applyPhoneNumber(international: String) {
+    fragmentViewModel.setInternationalNumber(international)
+    onPhoneNumberApplied()
+  }
+
+  private fun applyPhoneNumber(number: PhoneNumber) {
+    fragmentViewModel.restoreState(number)
+    onPhoneNumberApplied()
+  }
+
+  private fun onPhoneNumberApplied() {
+    val state = fragmentViewModel.state
+    sharedViewModel.nationalNumber = state.phoneNumber
+    publishPhoneNumber(state)
+  }
+
+  private fun publishPhoneNumber(fragmentState: EnterPhoneNumberState) {
+    if (fragmentViewModel.isEnteredNumberPossible(fragmentState)) {
+      sharedViewModel.setPhoneNumber(fragmentViewModel.parsePhoneNumber(fragmentState))
+      sharedViewModel.nationalNumber = ""
     } else {
-      fragmentViewModel.clearCountry()
+      sharedViewModel.setPhoneNumber(null)
     }
-  }
-
-  private fun onPhoneNumberChanged(raw: String) {
-    val formatted = reformatForDisplay(raw)
-    phoneNumber = formatted
-    fragmentViewModel.setPhoneNumber(formatted)
-    sharedViewModel.nationalNumber = formatted
-  }
-
-  private fun reformatForDisplay(input: String): String {
-    val formatter = currentPhoneNumberFormatter ?: return input
-    formatter.clear()
-    var formatted = input
-    input.forEach { if (it.isDigit()) formatted = formatter.inputDigit(it) }
-    return formatted
   }
 
   private fun updateCountrySelection(country: Country?) {
     if (country != null) {
       countryEmoji = country.emoji
       countryName = country.name
-      val codeStr = country.countryCode.toString()
-      if (countryCode != codeStr) countryCode = codeStr
+      countrySelected = true
     } else {
       countryEmoji = null
       countryName = getString(R.string.RegistrationActivity_select_a_country)
+      countrySelected = false
     }
   }
 
@@ -523,8 +528,8 @@ class EnterPhoneNumberFragment : ComposeFragment() {
           dialogInterface.dismiss()
         }
         setPositiveButton(R.string.yes) { dialogInterface, _ ->
-          countryCode = phoneNumber.countryCode.toString()
-          this@EnterPhoneNumberFragment.phoneNumber = phoneNumber.nationalNumber.toString()
+          // Sent to the view models, not just displayed: the request below reads the shared number.
+          applyPhoneNumber(phoneNumber)
           when (mode) {
             RegistrationRepository.E164VerificationMode.SMS_WITH_LISTENER,
             RegistrationRepository.E164VerificationMode.SMS_WITHOUT_LISTENER -> sharedViewModel.requestSmsCode(requireContext())
@@ -572,6 +577,8 @@ class EnterPhoneNumberFragment : ComposeFragment() {
       setNegativeButton(R.string.RegistrationActivity_edit_number) { _, _ ->
         Log.d(TAG, "User canceled confirm number, returning to edit.")
         sharedViewModel.setInProgress(false)
+        // Upstream refocused the number with the keyboard up; here that is the editor.
+        editorOpen = true
       }
       setOnCancelListener { sharedViewModel.setInProgress(false) }
     }.show()

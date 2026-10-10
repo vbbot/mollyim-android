@@ -42,6 +42,14 @@ class EnterPhoneNumberViewModel : ViewModel() {
   )
   val uiState = store.asLiveData()
 
+  /** The current state, read synchronously where an observer would run too late. */
+  val state: EnterPhoneNumberState
+    get() = store.value
+
+  /** The whole number as the Light editor holds it, e.g. "+447700900123". */
+  val internationalNumber: String
+    get() = store.value.internationalNumber
+
   val phoneNumber: PhoneNumber?
     get() = try {
       parsePhoneNumber(store.value)
@@ -132,9 +140,32 @@ class EnterPhoneNumberViewModel : ViewModel() {
       it.copy(
         countryPrefixIndex = matchingIndex,
         phoneNumberRegionCode = supportedCountryPrefixes[matchingIndex].regionCode,
-        country = country ?: matchedCountry
+        country = country ?: matchedCountry,
+        // A country picked by hand replaces the "+code" of the editor's number and keeps its national digits.
+        internationalNumber = PhoneNumberEntry.compose(digits, it.phoneNumber)
       )
     }
+  }
+
+  /**
+   * The single entry point for a whole international number ("+44 7700 900123"), from the Light editor,
+   * a restored or prefilled number, or a server-normalized one. Sets the national number and, through
+   * [setCountry] exactly as the country picker does, the country derived from the calling code, so that
+   * [EnterPhoneNumberState.country] is never null while a valid code is present.
+   *
+   * [regionHint] keeps a shared calling code (+1, +7, +44…) in the region already shown until the
+   * number itself says otherwise.
+   */
+  fun setInternationalNumber(text: String, regionHint: String? = store.value.country?.regionCode) {
+    val entry = PhoneNumberEntry.parse(text, regionHint)
+
+    setPhoneNumber(entry.nationalNumber)
+    if (entry.countryCode != null && entry.regionCode != null) {
+      setCountry(entry.countryCode, countryForRegion(entry.countryCode, entry.regionCode))
+    } else {
+      clearCountry()
+    }
+    store.update { it.copy(internationalNumber = entry.text) }
   }
 
   fun parsePhoneNumber(state: EnterPhoneNumberState): PhoneNumber {
@@ -150,21 +181,33 @@ class EnterPhoneNumberViewModel : ViewModel() {
     }
   }
 
+  /**
+   * Restores a previously entered or SIM-prefilled number. Goes through [setInternationalNumber] so the
+   * country is set too; setting only the number left NEXT disabled until a country was picked by hand.
+   */
   fun restoreState(value: PhoneNumber) {
-    val prefixIndex = countryCodeToAdapterIndex(value.countryCode)
-    if (prefixIndex != -1) {
-      store.update {
-        it.copy(
-          countryPrefixIndex = prefixIndex,
-          phoneNumberRegionCode = PhoneNumberUtil.getInstance().getRegionCodeForNumber(value) ?: it.phoneNumberRegionCode,
-          phoneNumber = value.nationalNumber.toString()
-        )
-      }
+    if (countryCodeToAdapterIndex(value.countryCode) == -1) {
+      return
     }
+
+    val util = PhoneNumberUtil.getInstance()
+    setInternationalNumber(
+      text = PhoneNumberEntry.compose(value.countryCode, util.getNationalSignificantNumber(value)),
+      regionHint = util.getRegionCodeForNumber(value)
+    )
   }
 
   private fun countryCodeToAdapterIndex(countryCode: Int): Int {
     return supportedCountryPrefixes.indexOfFirst { prefix -> prefix.digits == countryCode }
+  }
+
+  private fun countryForRegion(countryCode: Int, regionCode: String): Country {
+    return Country(
+      name = E164Util.getRegionDisplayName(regionCode).orElse(""),
+      emoji = CountryUtils.countryToEmoji(regionCode),
+      countryCode = countryCode,
+      regionCode = regionCode
+    )
   }
 
   fun clearError() {

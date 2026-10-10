@@ -10015,5 +10015,19 @@
     <!-- Shown in place of the search results while a search is still running and nothing has been found yet -->
     <string name="LightSearch__searching">Searching…</string>
 
+    <!-- EnterPhoneNumberFragment (Light) -->
+    <!-- Accessibility label for the back icon on the phone number screen; returns to the registration step before it -->
+    <string name="EnterPhoneNumberFragment__back_to_previous_step">Back to the previous step</string>
+    <!-- Label above the selected country on the phone number screen; tapping the row opens the country list -->
+    <string name="EnterPhoneNumberFragment__country">Country</string>
+    <!-- Shown in the phone number field when no number has been entered yet; tapping the field opens the number editor -->
+    <string name="EnterPhoneNumberFragment__enter_your_number">Enter your number</string>
+    <!-- Hint inside the empty phone number editor: the whole number is typed with its leading + and country code -->
+    <string name="EnterPhoneNumberFragment__country_code_and_number">+ country code and number</string>
+    <!-- Accessibility label for the back icon in the phone number editor; closes it and keeps the previous number -->
+    <string name="EnterPhoneNumberFragment__close_without_saving">Close without saving</string>
+    <!-- Top bar action in the phone number editor that saves the typed number. Uppercase, like the other top bar actions -->
+    <string name="EnterPhoneNumberFragment__done">DONE</string>
+
     <!-- EOF -->
 </resources>

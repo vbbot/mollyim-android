@@ -10,10 +10,14 @@ import org.thoughtcrime.securesms.registration.ui.countrycode.Country
 
 /**
  * State holder for the phone number entry screen, including phone number and Play Services errors.
+ *
+ * [phoneNumber] is the national part that is parsed against the selected country. [internationalNumber]
+ * is the whole number as the Light editor holds it ("+" and digits), and is what the screen displays.
  */
 data class EnterPhoneNumberState(
   val countryPrefixIndex: Int,
   val phoneNumber: String = "",
+  val internationalNumber: String = "",
   val phoneNumberRegionCode: String,
   val mode: RegistrationRepository.E164VerificationMode = RegistrationRepository.E164VerificationMode.SMS_WITHOUT_LISTENER,
   val error: Error = Error.NONE,
