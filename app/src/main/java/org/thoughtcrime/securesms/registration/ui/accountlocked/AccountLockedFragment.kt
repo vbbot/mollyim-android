@@ -9,44 +9,40 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.fragment.app.activityViewModels
-import com.google.android.material.button.MaterialButton
-import org.signal.core.ui.logging.LoggingFragment
+import org.signal.core.ui.compose.ComposeFragment
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.registration.fragments.RegistrationViewDelegate.setDebugLogSubmitMultiTapView
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
-import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Screen educating the user that they need to wait some number of days to register.
+ *
+ * Presentation is [AccountLockedScreen]: the title in the top bar, where it also keeps the debug-log
+ * multi-tap the old title `TextView` carried, the explanation as body copy, and "learn more" and
+ * "next" as the screen's two bottom actions. What they do, the days-remaining arithmetic and the
+ * back behaviour are unchanged.
  */
-class AccountLockedFragment : LoggingFragment(R.layout.account_locked_fragment) {
+class AccountLockedFragment : ComposeFragment() {
   private val viewModel by activityViewModels<RegistrationViewModel>()
+
+  @Composable
+  override fun FragmentContent() {
+    val timeRemaining: Long? by viewModel.lockedTimeRemaining.observeAsState()
+
+    AccountLockedScreen(
+      daysRemaining = timeRemaining?.let(::durationToDays),
+      onNext = ::onNext,
+      onLearnMore = ::learnMore
+    )
+  }
+
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
-
-    setDebugLogSubmitMultiTapView(view.findViewById(R.id.account_locked_title))
-
-    val title = view.findViewById<TextView>(R.id.account_locked_title)
-    val description = view.findViewById<TextView>(R.id.account_locked_description)
-    val next = view.findViewById<MaterialButton>(R.id.account_locked_next)
-    val learnMore = view.findViewById<MaterialButton>(R.id.account_locked_learn_more)
-
-    LightRegistrationViewStyle.surface(view)
-    LightRegistrationViewStyle.title(title)
-    LightRegistrationViewStyle.body(description)
-    LightRegistrationViewStyle.action(next)
-    LightRegistrationViewStyle.action(learnMore)
-
-    viewModel.lockedTimeRemaining.observe(
-      viewLifecycleOwner
-    ) { t: Long? -> description.text = getString(R.string.AccountLockedFragment__your_account_has_been_locked_to_protect_your_privacy, durationToDays(t!!)) }
-
-    view.findViewById<View>(R.id.account_locked_next).setOnClickListener { v: View? -> onNext() }
-    view.findViewById<View>(R.id.account_locked_learn_more).setOnClickListener { v: View? -> learnMore() }
 
     requireActivity().onBackPressedDispatcher.addCallback(
       viewLifecycleOwner,
