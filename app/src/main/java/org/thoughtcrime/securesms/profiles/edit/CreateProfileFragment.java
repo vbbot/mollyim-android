@@ -1,48 +1,37 @@
 package org.thoughtcrime.securesms.profiles.edit;
 
-import android.animation.Animator;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewAnimationUtils;
 import android.view.ViewGroup;
-import android.widget.EditText;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.navigation.Navigation;
-
-import com.airbnb.lottie.SimpleColorFilter;
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import androidx.navigation.fragment.NavHostFragment;
 
 import org.signal.core.models.media.Media;
 import org.signal.core.ui.logging.LoggingFragment;
-import org.signal.core.ui.util.ThemeUtil;
-import org.signal.core.util.EditTextUtil;
 import org.signal.core.util.StreamUtil;
 import org.signal.core.util.concurrent.SimpleTask;
 import org.signal.core.util.logging.Log;
 import org.thoughtcrime.securesms.R;
-import org.thoughtcrime.securesms.avatar.Avatars;
 import org.thoughtcrime.securesms.avatar.picker.AvatarPickerFragment;
-import org.thoughtcrime.securesms.databinding.CreateProfileFragmentBinding;
 import org.thoughtcrime.securesms.dependencies.AppDependencies;
 import org.thoughtcrime.securesms.groups.GroupId;
 import org.thoughtcrime.securesms.keyvalue.PhoneNumberPrivacyValues;
 import org.thoughtcrime.securesms.keyvalue.SignalStore;
+import org.thoughtcrime.securesms.profiles.ProfileName;
 import org.thoughtcrime.securesms.profiles.edit.pnp.WhoCanFindMeByPhoneNumberFragment;
 import org.thoughtcrime.securesms.profiles.manage.EditProfileNameFragment;
 import org.thoughtcrime.securesms.util.CommunicationActions;
 import org.thoughtcrime.securesms.util.RemoteConfig;
 import org.thoughtcrime.securesms.util.ViewUtil;
 import org.thoughtcrime.securesms.util.navigation.SafeNavigation;
-import org.thoughtcrime.securesms.util.text.AfterTextChanged;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,18 +44,22 @@ import static org.thoughtcrime.securesms.profiles.edit.CreateProfileActivity.NEX
 import static org.thoughtcrime.securesms.profiles.edit.CreateProfileActivity.SHOW_TOOLBAR;
 
 /**
- * Used for profile creation during registration.
+ * Used for profile creation during registration, and for editing a group's name, description and
+ * photo. The UI is the Compose {@code CreateProfileScreen}; this owns the view model, the navigation
+ * and the upload.
  */
-public class CreateProfileFragment extends LoggingFragment {
+public class CreateProfileFragment extends LoggingFragment implements CreateProfileCallbacks {
 
   private static final String TAG                    = Log.tag(CreateProfileFragment.class);
   private static final int    MAX_DESCRIPTION_GLYPHS = 480;
   private static final int    MAX_DESCRIPTION_BYTES  = 8192;
 
-  private Intent nextIntent;
+  private Intent  nextIntent;
+  private boolean focusedDescriptionOpened;
 
-  private EditProfileViewModel         viewModel;
-  private CreateProfileFragmentBinding binding;
+  private EditProfileViewModel  viewModel;
+  private CreateProfileState    state;
+  private OnBackPressedCallback closeEditorOnBack;
 
   private Controller controller;
 
@@ -83,24 +76,56 @@ public class CreateProfileFragment extends LoggingFragment {
 
   @Override
   public @Nullable View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-    binding = CreateProfileFragmentBinding.inflate(inflater, container, false);
-    return binding.getRoot();
+    Bundle  arguments = requireArguments();
+    GroupId groupId   = GroupId.parseNullableOrThrow(arguments.getString(GROUP_ID, null));
+
+    initializeViewModel(arguments.getBoolean(EXCLUDE_SYSTEM, false), groupId, savedInstanceState != null);
+
+    state = new CreateProfileState();
+
+    return CreateProfileContent.create(this, createConfig(arguments, groupId), state, this);
   }
 
   @Override
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-    GroupId groupId = GroupId.parseNullableOrThrow(requireArguments().getString(GROUP_ID, null));
+    Bundle  arguments = requireArguments();
+    GroupId groupId   = GroupId.parseNullableOrThrow(arguments.getString(GROUP_ID, null));
 
-    initializeViewModel(requireArguments().getBoolean(EXCLUDE_SYSTEM, false), groupId, savedInstanceState != null);
-    initializeResources(groupId);
-    initializeProfileAvatar();
+    nextIntent = arguments.getParcelable(NEXT_INTENT);
+
+    // The editor is a state of this screen, not a destination: system back discards it, as its BACK
+    // icon does. Registered after the activity's callback, so it is asked first while it is enabled.
+    closeEditorOnBack = new OnBackPressedCallback(false) {
+      @Override
+      public void handleOnBackPressed() {
+        onEditorBack();
+      }
+    };
+    requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), closeEditorOnBack);
+
     initializeProfileName();
+    initializeProfileAvatar();
+    initializeUpload();
+
+    if (groupId == null) {
+      getParentFragmentManager().setFragmentResultListener(WhoCanFindMeByPhoneNumberFragment.REQUEST_KEY, getViewLifecycleOwner(), (requestKey, result) -> {
+        if (WhoCanFindMeByPhoneNumberFragment.REQUEST_KEY.equals(requestKey)) {
+          presentWhoCanFindMeDescription(SignalStore.phoneNumberPrivacy().getPhoneNumberDiscoverabilityMode());
+        }
+      });
+
+      presentWhoCanFindMeDescription(SignalStore.phoneNumberPrivacy().getPhoneNumberDiscoverabilityMode());
+    } else if (groupId.isV2() && arguments.getBoolean(IS_DESCRIPTION_FOCUSED) && savedInstanceState == null && !focusedDescriptionOpened) {
+      // Reached from "edit description": open straight into the description, as the old screen focused
+      // it. Once only -- not again when the view comes back from the avatar picker.
+      focusedDescriptionOpened = true;
+      openEditor(CreateProfileField.FAMILY_NAME);
+    }
 
     getParentFragmentManager().setFragmentResultListener(AvatarPickerFragment.REQUEST_KEY_SELECT_AVATAR, getViewLifecycleOwner(), (key, bundle) -> {
       if (bundle.getBoolean(AvatarPickerFragment.SELECT_AVATAR_CLEAR)) {
         viewModel.setAvatarMedia(null);
         viewModel.setAvatar(null);
-        binding.avatar.setImageDrawable(null);
       } else {
         Media media = bundle.getParcelable(AvatarPickerFragment.SELECT_AVATAR_MEDIA);
         handleMediaFromResult(media);
@@ -111,7 +136,36 @@ public class CreateProfileFragment extends LoggingFragment {
   @Override
   public void onDestroyView() {
     super.onDestroyView();
-    binding = null;
+    closeEditorOnBack = null;
+  }
+
+  private static @NonNull CreateProfileConfig createConfig(@NonNull Bundle arguments, @Nullable GroupId groupId) {
+    boolean isGroup  = groupId != null;
+    boolean showBack = arguments.getBoolean(SHOW_TOOLBAR, true);
+    int     title    = isGroup ? R.string.EditProfileFragment__edit_group : R.string.CreateProfileActivity__profile;
+    int     next     = arguments.getInt(NEXT_BUTTON_TEXT, R.string.CreateProfileActivity_next);
+
+    if (isGroup) {
+      return new CreateProfileConfig(true,
+                                     title,
+                                     showBack,
+                                     next,
+                                     groupId.isV2(),
+                                     groupId.isMms(),
+                                     new CreateProfileFieldLimit(RemoteConfig.getMaxGroupNameGraphemeLength()),
+                                     new CreateProfileFieldLimit(MAX_DESCRIPTION_GLYPHS, MAX_DESCRIPTION_BYTES));
+    } else {
+      CreateProfileFieldLimit nameLimit = new CreateProfileFieldLimit(EditProfileNameFragment.NAME_MAX_GLYPHS, ProfileName.MAX_PART_LENGTH);
+
+      return new CreateProfileConfig(false,
+                                     title,
+                                     showBack,
+                                     next,
+                                     true,
+                                     false,
+                                     nameLimit,
+                                     nameLimit);
+    }
   }
 
   private void handleMediaFromResult(@NonNull Media media) {
@@ -129,12 +183,6 @@ public class CreateProfileFragment extends LoggingFragment {
       if (avatarBytes != null) {
         viewModel.setAvatarMedia(media);
         viewModel.setAvatar(avatarBytes);
-        Glide.with(CreateProfileFragment.this)
-                .load(avatarBytes)
-                .skipMemoryCache(true)
-                .diskCacheStrategy(DiskCacheStrategy.NONE)
-                .circleCrop()
-                .into(binding.avatar);
       } else {
         Toast.makeText(requireActivity(), R.string.CreateProfileActivity_error_setting_profile_photo, Toast.LENGTH_LONG).show();
       }
@@ -155,226 +203,117 @@ public class CreateProfileFragment extends LoggingFragment {
     viewModel = new ViewModelProvider(requireActivity(), factory).get(EditProfileViewModel.class);
   }
 
-  private void initializeResources(@Nullable GroupId groupId) {
-    Bundle  arguments      = requireArguments();
-    boolean isEditingGroup = groupId != null;
-
-    this.nextIntent = arguments.getParcelable(NEXT_INTENT);
-    boolean isDescriptionFocused = arguments.getBoolean(IS_DESCRIPTION_FOCUSED);
-
-    binding.avatar.setOnClickListener(v -> startAvatarSelection());
-    binding.mmsGroupHint.setVisibility(isEditingGroup && groupId.isMms() ? View.VISIBLE : View.GONE);
-
-    if (isEditingGroup) {
-      EditTextUtil.addGraphemeClusterLimitFilter(binding.givenName, RemoteConfig.getMaxGroupNameGraphemeLength());
-      binding.profileDescriptionText.setVisibility(View.GONE);
-      binding.whoCanFindMeContainer.setVisibility(View.GONE);
-      binding.givenName.addTextChangedListener(new AfterTextChanged(s -> viewModel.setGivenName(s.toString())));
-      binding.givenNameWrapper.setHint(R.string.EditProfileFragment__group_name);
-      if (!isDescriptionFocused) {
-        binding.givenName.requestFocus();
-      }
-      binding.toolbar.setTitle(R.string.EditProfileFragment__edit_group);
-      binding.namePreview.setVisibility(View.GONE);
-
-      if (groupId.isV2()) {
-        EditTextUtil.addGraphemeClusterLimitFilter(binding.familyName, MAX_DESCRIPTION_GLYPHS);
-        binding.familyName.addTextChangedListener(new AfterTextChanged(s -> {
-          EditProfileNameFragment.trimFieldToMaxByteLength(s, MAX_DESCRIPTION_BYTES);
-          viewModel.setFamilyName(s.toString());
-        }));
-        binding.familyNameWrapper.setHint(R.string.EditProfileFragment__group_description);
-        if (isDescriptionFocused) {
-          binding.familyName.requestFocus();
-        }
-        binding.familyName.setSingleLine(false);
-        binding.familyName.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-
-        binding.groupDescriptionText.setLearnMoreVisible(false);
-        binding.groupDescriptionText.setText(R.string.CreateProfileActivity_group_descriptions_will_be_visible_to_members_of_this_group_and_people_who_have_been_invited);
-      } else {
-        binding.familyNameWrapper.setVisibility(View.GONE);
-        binding.familyName.setEnabled(false);
-        binding.groupDescriptionText.setVisibility(View.GONE);
-      }
-      binding.avatarPlaceholder.setImageResource(R.drawable.ic_group_outline_40);
-    } else {
-      EditTextUtil.addGraphemeClusterLimitFilter(binding.givenName, EditProfileNameFragment.NAME_MAX_GLYPHS);
-      EditTextUtil.addGraphemeClusterLimitFilter(binding.familyName, EditProfileNameFragment.NAME_MAX_GLYPHS);
-      binding.givenName.addTextChangedListener(new AfterTextChanged(s -> {
-                                                                        EditProfileNameFragment.trimFieldToMaxByteLength(s);
-                                                                        viewModel.setGivenName(s.toString());
-                                                                      }));
-      binding.familyName.addTextChangedListener(new AfterTextChanged(s -> {
-                                                                         EditProfileNameFragment.trimFieldToMaxByteLength(s);
-                                                                         viewModel.setFamilyName(s.toString());
-                                                                       }));
-      binding.groupDescriptionText.setVisibility(View.GONE);
-      binding.profileDescriptionText.setLearnMoreVisible(true);
-      binding.profileDescriptionText.setLinkColor(ThemeUtil.getThemedColor(requireContext(), com.google.android.material.R.attr.colorPrimary));
-      binding.profileDescriptionText.setOnLinkClickListener(v -> CommunicationActions.openBrowserLink(requireContext(), getString(R.string.EditProfileFragment__support_link)));
-
-      getParentFragmentManager().setFragmentResultListener(WhoCanFindMeByPhoneNumberFragment.REQUEST_KEY, getViewLifecycleOwner(), (requestKey, result) -> {
-        if (WhoCanFindMeByPhoneNumberFragment.REQUEST_KEY.equals(requestKey)) {
-          presentWhoCanFindMeDescription(SignalStore.phoneNumberPrivacy().getPhoneNumberDiscoverabilityMode());
-        }
-      });
-
-      binding.whoCanFindMeContainer.setVisibility(View.VISIBLE);
-      binding.whoCanFindMeContainer.setOnClickListener(v -> SafeNavigation.safeNavigate(Navigation.findNavController(v), CreateProfileFragmentDirections.actionCreateProfileFragmentToPhoneNumberPrivacy()));
-      presentWhoCanFindMeDescription(SignalStore.phoneNumberPrivacy().getPhoneNumberDiscoverabilityMode());
-    }
-
-    binding.finishButton.setOnClickListener(v -> {
-      binding.finishButton.setSpinning();
-      handleUpload();
-    });
-
-    binding.finishButton.setText(arguments.getInt(NEXT_BUTTON_TEXT, R.string.CreateProfileActivity_next));
-
-    if (arguments.getBoolean(SHOW_TOOLBAR, true)) {
-      binding.toolbar.setVisibility(View.VISIBLE);
-      binding.toolbar.setNavigationOnClickListener(v -> requireActivity().finish());
-      binding.title.setVisibility(View.GONE);
-    }
-  }
-
   private void initializeProfileName() {
-    viewModel.isFormValid().observe(getViewLifecycleOwner(), isValid -> {
-      binding.finishButton.setEnabled(isValid);
-      binding.finishButton.setAlpha(isValid ? 1f : 0.5f);
-    });
-
-    viewModel.givenName().observe(getViewLifecycleOwner(), givenName -> updateFieldIfNeeded(binding.givenName, givenName));
-
-    viewModel.familyName().observe(getViewLifecycleOwner(), familyName -> updateFieldIfNeeded(binding.familyName, familyName));
-
-    viewModel.profileName().observe(getViewLifecycleOwner(), profileName -> binding.namePreview.setText(profileName.toString()));
+    viewModel.isFormValid().observe(getViewLifecycleOwner(), isValid -> state.setFormValid(isValid));
+    viewModel.givenName().observe(getViewLifecycleOwner(), givenName -> state.setGivenName(givenName != null ? givenName : ""));
+    viewModel.familyName().observe(getViewLifecycleOwner(), familyName -> state.setFamilyName(familyName != null ? familyName : ""));
   }
 
   private void initializeProfileAvatar() {
-    viewModel.avatar().observe(getViewLifecycleOwner(), bytes -> {
-      if (bytes == null) {
-        Glide.with(this).clear(binding.avatar);
-        return;
-      }
-
-      Glide.with(this)
-              .load(bytes)
-              .circleCrop()
-              .into(binding.avatar);
-    });
-
-    viewModel.avatarColor().observe(getViewLifecycleOwner(), avatarColor -> {
-      Avatars.ForegroundColor foregroundColor = Avatars.getForegroundColor(avatarColor);
-
-      binding.avatarPlaceholder.getDrawable().setColorFilter(new SimpleColorFilter(foregroundColor.getColorInt()));
-      binding.avatarBackground.getDrawable().setColorFilter(new SimpleColorFilter(avatarColor.colorInt()));
-    });
+    viewModel.avatar().observe(getViewLifecycleOwner(), bytes -> state.setAvatar(bytes));
   }
 
-  private static void updateFieldIfNeeded(@NonNull EditText field, @NonNull String value) {
-    String fieldTrimmed = field.getText().toString().trim();
-    String valueTrimmed = value.trim();
-
-    if (!fieldTrimmed.equals(valueTrimmed)) {
-      boolean setSelectionToEnd = field.getText().length() == 0;
-
-      field.setText(value);
-
-      if (setSelectionToEnd) {
-        field.setSelection(field.getText().length());
+  private void initializeUpload() {
+    viewModel.getUploadResult().observe(getViewLifecycleOwner(), uploadResult -> {
+      if (uploadResult == EditProfileRepository.UploadResult.SUCCESS) {
+        handleFinished();
+      } else {
+        Toast.makeText(requireContext(), R.string.CreateProfileActivity_problem_setting_profile, Toast.LENGTH_LONG).show();
+        state.setUploading(false);
       }
-    }
+    });
   }
 
   private void presentWhoCanFindMeDescription(PhoneNumberPrivacyValues.PhoneNumberDiscoverabilityMode phoneNumberListingMode) {
     switch (phoneNumberListingMode) {
       case DISCOVERABLE:
       case UNDECIDED:
-        binding.whoCanFindMeIcon.setImageResource(R.drawable.symbol_group_24);
-        binding.whoCanFindMeDescription.setText(R.string.PhoneNumberPrivacy_everyone);
+        state.setWhoCanFindMe(getString(R.string.PhoneNumberPrivacy_everyone));
         break;
       case NOT_DISCOVERABLE:
-        binding.whoCanFindMeIcon.setImageResource(org.signal.core.ui.R.drawable.symbol_lock_24);
-        binding.whoCanFindMeDescription.setText(R.string.PhoneNumberPrivacy_nobody);
+        state.setWhoCanFindMe(getString(R.string.PhoneNumberPrivacy_nobody));
         break;
     }
   }
 
-  private void startAvatarSelection() {
-    if (viewModel.isGroup()) {
-      SafeNavigation.safeNavigate(Navigation.findNavController(requireView()), CreateProfileFragmentDirections.actionCreateProfileFragmentToAvatarPicker(viewModel.getGroupId(), viewModel.getAvatarMedia()));
-    } else {
-      SafeNavigation.safeNavigate(Navigation.findNavController(requireView()), CreateProfileFragmentDirections.actionCreateProfileFragmentToAvatarPicker(null, null));
+  private void openEditor(@NonNull CreateProfileField field) {
+    state.setEditing(field);
+    closeEditorOnBack.setEnabled(true);
+  }
+
+  private void closeEditor() {
+    state.setEditing(null);
+    if (closeEditorOnBack != null) {
+      closeEditorOnBack.setEnabled(false);
     }
   }
 
-  private void handleUpload() {
-    viewModel.getUploadResult().observe(getViewLifecycleOwner(), uploadResult -> {
-      if (uploadResult == EditProfileRepository.UploadResult.SUCCESS) {
-        if (!viewModel.isGroup()) {
-          handleFinishedLollipop();
-        }
-        else {
-          handleFinishedLegacy();
-        }
-      } else {
-        Toast.makeText(requireContext(), R.string.CreateProfileActivity_problem_setting_profile, Toast.LENGTH_LONG).show();
-        binding.finishButton.cancelSpinning();
-      }
-    });
-
-    viewModel.submitProfile();
-  }
-
-  private void handleFinishedLegacy() {
-    ViewUtil.hideKeyboard(requireContext(), binding.finishButton);
-    binding.finishButton.cancelSpinning();
-    if (nextIntent != null) startActivity(nextIntent);
+  /**
+   * Leaves the screen the way the upstream reveal animation's end did -- keyboard down, next screen
+   * started, then the activity finished -- without the ultramarine flash in front of it.
+   */
+  private void handleFinished() {
+    ViewUtil.hideKeyboard(requireContext(), requireView());
+    if (nextIntent != null && getActivity() != null) {
+      startActivity(nextIntent);
+    }
 
     controller.onProfileNameUploadCompleted();
   }
 
-  private void handleFinishedLollipop() {
-    int[] finishButtonLocation = new int[2];
-    int[] revealLocation       = new int[2];
+  @Override
+  public void onBackClicked() {
+    requireActivity().finish();
+  }
 
-    binding.finishButton.getLocationInWindow(finishButtonLocation);
-    binding.reveal.getLocationInWindow(revealLocation);
+  @Override
+  public void onLearnMoreClicked() {
+    CommunicationActions.openBrowserLink(requireContext(), getString(R.string.EditProfileFragment__support_link));
+  }
 
-    int finishX = finishButtonLocation[0] - revealLocation[0];
-    int finishY = finishButtonLocation[1] - revealLocation[1];
+  @Override
+  public void onAvatarClicked() {
+    if (viewModel.isGroup()) {
+      SafeNavigation.safeNavigate(NavHostFragment.findNavController(this), CreateProfileFragmentDirections.actionCreateProfileFragmentToAvatarPicker(viewModel.getGroupId(), viewModel.getAvatarMedia()));
+    } else {
+      SafeNavigation.safeNavigate(NavHostFragment.findNavController(this), CreateProfileFragmentDirections.actionCreateProfileFragmentToAvatarPicker(null, null));
+    }
+  }
 
-    finishX += binding.finishButton.getWidth() / 2;
-    finishY += binding.finishButton.getHeight() / 2;
+  @Override
+  public void onFieldClicked(@NonNull CreateProfileField field) {
+    openEditor(field);
+  }
 
-    Animator animation = ViewAnimationUtils.createCircularReveal(binding.reveal, finishX, finishY, 0f, (float) Math.max(binding.reveal.getWidth(), binding.reveal.getHeight()));
-    animation.setDuration(500);
-    animation.addListener(new Animator.AnimatorListener() {
-      @Override
-      public void onAnimationStart(Animator animation) {}
+  @Override
+  public void onWhoCanFindMeClicked() {
+    SafeNavigation.safeNavigate(NavHostFragment.findNavController(this), CreateProfileFragmentDirections.actionCreateProfileFragmentToPhoneNumberPrivacy());
+  }
 
-      @Override
-      public void onAnimationEnd(Animator animation) {
-        ViewUtil.hideKeyboard(requireContext(), binding.finishButton);
-        binding.finishButton.cancelSpinning();
-        if (nextIntent != null && getActivity() != null) {
-          startActivity(nextIntent);
-        }
+  @Override
+  public void onEditorBack() {
+    closeEditor();
+  }
 
-        controller.onProfileNameUploadCompleted();
-      }
+  @Override
+  public void onEditorDone(@NonNull CreateProfileField field, @NonNull String text) {
+    if (field == CreateProfileField.GIVEN_NAME) {
+      viewModel.setGivenName(text);
+    } else {
+      viewModel.setFamilyName(text);
+    }
 
-      @Override
-      public void onAnimationCancel(Animator animation) {}
+    closeEditor();
+  }
 
-      @Override
-      public void onAnimationRepeat(Animator animation) {}
-    });
+  @Override
+  public void onNextClicked() {
+    if (state.getUploading()) {
+      return;
+    }
 
-    binding.reveal.setVisibility(View.VISIBLE);
-    animation.start();
+    state.setUploading(true);
+    viewModel.submitProfile();
   }
 
   public interface Controller {

@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.WindowManager;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -60,6 +61,13 @@ public class CreateProfileActivity extends BaseActivity implements CreateProfile
     super.onCreate(bundle);
 
     dynamicTheme.onCreate(this);
+
+    // The manifest asks for stateVisible, which put the keyboard over the form on entry. The fields now
+    // open a full-screen editor that raises the keyboard itself, so keep it down on arrival -- except
+    // when entering straight into the description editor, which still wants it up.
+    if (!getIntent().getBooleanExtra(IS_DESCRIPTION_FOCUSED, false)) {
+      getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+    }
 
     setContentView(R.layout.create_profile_activity);
 

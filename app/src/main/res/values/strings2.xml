@@ -259,6 +259,17 @@
     <!-- Call log row token for a call link. -->
     <string name="LightCallLog__link">LINK</string>
 
+    <!-- LIGHT PHONE: profile setup and group editing screen. -->
+
+    <!-- Placeholder of the first name field on the profile setup screen, shown until a name is entered. Tapping it opens the name editor. -->
+    <string name="CreateProfileFragment__add_first_name">Add first name</string>
+    <!-- Placeholder of the last name field on the profile setup screen, shown until a name is entered. Tapping it opens the name editor. -->
+    <string name="CreateProfileFragment__add_last_name">Add last name</string>
+    <!-- Content description of the back icon on the profile screen and on its full-screen field editor. It leaves without saving what was typed. -->
+    <string name="CreateProfileFragment__close_without_saving">Close without saving</string>
+    <!-- Top bar action of the full-screen field editor on the profile screen that keeps what was typed. Shown in upper case. -->
+    <string name="CreateProfileFragment__done">Done</string>
+
     <!-- LIGHT PHONE: registration top bars. The centre of the Light top bar holds one short line, so these stand in for longer upstream titles. -->
 
     <!-- Top bar title of the restore-method screen. Short form of "Restore or transfer account". -->
