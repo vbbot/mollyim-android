@@ -7,14 +7,12 @@ package org.thoughtcrime.securesms.registration.ui.restore
 
 import android.os.Bundle
 import android.view.View
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.window.DialogProperties
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -27,7 +25,6 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.signal.core.ui.compose.ComposeFragment
-import org.signal.core.ui.compose.Dialogs
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.contactsupport.ContactSupportDialog
 import org.thoughtcrime.securesms.components.contactsupport.ContactSupportViewModel
@@ -35,6 +32,8 @@ import org.thoughtcrime.securesms.components.contactsupport.SendSupportEmailEffe
 import org.thoughtcrime.securesms.registration.ui.RegistrationCheckpoint
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
 import org.thoughtcrime.securesms.registration.ui.phonenumber.EnterPhoneNumberMode
+import org.thoughtcrime.securesms.registration.ui.phonenumber.PhoneNumberNoticeAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationNoticeDialog
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 
@@ -119,18 +118,13 @@ class EnterBackupKeyFragment : ComposeFragment() {
       },
       dialogContent = {
         if (showSkipRestoreWarning) {
-          Dialogs.SimpleAlertDialog(
-            title = stringResource(R.string.SelectRestoreMethodFragment__skip_restore_title),
-            body = stringResource(R.string.SelectRestoreMethodFragment__skip_restore_warning),
-            confirm = stringResource(R.string.SelectRestoreMethodFragment__skip_restore),
-            dismiss = stringResource(android.R.string.cancel),
-            onConfirm = {
+          SkipRestoreWarning(
+            onSkip = {
               sharedViewModel.skipRestore()
               findNavController().safeNavigate(EnterBackupKeyFragmentDirections.goToEnterPhoneNumber(EnterPhoneNumberMode.RESTART_AFTER_COLLECTION))
             },
             onDismiss = { showSkipRestoreWarning = false },
-            confirmColor = MaterialTheme.colorScheme.error,
-            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+            backDescription = stringResource(R.string.EnterBackupKey__back_to_recovery_key)
           )
         }
         if (contactSupportState.show) {
@@ -162,6 +156,16 @@ class EnterBackupKeyFragment : ComposeFragment() {
   }
 }
 
+/**
+ * The tier-restore and registration errors, as full-screen Light notices.
+ *
+ * Every action runs what its Material button ran, in the same order: the Simple dialogs' buttons
+ * cleared the error before acting, and the three-option dialog's buttons were each given that
+ * clearing explicitly. The three-option dialog was cancelable and its cancel was "Cancel"; the two
+ * Simple dialogs were not, and a notice cannot refuse BACK, so BACK takes their dismiss-side exit --
+ * "Cancel" or "Skip restore", which both leave remote restore -- making BACK mean the same thing on
+ * all three.
+ */
 @Composable
 private fun ErrorContent(
   state: EnterBackupKeyViewModel.EnterBackupKeyState,
@@ -172,50 +176,65 @@ private fun ErrorContent(
   onRegistrationErrorDismiss: () -> Unit = {},
   onBackupKeyHelp: () -> Unit = {}
 ) {
+  val backDescription = stringResource(R.string.EnterBackupKey__back_to_recovery_key)
+
   if (state.showBackupTierNotRestoreError == EnterBackupKeyViewModel.TierRestoreError.NETWORK_ERROR) {
+    val cancel = {
+      onBackupTierNotRestoredDismiss()
+      onAbandonRemoteRestoreAfterRegistration()
+    }
+
     if (state.tierRetryAttempts > 1) {
-      Dialogs.AdvancedAlertDialog(
+      RegistrationNoticeDialog(
         title = stringResource(R.string.EnterBackupKey_cant_restore_backup),
-        body = stringResource(R.string.EnterBackupKey_your_backup_cant_be_restored_right_now),
-        positive = stringResource(R.string.EnterBackupKey_try_again),
-        neutral = stringResource(R.string.EnterBackupKey_contact_support),
-        negative = stringResource(android.R.string.cancel),
-        onPositive = {
-          onBackupTierNotRestoredDismiss()
-          onBackupTierRetry()
-        },
-        onNeutral = {
-          onBackupTierNotRestoredDismiss()
-          onContactSupport()
-        },
-        onNegative = {
-          onBackupTierNotRestoredDismiss()
-          onAbandonRemoteRestoreAfterRegistration()
-        }
+        message = stringResource(R.string.EnterBackupKey_your_backup_cant_be_restored_right_now),
+        actions = listOf(
+          PhoneNumberNoticeAction(stringResource(R.string.EnterBackupKey_try_again)) {
+            onBackupTierNotRestoredDismiss()
+            onBackupTierRetry()
+          },
+          PhoneNumberNoticeAction(stringResource(R.string.EnterBackupKey_contact_support)) {
+            onBackupTierNotRestoredDismiss()
+            onContactSupport()
+          },
+          PhoneNumberNoticeAction(stringResource(android.R.string.cancel), cancel)
+        ),
+        onBack = cancel,
+        backDescription = backDescription
       )
     } else {
-      Dialogs.SimpleAlertDialog(
+      RegistrationNoticeDialog(
         title = stringResource(R.string.EnterBackupKey_cant_restore_backup),
-        body = stringResource(R.string.EnterBackupKey_your_backup_cant_be_restored_right_now),
-        confirm = stringResource(R.string.EnterBackupKey_try_again),
-        dismiss = stringResource(android.R.string.cancel),
-        onConfirm = onBackupTierRetry,
-        onDeny = onAbandonRemoteRestoreAfterRegistration,
-        onDismiss = onBackupTierNotRestoredDismiss,
-        onDismissRequest = {},
-        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+        message = stringResource(R.string.EnterBackupKey_your_backup_cant_be_restored_right_now),
+        actions = listOf(
+          PhoneNumberNoticeAction(stringResource(android.R.string.cancel), cancel),
+          PhoneNumberNoticeAction(stringResource(R.string.EnterBackupKey_try_again)) {
+            onBackupTierNotRestoredDismiss()
+            onBackupTierRetry()
+          }
+        ),
+        onBack = cancel,
+        backDescription = backDescription
       )
     }
   } else if (state.showBackupTierNotRestoreError == EnterBackupKeyViewModel.TierRestoreError.NOT_FOUND) {
-    Dialogs.SimpleAlertDialog(
+    val skipRestore = {
+      onBackupTierNotRestoredDismiss()
+      onAbandonRemoteRestoreAfterRegistration()
+    }
+
+    RegistrationNoticeDialog(
       title = stringResource(R.string.EnterBackupKey_backup_not_found),
-      body = stringResource(R.string.EnterBackupKey_backup_key_you_entered_is_correct_but_no_backup),
-      confirm = stringResource(R.string.EnterBackupKey_try_again),
-      dismiss = stringResource(R.string.EnterBackupKey_skip_restore),
-      onConfirm = onBackupTierRetry,
-      onDeny = onAbandonRemoteRestoreAfterRegistration,
-      onDismiss = onBackupTierNotRestoredDismiss,
-      properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+      message = stringResource(R.string.EnterBackupKey_backup_key_you_entered_is_correct_but_no_backup),
+      actions = listOf(
+        PhoneNumberNoticeAction(stringResource(R.string.EnterBackupKey_skip_restore), skipRestore),
+        PhoneNumberNoticeAction(stringResource(R.string.EnterBackupKey_try_again)) {
+          onBackupTierNotRestoredDismiss()
+          onBackupTierRetry()
+        }
+      ),
+      onBack = skipRestore,
+      backDescription = backDescription
     )
   } else {
     RegistrationErrorDialogs(

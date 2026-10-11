@@ -67,7 +67,7 @@ fun PassphraseCreateScreen(
         ) {
           LightText(
             text = stringResource(R.string.PassphraseCreateActivity_now_you_can_set_a_passphrase_to_encrypt_the_database),
-            variant = LightTextVariant.Copy,
+            variant = LightTextVariant.Paragraph,
           )
           Spacer(modifier = Modifier.height(1f.gridUnitsAsDp()))
           LightText(

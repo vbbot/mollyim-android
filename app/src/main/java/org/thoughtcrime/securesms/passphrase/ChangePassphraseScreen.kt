@@ -234,7 +234,7 @@ fun ChangePassphraseScreen(
             if (inProgress && form.hidesFieldsWhileInProgress) {
               LightText(
                 text = stringResource(R.string.ChangePassphraseDialogFragment_generating_keys_this_may_take_a_while),
-                variant = LightTextVariant.Copy,
+                variant = LightTextVariant.Paragraph,
               )
             } else {
               FormFields(
@@ -261,7 +261,7 @@ private fun FormFields(
   if (form.explanation != null) {
     LightText(
       text = stringResource(form.explanation),
-      variant = LightTextVariant.Copy,
+      variant = LightTextVariant.Paragraph,
       modifier = Modifier.padding(bottom = 0.5f.gridUnitsAsDp()),
     )
   }

@@ -5,16 +5,18 @@
 
 package org.thoughtcrime.securesms.registration.ui.restore
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import com.thelightphone.sdk.ui.LightText
 import com.thelightphone.sdk.ui.LightTextVariant
@@ -41,10 +43,13 @@ fun RestoreRow(
       .lightClickable(onClick = onRowClick)
       .padding(vertical = 0.75f.gridUnitsAsDp())
   ) {
-    Icon(
+    // The SDK has no backup, file, folder or transfer glyph, so the row keeps Molly's artwork and
+    // tints it to the content colour exactly as `LightIcon` tints the SDK's own glyphs.
+    Image(
       painter = icon,
-      tint = LightThemeTokens.colors.content,
+      colorFilter = ColorFilter.tint(LightThemeTokens.colors.content),
       contentDescription = null,
+      contentScale = ContentScale.Fit,
       modifier = Modifier.size(2f.gridUnitsAsDp())
     )
 

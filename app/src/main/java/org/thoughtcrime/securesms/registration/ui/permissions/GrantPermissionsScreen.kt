@@ -83,8 +83,7 @@ fun GrantPermissionsScreen(
         ) {
           LightText(
             text = stringResource(id = R.string.GrantPermissionsFragment__to_help_you_message_people_you_know),
-            variant = LightTextVariant.Copy,
-            lighten = true,
+            variant = LightTextVariant.Paragraph,
             modifier = Modifier
               .fillMaxWidth()
               .padding(bottom = 1.5f.gridUnitsAsDp())

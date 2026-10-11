@@ -22,10 +22,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.signal.core.models.AccountEntropyPool
 import org.signal.core.ui.compose.ComposeFragment
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.registration.ui.phonenumber.PhoneNumberNoticeAction
 import org.thoughtcrime.securesms.registration.ui.restore.EnterBackupKeyScreen
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationNoticeDialog
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 
@@ -84,6 +85,12 @@ class PostRegistrationEnterBackupKeyFragment : ComposeFragment() {
   }
 }
 
+/**
+ * The restore errors, as full-screen Light notices.
+ *
+ * Each was a cancelable `SimpleAlertDialog` whose buttons cleared the error first: "Try again" did
+ * only that, "Recovery key help" then opened the help page. BACK clears it, as cancelling did.
+ */
 @Composable
 private fun ErrorContent(
   errorDialog: PostRegistrationEnterBackupKeyViewModel.ErrorDialog?,
@@ -94,63 +101,53 @@ private fun ErrorContent(
     return
   }
 
-  when (errorDialog) {
-    PostRegistrationEnterBackupKeyViewModel.ErrorDialog.AEP_INVALID -> {
-      Dialogs.SimpleAlertDialog(
-        title = stringResource(R.string.EnterBackupKey_incorrect_backup_key_title),
-        body = stringResource(R.string.EnterBackupKey_incorrect_backup_key_message),
-        confirm = stringResource(R.string.EnterBackupKey_try_again),
-        dismiss = stringResource(R.string.EnterBackupKey_backup_key_help),
-        onConfirm = {},
-        onDeny = onBackupKeyHelp,
-        onDismiss = onDismiss
-      )
-    }
+  val (title, message, offersHelp) = when (errorDialog) {
+    PostRegistrationEnterBackupKeyViewModel.ErrorDialog.AEP_INVALID -> Triple(
+      R.string.EnterBackupKey_incorrect_backup_key_title,
+      R.string.EnterBackupKey_incorrect_backup_key_message,
+      true
+    )
 
-    PostRegistrationEnterBackupKeyViewModel.ErrorDialog.BACKUP_NOT_FOUND -> {
-      Dialogs.SimpleAlertDialog(
-        title = stringResource(R.string.EnterBackupKey_backup_not_found),
-        body = stringResource(R.string.EnterBackupKey_backup_key_you_entered_is_correct_but_no_backup),
-        confirm = stringResource(R.string.EnterBackupKey_try_again),
-        dismiss = stringResource(R.string.EnterBackupKey_backup_key_help),
-        onConfirm = {},
-        onDeny = onBackupKeyHelp,
-        onDismiss = onDismiss
-      )
-    }
+    PostRegistrationEnterBackupKeyViewModel.ErrorDialog.BACKUP_NOT_FOUND -> Triple(
+      R.string.EnterBackupKey_backup_not_found,
+      R.string.EnterBackupKey_backup_key_you_entered_is_correct_but_no_backup,
+      true
+    )
 
-    PostRegistrationEnterBackupKeyViewModel.ErrorDialog.UNKNOWN_ERROR -> {
-      Dialogs.SimpleAlertDialog(
-        title = stringResource(R.string.EnterBackupKey_cant_restore_backup),
-        body = stringResource(R.string.EnterBackupKey_your_backup_cant_be_restored_right_now),
-        confirm = stringResource(R.string.EnterBackupKey_try_again),
-        onConfirm = {},
-        onDismiss = onDismiss
-      )
-    }
+    PostRegistrationEnterBackupKeyViewModel.ErrorDialog.UNKNOWN_ERROR -> Triple(
+      R.string.EnterBackupKey_cant_restore_backup,
+      R.string.EnterBackupKey_your_backup_cant_be_restored_right_now,
+      false
+    )
 
-    PostRegistrationEnterBackupKeyViewModel.ErrorDialog.BACKUPS_NOT_ENABLED -> {
-      Dialogs.SimpleAlertDialog(
-        title = stringResource(R.string.EnterBackupKey_backup_not_found),
-        body = stringResource(R.string.EnterBackupKey_backup_key_incorrect_or_backups_not_enabled),
-        confirm = stringResource(R.string.EnterBackupKey_try_again),
-        dismiss = stringResource(R.string.EnterBackupKey_backup_key_help),
-        onConfirm = {},
-        onDeny = onBackupKeyHelp,
-        onDismiss = onDismiss
-      )
-    }
+    PostRegistrationEnterBackupKeyViewModel.ErrorDialog.BACKUPS_NOT_ENABLED -> Triple(
+      R.string.EnterBackupKey_backup_not_found,
+      R.string.EnterBackupKey_backup_key_incorrect_or_backups_not_enabled,
+      true
+    )
 
-    PostRegistrationEnterBackupKeyViewModel.ErrorDialog.RATE_LIMITED -> {
-      Dialogs.SimpleAlertDialog(
-        title = stringResource(R.string.EnterBackupKey_backup_not_found),
-        body = stringResource(R.string.EnterBackupKey_backup_key_check_rate_limited),
-        confirm = stringResource(R.string.EnterBackupKey_try_again),
-        dismiss = stringResource(R.string.EnterBackupKey_backup_key_help),
-        onConfirm = {},
-        onDeny = onBackupKeyHelp,
-        onDismiss = onDismiss
-      )
-    }
+    PostRegistrationEnterBackupKeyViewModel.ErrorDialog.RATE_LIMITED -> Triple(
+      R.string.EnterBackupKey_backup_not_found,
+      R.string.EnterBackupKey_backup_key_check_rate_limited,
+      true
+    )
   }
+
+  RegistrationNoticeDialog(
+    title = stringResource(title),
+    message = stringResource(message),
+    actions = buildList {
+      if (offersHelp) {
+        add(
+          PhoneNumberNoticeAction(stringResource(R.string.EnterBackupKey_backup_key_help)) {
+            onDismiss()
+            onBackupKeyHelp()
+          }
+        )
+      }
+      add(PhoneNumberNoticeAction(stringResource(R.string.EnterBackupKey_try_again), onDismiss))
+    },
+    onBack = onDismiss,
+    backDescription = stringResource(R.string.EnterBackupKey__back_to_recovery_key)
+  )
 }

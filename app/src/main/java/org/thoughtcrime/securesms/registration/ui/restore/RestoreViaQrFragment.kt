@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,16 +26,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -60,7 +64,6 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.ui.compose.horizontalGutters
@@ -70,9 +73,12 @@ import org.thoughtcrime.securesms.components.settings.app.usernamelinks.QrCode
 import org.thoughtcrime.securesms.components.settings.app.usernamelinks.QrCodeData
 import org.thoughtcrime.securesms.registration.data.network.RegisterAccountResult
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
+import org.thoughtcrime.securesms.registration.ui.phonenumber.PhoneNumberNoticeAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBack
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBusyDialog
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationNoticeDialog
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreenSubtitle
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
@@ -229,9 +235,12 @@ private fun RestoreViaQrScreen(
             }
 
             RestoreViaQrViewModel.QrState.Loading -> {
-              CircularProgressIndicator(
-                modifier = Modifier.size(3f.gridUnitsAsDp()),
-                color = Color.Black
+              // The Light grammar's progress affordance, black on the QR code's white square.
+              LightText(
+                text = "…",
+                variant = LightTextVariant.Button,
+                color = Color.Black,
+                modifier = Modifier.semantics { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate }
               )
             }
 
@@ -293,7 +302,7 @@ private fun RestoreViaQrScreen(
     }
 
     if (state.isRegistering) {
-      Dialogs.IndeterminateProgressDialog()
+      RegistrationBusyDialog()
     } else if (state.showRegistrationError) {
       val message = when (state.registerAccountResult) {
         is RegisterAccountResult.IncorrectRecoveryPassword -> stringResource(R.string.RestoreViaQr_registration_error)
@@ -301,10 +310,13 @@ private fun RestoreViaQrScreen(
         else -> stringResource(R.string.RegistrationActivity_error_connecting_to_service)
       }
 
-      Dialogs.SimpleMessageDialog(
+      // Untitled upstream, so the top bar names the step. Cancelable upstream, so BACK dismisses.
+      RegistrationNoticeDialog(
+        title = stringResource(R.string.RestoreViaQr_top_bar_title),
         message = message,
-        onDismiss = onRegistrationErrorDismiss,
-        dismiss = stringResource(android.R.string.ok)
+        actions = listOf(PhoneNumberNoticeAction(stringResource(android.R.string.ok), onRegistrationErrorDismiss)),
+        onBack = onRegistrationErrorDismiss,
+        backDescription = stringResource(R.string.RestoreViaQr__back_to_qr_code)
       )
     }
   }
@@ -382,18 +394,21 @@ private fun InstructionRow(
   Row(
     modifier = Modifier.padding(vertical = 0.75f.gridUnitsAsDp())
   ) {
-    Icon(
+    // Signal's step artwork, tinted to the content colour as `LightIcon` tints the SDK's glyphs:
+    // the SDK has no phone, backup, camera or QR glyph to use instead.
+    Image(
       painter = icon,
+      colorFilter = ColorFilter.tint(LightThemeTokens.colors.content),
       contentDescription = null,
-      tint = LightThemeTokens.colors.contentSecondary
+      contentScale = ContentScale.Fit,
+      modifier = Modifier.size(2f.gridUnitsAsDp())
     )
 
     Spacer(modifier = Modifier.width(1f.gridUnitsAsDp()))
 
     LightText(
       text = instruction,
-      variant = LightTextVariant.Paragraph,
-      lighten = true
+      variant = LightTextVariant.Paragraph
     )
   }
 }

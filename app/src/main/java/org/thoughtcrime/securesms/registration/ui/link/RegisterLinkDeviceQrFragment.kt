@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,16 +23,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -59,15 +63,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.SignalIcons
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.app.usernamelinks.QrCode
 import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
+import org.thoughtcrime.securesms.registration.ui.phonenumber.PhoneNumberNoticeAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBusyDialog
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationNoticeDialog
 
 /**
  * Presents a QR code the user's existing Signal device can scan to link this LP3 as a linked device.
@@ -184,9 +190,12 @@ private fun RegisterLinkDeviceQrScreen(
                 }
 
                 RegisterLinkDeviceQrViewModel.QrState.Loading -> {
-                  CircularProgressIndicator(
-                    modifier = Modifier.size(3f.gridUnitsAsDp()),
-                    color = Color.Black
+                  // The Light grammar's progress affordance, black on the QR code's white square.
+                  LightText(
+                    text = "…",
+                    variant = LightTextVariant.Button,
+                    color = Color.Black,
+                    modifier = Modifier.semantics { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate }
                   )
                 }
 
@@ -248,12 +257,11 @@ private fun RegisterLinkDeviceQrScreen(
     }
 
     if (state.isRegistering) {
-      Dialogs.IndeterminateProgressDialog()
+      RegistrationBusyDialog()
     } else if (state.showProvisioningError) {
-      Dialogs.SimpleMessageDialog(
+      LinkDeviceErrorNotice(
         message = stringResource(R.string.RegisterLinkDeviceQrFragment__provisioning_error),
-        onDismiss = onErrorDismiss,
-        dismiss = stringResource(android.R.string.ok)
+        onDismiss = onErrorDismiss
       )
     } else if (state.registrationErrorResult != null) {
       val message = when (state.registrationErrorResult) {
@@ -266,13 +274,21 @@ private fun RegisterLinkDeviceQrScreen(
         is RegisterLinkDeviceResult.UnexpectedException -> stringResource(R.string.RegisterLinkDeviceQrFragment__error_unexpected)
         RegisterLinkDeviceResult.Success -> throw IllegalStateException()
       }
-      Dialogs.SimpleMessageDialog(
-        message = message,
-        onDismiss = onErrorDismiss,
-        dismiss = stringResource(android.R.string.ok)
-      )
+      LinkDeviceErrorNotice(message = message, onDismiss = onErrorDismiss)
     }
   }
+}
+
+/** Untitled upstream, so the top bar names the step. Cancelable upstream, so BACK dismisses. */
+@Composable
+private fun LinkDeviceErrorNotice(message: String, onDismiss: () -> Unit) {
+  RegistrationNoticeDialog(
+    title = stringResource(R.string.RegisterLinkDeviceQrFragment__link_device),
+    message = message,
+    actions = listOf(PhoneNumberNoticeAction(stringResource(android.R.string.ok), onDismiss)),
+    onBack = onDismiss,
+    backDescription = stringResource(R.string.RegisterLinkDeviceQrFragment__back_to_link_device)
+  )
 }
 
 @Composable
@@ -286,10 +302,12 @@ private fun InstructionRow(
       .fillMaxWidth()
       .padding(vertical = 0.75f.gridUnitsAsDp())
   ) {
-    Icon(
+    // Signal's step artwork, tinted to the content colour as `LightIcon` tints the SDK's glyphs.
+    Image(
       painter = icon,
+      colorFilter = ColorFilter.tint(LightThemeTokens.colors.content),
       contentDescription = null,
-      tint = LightThemeTokens.colors.contentSecondary,
+      contentScale = ContentScale.Fit,
       modifier = Modifier.size(1.5f.gridUnitsAsDp())
     )
 

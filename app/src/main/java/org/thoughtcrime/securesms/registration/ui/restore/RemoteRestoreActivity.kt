@@ -36,7 +36,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.thelightphone.sdk.ui.LightBarButton
 import com.thelightphone.sdk.ui.LightBottomBar
 import com.thelightphone.sdk.ui.LightProgressBar
@@ -75,6 +74,8 @@ import org.thoughtcrime.securesms.components.contactsupport.ContactSupportViewMo
 import org.thoughtcrime.securesms.components.contactsupport.SendSupportEmailEffect
 import org.thoughtcrime.securesms.conversation.v2.registerForLifecycle
 import org.thoughtcrime.securesms.keyvalue.SignalStore
+import org.thoughtcrime.securesms.light.LightConfirmAction
+import org.thoughtcrime.securesms.light.LightConfirmDialog
 import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.light.rememberMollyLightColors
 import org.thoughtcrime.securesms.registration.util.RegistrationUtil
@@ -245,17 +246,29 @@ class RemoteRestoreActivity : BaseActivity() {
     }
   }
 
+  /**
+   * Window-hosted, like the Material dialog it replaces, so it covers whichever restore state is on
+   * screen. Not cancelable: OK is the only way out, and it dismisses before it leaves, as the
+   * Material button did.
+   */
   private fun showUnregisteredDialog() {
-    MaterialAlertDialogBuilder(this)
-      .setTitle(R.string.RestoreActivity__no_longer_registered_title)
-      .setMessage(R.string.RestoreActivity__no_longer_registered_message)
-      .setCancelable(false)
-      .setPositiveButton(android.R.string.ok) { _, _ ->
-        viewModel.skipRestore()
-        startActivity(MainActivity.clearTop(this))
-        supportFinishAfterTransition()
-      }
-      .show()
+    val dialog = LightConfirmDialog.create(
+      context = this,
+      title = getString(R.string.RestoreActivity__no_longer_registered_title),
+      message = getString(R.string.RestoreActivity__no_longer_registered_message),
+      cancelable = false
+    )
+    dialog.setActions(
+      listOf(
+        LightConfirmAction(getString(android.R.string.ok)) {
+          dialog.dismiss()
+          viewModel.skipRestore()
+          startActivity(MainActivity.clearTop(this))
+          supportFinishAfterTransition()
+        }
+      )
+    )
+    dialog.show()
   }
 
   enum class ContactSupportReason {
@@ -375,9 +388,11 @@ private fun BackupAvailableContent(
       )
 
       if (state.backupTier != null) {
+        // A caption over the list, not an in-body heading: the screen's title is in the top bar.
         LightText(
           text = stringResource(R.string.RemoteRestoreActivity__your_backup_includes),
-          variant = LightTextVariant.Heading,
+          variant = LightTextVariant.Detail,
+          lighten = true,
           modifier = Modifier.padding(top = 1.5f.gridUnitsAsDp(), bottom = 0.35f.gridUnitsAsDp())
         )
         getFeatures(state.backupTier, state.backupMediaTTL).forEach { feature ->
@@ -392,7 +407,6 @@ private fun BackupAvailableContent(
       LightText(
         text = stringResource(R.string.RemoteRestoreActivity__your_media_will_restore_in_the_background),
         variant = LightTextVariant.Paragraph,
-        lighten = true,
         modifier = Modifier.padding(top = 1.25f.gridUnitsAsDp(), bottom = 1f.gridUnitsAsDp())
       )
     }
@@ -590,7 +604,6 @@ private fun LightRestoreStatus(title: String, message: String) {
       text = message,
       variant = LightTextVariant.Paragraph,
       align = TextAlign.Center,
-      lighten = true,
       modifier = Modifier.padding(top = 0.75f.gridUnitsAsDp())
     )
   }
@@ -657,7 +670,6 @@ private fun LightRemoteActionScreen(
         text = message,
         variant = LightTextVariant.Paragraph,
         align = TextAlign.Center,
-        lighten = true,
         modifier = Modifier.padding(top = 0.75f.gridUnitsAsDp())
       )
     }

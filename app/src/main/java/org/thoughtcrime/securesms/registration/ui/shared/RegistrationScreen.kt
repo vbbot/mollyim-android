@@ -22,10 +22,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -291,27 +291,35 @@ fun RegistrationScreen(
 
 /**
  * The explanatory copy under the top bar. An [AnnotatedString] so that callers' link and style
- * spans survive; rendered at the Light `Copy` size, scaled for the screen as `LightText` would.
+ * spans survive, which `LightText` (a plain `String`) cannot carry.
+ *
+ * Rendered at the Light `Paragraph` size in the full content colour -- the one size every
+ * registration screen uses for a block of prose -- scaled for the screen as `LightText` would, since
+ * this draws the token itself rather than going through `LightText`.
  */
 @Composable
 fun RegistrationScreenSubtitle(subtitle: AnnotatedString?) {
   if (subtitle != null) {
-    val copyStyle = LightThemeTokens.typography.copy.let { style ->
-      style.copy(
-        fontSize = style.fontSize.scaledDesignTextUnit(),
-        lineHeight = style.lineHeight.scaledDesignTextUnit(),
-        letterSpacing = style.letterSpacing.scaledDesignTextUnit()
-      )
-    }
-    Text(
+    BasicText(
       text = subtitle,
-      style = copyStyle,
-      color = LightThemeTokens.colors.content,
+      style = registrationParagraphStyle().copy(color = LightThemeTokens.colors.content),
       modifier = Modifier.fillMaxWidth()
     )
   }
 
   Spacer(modifier = Modifier.height(1.5f.gridUnitsAsDp()))
+}
+
+/** The SDK's `Paragraph` token with the LP3 screen-height scale applied, as `LightText` renders it. */
+@Composable
+private fun registrationParagraphStyle(): TextStyle {
+  return LightThemeTokens.typography.paragraph.let { style ->
+    style.copy(
+      fontSize = style.fontSize.scaledDesignTextUnit(),
+      lineHeight = style.lineHeight.scaledDesignTextUnit(),
+      letterSpacing = style.letterSpacing.scaledDesignTextUnit()
+    )
+  }
 }
 
 /**

@@ -10,8 +10,10 @@ import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsEnabled
@@ -23,11 +25,16 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.text.TextLayoutResult
 import assertk.assertThat
+import assertk.assertions.isCloseTo
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNull
 import assertk.assertions.isTrue
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.designVerticalPxToSp
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,6 +44,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.signal.core.ui.CoreUiDependenciesRule
 import org.thoughtcrime.securesms.ChangePassphraseDialogFragment
+import org.thoughtcrime.securesms.light.MollyLightTheme
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -54,6 +62,7 @@ class ChangePassphraseScreenTest {
   private var backClicks = 0
   private var submitClicks = 0
   private lateinit var hostView: View
+  private var paragraphSp = 0f
 
   private val passwordFields = SemanticsMatcher.keyIsDefined(SemanticsProperties.Password)
 
@@ -194,9 +203,20 @@ class ChangePassphraseScreenTest {
     assertThat(view.importantForAutofill).isEqualTo(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS)
   }
 
+  /** The explanation is prose, so the SDK's `Paragraph` token, scaled for the LP3 as `LightText` scales it. */
+  @Test
+  fun `the explanation is a Paragraph`() {
+    setScreen(ChangePassphraseDialogFragment.MODE_ENABLE)
+
+    assertThat(composeTestRule.onNodeWithText("Please choose a passphrase", substring = true).fontSizeSp()).isCloseTo(paragraphSp, 0.01f)
+  }
+
   private fun setScreen(mode: Int) {
     composeTestRule.setContent {
       hostView = LocalView.current
+      MollyLightTheme {
+        paragraphSp = LightThemeTokens.typography.paragraph.fontSize.value.designVerticalPxToSp().value
+      }
       ChangePassphraseScreen(
         form = ChangePassphraseForm.forMode(mode),
         state = state,
@@ -204,5 +224,16 @@ class ChangePassphraseScreenTest {
         onSubmit = { submitClicks++ },
       )
     }
+  }
+
+  private fun SemanticsNodeInteraction.fontSizeSp(): Float {
+    var sp = Float.NaN
+    performSemanticsAction(SemanticsActions.GetTextLayoutResult) { fetch ->
+      val results = mutableListOf<TextLayoutResult>()
+      fetch(results)
+      sp = results.first().layoutInput.style.fontSize.value
+      true
+    }
+    return sp
   }
 }

@@ -12,8 +12,10 @@ import androidx.compose.ui.res.stringResource
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.registration.ui.phonenumber.PhoneNumberNoticeAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationNoticeDialog
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
 
 /** Screen showing the restore methods available in the active registration flow. */
@@ -47,6 +49,34 @@ fun SelectRestoreMethodScreen(
 
     extraContent()
   }
+}
+
+/**
+ * The "Skip restore?" warning, as a full-screen Light notice.
+ *
+ * Upstream's dialog had Cancel and a red Skip restore, and ignored back and outside taps. A notice
+ * cannot refuse BACK, so BACK cancels, which is the harmless exit. Each action dismisses before it
+ * acts, as the dialog's buttons did. Skipping is the destructive choice, so it is listed last.
+ */
+@Composable
+fun SkipRestoreWarning(
+  onSkip: () -> Unit,
+  onDismiss: () -> Unit,
+  backDescription: String = stringResource(R.string.SelectRestoreMethodFragment__back_to_restore_options)
+) {
+  RegistrationNoticeDialog(
+    title = stringResource(R.string.SelectRestoreMethodFragment__skip_restore_title),
+    message = stringResource(R.string.SelectRestoreMethodFragment__skip_restore_warning),
+    actions = listOf(
+      PhoneNumberNoticeAction(stringResource(android.R.string.cancel), onDismiss),
+      PhoneNumberNoticeAction(stringResource(R.string.SelectRestoreMethodFragment__skip_restore)) {
+        onDismiss()
+        onSkip()
+      }
+    ),
+    onBack = onDismiss,
+    backDescription = backDescription
+  )
 }
 
 @DayNightPreviews

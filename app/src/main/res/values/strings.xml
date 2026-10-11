@@ -10053,5 +10053,28 @@
     <!-- Screen-reader label for the back icon on an error notice over the verification code screen -->
     <string name="EnterCodeFragment__back_to_verification_code">Back to verification code</string>
 
+    <!-- Restore and recovery key (Light) -->
+    <!-- Accessibility label for the back icon on a notice raised over the recovery key screen (an error, or the "No recovery key?" panel); closes the notice and returns to the recovery key field -->
+    <string name="EnterBackupKey__back_to_recovery_key">Back to recovery key</string>
+    <!-- Accessibility label for the back icon on an error notice over the screen that shows the QR code for restoring from an old phone; closes the notice and returns to the QR code -->
+    <string name="RestoreViaQr__back_to_qr_code">Back to QR code</string>
+    <!-- Accessibility label for the back icon on an error notice over the "No backup to restore" screen; closes the notice and returns to that screen -->
+    <string name="NoBackupToRestore__back_to_no_backup">Back to restore steps</string>
+    <!-- Accessibility label for the back icon on the "Skip restore?" notice; closes it and returns to the list of restore options -->
+    <string name="SelectRestoreMethodFragment__back_to_restore_options">Back to restore options</string>
+    <!-- Action on the "Submit debug log?" notice: contact support and attach a debug log. Kept short: it must fit on one line in capitals on a small screen -->
+    <string name="ContactSupportDialog__include_log">Include log</string>
+    <!-- Action on the "Submit debug log?" notice: contact support without attaching a debug log. Kept short: it must fit on one line in capitals on a small screen -->
+    <string name="ContactSupportDialog__skip_log">Skip log</string>
+    <!-- Status line shown full screen while the debug log is collected and uploaded, before the support email opens -->
+    <string name="ContactSupportDialog__preparing_debug_log">Preparing debug log…</string>
+    <!-- Top bar title of the help screen offered when the user is having trouble with their verification code. Kept short: it sits in a narrow top bar -->
+    <string name="ContactSupportBottomSheetFragment__having_trouble">Having trouble?</string>
+    <!-- Action on the "Having trouble?" help screen that opens the support site's troubleshooting steps. Kept short: it must fit on one line in capitals on a small screen -->
+    <string name="ContactSupportBottomSheetFragment__troubleshoot">Troubleshoot</string>
+
+    <!-- Screen-reader label for the back icon on an error notice over the link-device QR screen -->
+    <string name="RegisterLinkDeviceQrFragment__back_to_link_device">Back to link device</string>
+
     <!-- EOF -->
 </resources>

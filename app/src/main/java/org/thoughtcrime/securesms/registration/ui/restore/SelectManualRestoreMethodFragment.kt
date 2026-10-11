@@ -8,20 +8,15 @@ package org.thoughtcrime.securesms.registration.ui.restore
 import android.app.Activity
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.window.DialogProperties
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import org.signal.core.ui.compose.ComposeFragment
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.util.logging.Log
-import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
 import org.thoughtcrime.securesms.registration.ui.phonenumber.EnterPhoneNumberMode
 import org.thoughtcrime.securesms.restore.RestoreActivity
@@ -72,18 +67,12 @@ class SelectManualRestoreMethodFragment : ComposeFragment() {
       }
     ) {
       if (showSkipRestoreWarning) {
-        Dialogs.SimpleAlertDialog(
-          title = stringResource(R.string.SelectRestoreMethodFragment__skip_restore_title),
-          body = stringResource(R.string.SelectRestoreMethodFragment__skip_restore_warning),
-          confirm = stringResource(R.string.SelectRestoreMethodFragment__skip_restore),
-          dismiss = stringResource(android.R.string.cancel),
-          onConfirm = {
+        SkipRestoreWarning(
+          onSkip = {
             sharedViewModel.skipRestore()
             findNavController().safeNavigate(SelectManualRestoreMethodFragmentDirections.goToEnterPhoneNumber(EnterPhoneNumberMode.NORMAL))
           },
-          onDismiss = { showSkipRestoreWarning = false },
-          confirmColor = MaterialTheme.colorScheme.error,
-          properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+          onDismiss = { showSkipRestoreWarning = false }
         )
       }
     }

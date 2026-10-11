@@ -11,9 +11,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Previews
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.registration.ui.phonenumber.PhoneNumberNoticeAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBusyDialog
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationNoticeDialog
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.SupportEmailUtil
 
@@ -35,7 +37,15 @@ interface ContactSupportCallbacks {
 }
 
 /**
- * Three-option contact support dialog.
+ * Three-option contact support notice.
+ *
+ * A full-screen Light notice in its own window, so it covers the screen from wherever a caller
+ * composes it, as the Material dialog did. The actions are the dialog's three buttons top to bottom
+ * (include the debug log, leave it out, cancel), shortened to fit on one line in capitals; the
+ * dialog's own title and explanation say what they choose between. Like the dialog, an action does
+ * not dismiss anything itself -- [callbacks] owns that -- and BACK cancels.
+ *
+ * While the debug log is being collected it is a full-screen status line instead of a spinner.
  */
 @Composable
 fun ContactSupportDialog(
@@ -43,17 +53,18 @@ fun ContactSupportDialog(
   callbacks: ContactSupportCallbacks
 ) {
   if (showInProgress) {
-    Dialogs.IndeterminateProgressDialog()
+    RegistrationBusyDialog(message = stringResource(R.string.ContactSupportDialog__preparing_debug_log))
   } else {
-    Dialogs.AdvancedAlertDialog(
+    RegistrationNoticeDialog(
       title = stringResource(R.string.ContactSupportDialog_submit_debug_log),
-      body = stringResource(R.string.ContactSupportDialog_your_debug_logs),
-      positive = stringResource(R.string.ContactSupportDialog_submit_with_debug),
-      onPositive = { callbacks.submitWithDebuglog() },
-      neutral = stringResource(R.string.ContactSupportDialog_submit_without_debug),
-      onNeutral = { callbacks.submitWithoutDebuglog() },
-      negative = stringResource(android.R.string.cancel),
-      onNegative = { callbacks.cancel() }
+      message = stringResource(R.string.ContactSupportDialog_your_debug_logs),
+      actions = listOf(
+        PhoneNumberNoticeAction(stringResource(R.string.ContactSupportDialog__include_log)) { callbacks.submitWithDebuglog() },
+        PhoneNumberNoticeAction(stringResource(R.string.ContactSupportDialog__skip_log)) { callbacks.submitWithoutDebuglog() },
+        PhoneNumberNoticeAction(stringResource(android.R.string.cancel)) { callbacks.cancel() }
+      ),
+      onBack = { callbacks.cancel() },
+      backDescription = stringResource(android.R.string.cancel)
     )
   }
 }

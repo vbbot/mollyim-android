@@ -18,7 +18,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.Navigation
 import androidx.navigation.fragment.NavHostFragment
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -33,6 +32,8 @@ import org.thoughtcrime.securesms.RestoreDirections
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.keyvalue.isWantingManualRemoteRestore
 import org.thoughtcrime.securesms.keyvalue.isWantingNewLocalBackupRestore
+import org.thoughtcrime.securesms.light.LightConfirmAction
+import org.thoughtcrime.securesms.light.LightConfirmDialog
 import org.thoughtcrime.securesms.registration.ui.restore.RemoteRestoreActivity
 import org.thoughtcrime.securesms.registration.ui.restore.local.RestoreLocalBackupActivity
 import org.thoughtcrime.securesms.util.DynamicNoActionBarTheme
@@ -162,17 +163,28 @@ class RestoreActivity : BaseActivity() {
     finish()
   }
 
+  /**
+   * A full-screen Light notice in its own window, over whichever restore screen is up. Not
+   * cancelable: OK is the only way out, and it dismisses before it leaves, as the Material button did.
+   */
   private fun showUnregisteredDialog() {
-    MaterialAlertDialogBuilder(this)
-      .setTitle(R.string.RestoreActivity__no_longer_registered_title)
-      .setMessage(R.string.RestoreActivity__no_longer_registered_message)
-      .setCancelable(false)
-      .setPositiveButton(android.R.string.ok) { _, _ ->
-        sharedViewModel.skipRestore()
-        startActivity(MainActivity.clearTop(this))
-        supportFinishAfterTransition()
-      }
-      .show()
+    val dialog = LightConfirmDialog.create(
+      context = this,
+      title = getString(R.string.RestoreActivity__no_longer_registered_title),
+      message = getString(R.string.RestoreActivity__no_longer_registered_message),
+      cancelable = false
+    )
+    dialog.setActions(
+      listOf(
+        LightConfirmAction(getString(android.R.string.ok)) {
+          dialog.dismiss()
+          sharedViewModel.skipRestore()
+          startActivity(MainActivity.clearTop(this))
+          supportFinishAfterTransition()
+        }
+      )
+    )
+    dialog.show()
   }
 
   companion object {

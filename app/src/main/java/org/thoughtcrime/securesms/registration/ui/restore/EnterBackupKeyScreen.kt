@@ -5,31 +5,15 @@
 
 package org.thoughtcrime.securesms.registration.ui.restore
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,28 +21,23 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thelightphone.sdk.ui.LightThemeTokens
 import com.thelightphone.sdk.ui.gridUnitsAsDp
-import kotlinx.coroutines.launch
 import org.signal.core.models.AccountEntropyPool
-import org.signal.core.ui.compose.BottomSheets
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.horizontalGutters
 import org.thoughtcrime.securesms.R
-import org.thoughtcrime.securesms.backup.v2.ui.BackupsIconColors
 import org.thoughtcrime.securesms.components.TemporaryScreenshotSecurity
 import org.thoughtcrime.securesms.fonts.MonoTypeface
+import org.thoughtcrime.securesms.registration.ui.phonenumber.PhoneNumberNoticeAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationNoticeDialog
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationProgress
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationTextField
@@ -66,7 +45,6 @@ import org.thoughtcrime.securesms.registration.ui.shared.RegistrationTextField
 /**
  * Shared screen infrastructure for entering an [AccountEntropyPool].
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnterBackupKeyScreen(
   isDisplayedDuringManualRestore: Boolean,
@@ -83,10 +61,7 @@ fun EnterBackupKeyScreen(
 ) {
   TemporaryScreenshotSecurity.bind()
 
-  val coroutineScope = rememberCoroutineScope()
-  val sheetState = rememberModalBottomSheetState(
-    skipPartiallyExpanded = true
-  )
+  var showNoBackupKey by remember { mutableStateOf(false) }
 
   RegistrationScreen(
     title = stringResource(R.string.EnterBackupKey_title),
@@ -97,11 +72,7 @@ fun EnterBackupKeyScreen(
           left = RegistrationAction(
             label = stringResource(id = R.string.EnterBackupKey_no_backup_key),
             enabled = !inProgress,
-            onClick = {
-              coroutineScope.launch {
-                sheetState.show()
-              }
-            }
+            onClick = { showNoBackupKey = true }
           ),
           right = if (inProgress) {
             null
@@ -182,26 +153,13 @@ fun EnterBackupKeyScreen(
         }
     )
 
-    if (sheetState.isVisible) {
-      ModalBottomSheet(
-        dragHandle = null,
-        onDismissRequest = {
-          coroutineScope.launch {
-            sheetState.hide()
-          }
-        }
-      ) {
-        NoBackupKeyBottomSheet(
-          onLearnMore = {
-            coroutineScope.launch {
-              sheetState.hide()
-            }
-            onLearnMore()
-          },
-          onSkip = onSkip,
-          showSecondParagraph = isDisplayedDuringManualRestore
-        )
-      }
+    if (showNoBackupKey) {
+      NoBackupKeyNotice(
+        showSecondParagraph = isDisplayedDuringManualRestore,
+        onLearnMore = onLearnMore,
+        onSkip = onSkip,
+        onDismiss = { showNoBackupKey = false }
+      )
     }
 
     dialogContent()
@@ -238,100 +196,44 @@ private fun EnterBackupKeyScreenErrorPreview() {
   }
 }
 
+/**
+ * "No recovery key?", as a full-screen Light notice in place of the Material bottom sheet.
+ *
+ * The sheet's key artwork in a green disc has no Light counterpart and is dropped; its heading is
+ * the top bar title, its paragraphs the notice copy, and its two buttons the notice's actions in the
+ * same order. Each action takes the notice down before it runs, as a Light panel does -- the sheet
+ * only hid itself for "Learn more", but "Skip" goes on to a confirmation or leaves the screen, and
+ * neither should find the notice still up behind it. BACK closes it, as dismissing the sheet did.
+ */
 @Composable
-private fun NoBackupKeyBottomSheet(
+fun NoBackupKeyNotice(
   showSecondParagraph: Boolean,
-  onLearnMore: () -> Unit = {},
-  onSkip: () -> Unit = {}
+  onLearnMore: () -> Unit,
+  onSkip: () -> Unit,
+  onDismiss: () -> Unit
 ) {
-  Column(
-    horizontalAlignment = Alignment.CenterHorizontally,
-    modifier = Modifier
-      .fillMaxWidth()
-      .horizontalGutters()
-  ) {
-    BottomSheets.Handle()
+  val message = if (showSecondParagraph) {
+    stringResource(R.string.EnterBackupKey_no_key_paragraph_1) + "\n\n" + stringResource(R.string.EnterBackupKey_no_key_paragraph_2)
+  } else {
+    stringResource(R.string.EnterBackupKey_no_key_paragraph_1)
+  }
 
-    Icon(
-      painter = painterResource(id = R.drawable.symbol_key_24),
-      tint = BackupsIconColors.Success.foreground,
-      contentDescription = null,
-      modifier = Modifier
-        .padding(top = 18.dp, bottom = 16.dp)
-        .size(88.dp)
-        .background(
-          color = BackupsIconColors.Success.background,
-          shape = CircleShape
-        )
-        .padding(20.dp)
-    )
-
-    Text(
-      text = stringResource(R.string.EnterBackupKey_no_backup_key),
-      style = MaterialTheme.typography.titleLarge
-    )
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    Text(
-      text = stringResource(R.string.EnterBackupKey_no_key_paragraph_1),
-      style = MaterialTheme.typography.bodyMedium.copy(textAlign = TextAlign.Center),
-      color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-
-    if (showSecondParagraph) {
-      Spacer(modifier = Modifier.height(24.dp))
-
-      Text(
-        text = stringResource(R.string.EnterBackupKey_no_key_paragraph_2),
-        style = MaterialTheme.typography.bodyMedium.copy(textAlign = TextAlign.Center),
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-      )
-    }
-
-    Spacer(modifier = Modifier.height(36.dp))
-
-    Row(
-      horizontalArrangement = Arrangement.SpaceBetween,
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(bottom = 24.dp)
-    ) {
-      TextButton(
-        onClick = onLearnMore
-      ) {
-        Text(
-          text = stringResource(id = R.string.EnterBackupKey_learn_more)
-        )
+  RegistrationNoticeDialog(
+    title = stringResource(R.string.EnterBackupKey_no_backup_key),
+    message = message,
+    actions = listOf(
+      PhoneNumberNoticeAction(stringResource(R.string.EnterBackupKey_learn_more)) {
+        onDismiss()
+        onLearnMore()
+      },
+      // "Skip and don't restore" does not fit on one line in capitals; the step's own short label
+      // says the same thing.
+      PhoneNumberNoticeAction(stringResource(R.string.EnterBackupKey_skip_restore)) {
+        onDismiss()
+        onSkip()
       }
-
-      TextButton(
-        onClick = onSkip
-      ) {
-        Text(
-          text = stringResource(id = R.string.EnterBackupKey_skip_and_dont_restore)
-        )
-      }
-    }
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun NoBackupKeyBottomSheetPreview() {
-  Previews.BottomSheetContentPreview {
-    NoBackupKeyBottomSheet(
-      showSecondParagraph = true
-    )
-  }
-}
-
-@DayNightPreviews
-@Composable
-private fun NoBackupKeyBottomSheetNoSecondParagraphPreview() {
-  Previews.BottomSheetContentPreview {
-    NoBackupKeyBottomSheet(
-      showSecondParagraph = false
-    )
-  }
+    ),
+    onBack = onDismiss,
+    backDescription = stringResource(R.string.EnterBackupKey__back_to_recovery_key)
+  )
 }

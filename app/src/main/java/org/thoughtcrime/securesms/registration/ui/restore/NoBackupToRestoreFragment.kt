@@ -7,19 +7,22 @@ package org.thoughtcrime.securesms.registration.ui.restore
 
 import android.os.Bundle
 import android.view.View
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.fragment.app.activityViewModels
@@ -36,15 +39,17 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.signal.core.ui.compose.ComposeFragment
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Previews
 import org.signal.core.ui.compose.SignalIcons
 import org.signal.registration.proto.RegistrationProvisionMessage
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.registration.data.network.RegisterAccountResult
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
+import org.thoughtcrime.securesms.registration.ui.phonenumber.PhoneNumberNoticeAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBusyDialog
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationNoticeDialog
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 import org.thoughtcrime.securesms.util.viewModel
@@ -141,7 +146,7 @@ private fun NoBackupToRestoreContent(
     }
 
     if (state.isRegistering) {
-      Dialogs.IndeterminateProgressDialog()
+      RegistrationBusyDialog()
     } else if (state.showRegistrationError) {
       val message = when (state.registerAccountResult) {
         is RegisterAccountResult.IncorrectRecoveryPassword -> stringResource(R.string.RestoreViaQr_registration_error)
@@ -149,10 +154,13 @@ private fun NoBackupToRestoreContent(
         else -> stringResource(R.string.RegistrationActivity_error_connecting_to_service)
       }
 
-      Dialogs.SimpleMessageDialog(
+      // Untitled upstream, so the top bar names the step. Cancelable upstream, so BACK dismisses.
+      RegistrationNoticeDialog(
+        title = stringResource(R.string.NoBackupToRestore_title),
         message = message,
-        onDismiss = onRegistrationErrorDismiss,
-        dismiss = stringResource(android.R.string.ok)
+        actions = listOf(PhoneNumberNoticeAction(stringResource(android.R.string.ok), onRegistrationErrorDismiss)),
+        onBack = onRegistrationErrorDismiss,
+        backDescription = stringResource(R.string.NoBackupToRestore__back_to_no_backup)
       )
     }
   }
@@ -166,18 +174,21 @@ private fun StepRow(
   Row(
     verticalAlignment = Alignment.CenterVertically
   ) {
-    Icon(
+    // Signal's step artwork, tinted to the content colour as `LightIcon` tints the SDK's glyphs:
+    // the SDK has no phone, backup, camera or QR glyph to use instead.
+    Image(
       painter = icon,
-      tint = LightThemeTokens.colors.contentSecondary,
-      contentDescription = null
+      colorFilter = ColorFilter.tint(LightThemeTokens.colors.content),
+      contentDescription = null,
+      contentScale = ContentScale.Fit,
+      modifier = Modifier.size(2f.gridUnitsAsDp())
     )
 
     Spacer(modifier = Modifier.width(1f.gridUnitsAsDp()))
 
     LightText(
       text = text,
-      variant = LightTextVariant.Paragraph,
-      lighten = true
+      variant = LightTextVariant.Paragraph
     )
   }
 }

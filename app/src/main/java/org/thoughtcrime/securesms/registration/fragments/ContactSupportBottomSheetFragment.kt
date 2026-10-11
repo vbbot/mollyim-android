@@ -1,142 +1,83 @@
 package org.thoughtcrime.securesms.registration.fragments
 
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.text.ClickableText
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentManager
-import org.signal.core.ui.compose.BottomSheets
-import org.signal.core.ui.compose.ComposeBottomSheetDialogFragment
+import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightIcons
+import com.thelightphone.sdk.ui.LightScrollBarPosition
+import com.thelightphone.sdk.ui.LightScrollView
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.LightThemeTokens
+import com.thelightphone.sdk.ui.LightTopBar
+import com.thelightphone.sdk.ui.LightTopBarCenter
+import com.thelightphone.sdk.ui.gridUnitsAsDp
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.light.LightTextAction
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.SupportEmailUtil
 
 /**
- * Helpful bottom sheet dialog displayed during registration when the user enters the wrong verification code too many times.
+ * Helpful screen displayed during registration when the user enters the wrong verification code too many times.
+ *
+ * This was a Material bottom sheet whose two ways onward were link spans inside a sentence. On the
+ * Light Phone it is a full-screen help page in its own window -- black to the edges, the title in the
+ * top bar beside BACK -- and the links are the page's two text actions, so each is a whole-width
+ * target rather than a few words of a paragraph. The class keeps its name and [showSafely] because
+ * both verification-code screens (registration and change number) hold one and raise it by that name.
+ *
+ * Neither action closes the page, as neither link closed the sheet: a user who comes back from the
+ * troubleshooting steps can still contact support. BACK and system back close it.
  */
-class ContactSupportBottomSheetFragment : ComposeBottomSheetDialogFragment() {
+class ContactSupportBottomSheetFragment : DialogFragment() {
 
-  @Preview
-  @Composable
-  override fun SheetContent() {
-    val annotatedText = buildClickableString()
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    setStyle(STYLE_NO_TITLE, 0)
+  }
 
-    return Column(
-      horizontalAlignment = Alignment.CenterHorizontally,
-      modifier = Modifier
-        .fillMaxWidth()
-        .wrapContentSize(Alignment.Center)
-        .padding(16.dp)
-    ) {
-      BottomSheets.Handle()
-      Text(
-        text = buildAnnotatedString {
-          withStyle(SpanStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)) {
-            append(stringResource(R.string.RegistrationActivity_support_bottom_sheet_title))
-          }
-        },
-        modifier = Modifier.padding(8.dp)
-      )
-      Text(
-        text = stringResource(R.string.RegistrationActivity_support_bottom_sheet_body_suggestions),
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.padding(8.dp)
-      )
-      ClickableText(
-        text = annotatedText,
-        onClick = { offset ->
-          annotatedText.getStringAnnotations(
-            tag = "URL",
-            start = offset,
-            end = offset
-          )
-            .firstOrNull()?.let { annotation ->
-              when (annotation.item) {
-                TROUBLESHOOTING_STEPS_KEY -> openTroubleshootingSteps()
-                CONTACT_SUPPORT_KEY -> sendEmailToSupport()
-              }
-            }
-        },
-        modifier = Modifier.padding(8.dp)
-      )
+  override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    return ComposeView(requireContext()).apply {
+      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+      setContent {
+        HavingTroubleScreen(
+          onBack = { dismissAllowingStateLoss() },
+          onTroubleshoot = { openTroubleshootingSteps() },
+          onContactSupport = { sendEmailToSupport() }
+        )
+      }
     }
   }
 
-  @Composable
-  private fun buildClickableString(): AnnotatedString {
-    val troubleshootingStepsString = stringResource(R.string.RegistrationActivity_support_bottom_sheet_cta_troubleshooting_steps_substring)
-    val contactSupportString = stringResource(R.string.RegistrationActivity_support_bottom_sheet_cta_contact_support_substring)
-    val completeString = stringResource(R.string.RegistrationActivity_support_bottom_sheet_body_call_to_action, troubleshootingStepsString, contactSupportString)
+  override fun onStart() {
+    super.onStart()
 
-    val troubleshootingStartIndex = completeString.indexOf(troubleshootingStepsString)
-    val troubleshootingEndIndex = troubleshootingStartIndex + troubleshootingStepsString.length
-
-    val contactSupportStartIndex = completeString.indexOf(contactSupportString)
-    val contactSupportEndIndex = contactSupportStartIndex + contactSupportString.length
-
-    val doesStringEndWithContactSupport = contactSupportEndIndex >= completeString.lastIndex
-
-    return buildAnnotatedString {
-      withStyle(
-        style = SpanStyle(
-          color = MaterialTheme.colorScheme.onSurface,
-          fontWeight = FontWeight.Normal
-        )
-      ) {
-        append(completeString.substring(0, troubleshootingStartIndex))
-      }
-      pushStringAnnotation(
-        tag = "URL",
-        annotation = TROUBLESHOOTING_STEPS_KEY
-      )
-      withStyle(
-        style = SpanStyle(
-          color = MaterialTheme.colorScheme.primary,
-          fontWeight = FontWeight.Bold
-        )
-      ) {
-        append(troubleshootingStepsString)
-      }
-      pop()
-      withStyle(
-        style = SpanStyle(
-          color = MaterialTheme.colorScheme.onSurface,
-          fontWeight = FontWeight.Normal
-        )
-      ) {
-        append(completeString.substring(troubleshootingEndIndex, contactSupportStartIndex))
-      }
-      pushStringAnnotation(
-        tag = "URL",
-        annotation = CONTACT_SUPPORT_KEY
-      )
-      withStyle(
-        style = SpanStyle(
-          color = MaterialTheme.colorScheme.primary,
-          fontWeight = FontWeight.Bold
-        )
-      ) {
-        append(contactSupportString)
-      }
-      pop()
-      if (!doesStringEndWithContactSupport) {
-        append(completeString.substring(contactSupportEndIndex, completeString.lastIndex))
-      }
+    // Full bleed, and black under the content: the default dialog window is a padded, rounded card.
+    // Only honoured once the window is up, so here rather than in onCreateDialog.
+    dialog?.window?.apply {
+      setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+      setBackgroundDrawable(ColorDrawable(Color.BLACK))
     }
   }
 
@@ -164,9 +105,67 @@ class ContactSupportBottomSheetFragment : ComposeBottomSheetDialogFragment() {
       show(fm, tag)
     }
   }
+}
 
-  companion object {
-    private const val TROUBLESHOOTING_STEPS_KEY = "troubleshooting"
-    private const val CONTACT_SUPPORT_KEY = "contact_support"
+/**
+ * The page itself, apart from the fragment so that its actions can be exercised without a window.
+ *
+ * The sheet's bold heading ("Having trouble registering?") becomes the top bar title, shortened to
+ * fit it; its suggestions are prose, so `Paragraph`; its closing sentence ("please follow these
+ * troubleshooting steps or Contact Support") is what the two actions now say.
+ */
+@Composable
+fun HavingTroubleScreen(
+  onBack: () -> Unit,
+  onTroubleshoot: () -> Unit,
+  onContactSupport: () -> Unit
+) {
+  MollyLightTheme {
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(LightThemeTokens.colors.background)
+    ) {
+      LightTopBar(
+        leftButton = LightBarButton.LightIcon(
+          icon = LightIcons.BACK,
+          onClick = onBack,
+          contentDescription = stringResource(R.string.EnterCodeFragment__back_to_verification_code)
+        ),
+        center = LightTopBarCenter.Text(text = stringResource(R.string.ContactSupportBottomSheetFragment__having_trouble)),
+        modifier = Modifier.statusBarsPadding()
+      )
+
+      LightScrollView(
+        scrollBarPosition = LightScrollBarPosition.Outside,
+        modifier = Modifier
+          .weight(1f)
+          .fillMaxWidth()
+          .navigationBarsPadding()
+      ) {
+        // Start padding only: the Outside scroll bar already reserves a 2 grid unit gutter at the end.
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 2f.gridUnitsAsDp(), top = 1f.gridUnitsAsDp(), bottom = 1f.gridUnitsAsDp())
+        ) {
+          LightText(
+            text = stringResource(R.string.RegistrationActivity_support_bottom_sheet_body_suggestions),
+            variant = LightTextVariant.Paragraph
+          )
+
+          Spacer(modifier = Modifier.height(1f.gridUnitsAsDp()))
+
+          LightTextAction(
+            label = stringResource(R.string.ContactSupportBottomSheetFragment__troubleshoot),
+            onClick = Runnable { onTroubleshoot() }
+          )
+          LightTextAction(
+            label = stringResource(R.string.RegistrationActivity_support_bottom_sheet_cta_contact_support_substring),
+            onClick = Runnable { onContactSupport() }
+          )
+        }
+      }
+    }
   }
 }
