@@ -10045,5 +10045,13 @@
     <!-- Accessibility label for the back icon on the registration permissions screen; returns to the welcome screen -->
     <string name="GrantPermissionsFragment__back_to_welcome">Back to the welcome screen</string>
 
+    <!-- EnterCodeFragment (Light) -->
+    <!-- Accessibility label for the back icon on the verification code screen; returns to the phone number screen -->
+    <string name="EnterCodeFragment__back_to_phone_number">Back to phone number</string>
+    <!-- Status line under the verification code field while the entered code is being checked. Lowercase, like the Light Phone's other progress copy -->
+    <string name="EnterCodeFragment__checking_code">checking code…</string>
+    <!-- Screen-reader label for the back icon on an error notice over the verification code screen -->
+    <string name="EnterCodeFragment__back_to_verification_code">Back to verification code</string>
+
     <!-- EOF -->
 </resources>

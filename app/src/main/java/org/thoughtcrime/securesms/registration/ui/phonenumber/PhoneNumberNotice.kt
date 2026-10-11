@@ -70,6 +70,8 @@ data class PhoneNumberNoticeModel(
   val actions: List<PhoneNumberNoticeAction>,
   val number: String? = null,
   val onBack: () -> Unit = {},
+  /** What BACK returns to, for screen readers. Null means the phone number form. */
+  val backDescription: String? = null,
 )
 
 /**
@@ -182,7 +184,7 @@ fun PhoneNumberNotice(
         leftButton = LightBarButton.LightIcon(
           icon = LightIcons.BACK,
           onClick = onBack,
-          contentDescription = stringResource(R.string.EnterPhoneNumberFragment__back_to_phone_number),
+          contentDescription = notice.backDescription ?: stringResource(R.string.EnterPhoneNumberFragment__back_to_phone_number),
         ),
         center = LightTopBarCenter.Text(text = notice.title),
         modifier = Modifier.statusBarsPadding(),
