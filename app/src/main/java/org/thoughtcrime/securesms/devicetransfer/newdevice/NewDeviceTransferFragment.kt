@@ -24,6 +24,10 @@ class NewDeviceTransferFragment : DeviceTransferFragment() {
   private val viewModel: NewDeviceTransferViewModel by viewModels()
   private val serverTaskListener = ServerTaskListener()
 
+  /** The new device is part of registration, so it draws the Light transfer screen. */
+  override val usesLightUi: Boolean
+    get() = true
+
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
     EventBus.getDefault().register(serverTaskListener)
@@ -64,7 +68,7 @@ class NewDeviceTransferFragment : DeviceTransferFragment() {
   private inner class ServerTaskListener {
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onEventMainThread(event: NewDeviceRestoreStatus) {
-      status.text = getString(R.string.DeviceTransfer__d_messages_so_far, event.messageCount)
+      setStatusText(getString(R.string.DeviceTransfer__d_messages_so_far, event.messageCount))
 
       when (event.state) {
         NewDeviceRestoreStatus.State.IN_PROGRESS,

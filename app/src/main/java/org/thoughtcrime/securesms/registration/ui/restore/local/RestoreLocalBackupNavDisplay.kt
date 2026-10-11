@@ -11,15 +11,11 @@ import android.net.Uri
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.navigation3.runtime.NavKey
+import androidx.compose.ui.res.stringResource
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
@@ -28,14 +24,17 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 import org.signal.core.ui.compose.Launchers
 import org.signal.core.ui.contracts.OpenDocumentContract
-import org.signal.core.ui.navigation.BottomSheetSceneStrategy
-import org.signal.core.ui.navigation.LocalBottomSheetDismiss
+import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.registration.ui.restore.EnterBackupKeyViewModel
 
 /**
  * Handles the restoration flow for V2 backups. Can also launch into V1 backup flow if needed.
+ *
+ * Every destination is a full Light screen. The instruction, backup-choice and no-recovery-key
+ * destinations used to be Material bottom sheets over the previous screen; they are now ordinary
+ * entries on the same back stack, so system back (and each screen's BACK glyph) pops them exactly
+ * as swiping a sheet away did, and every action that used to dismiss its sheet pops it instead.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RestoreLocalBackupNavDisplay(
   state: RestoreLocalBackupState,
@@ -45,7 +44,6 @@ fun RestoreLocalBackupNavDisplay(
   enteredText: String
 ) {
   val backstack = rememberNavBackStack(RestoreLocalBackupNavKey.SelectLocalBackupTypeScreen)
-  val bottomSheetStrategy = remember { BottomSheetSceneStrategy<NavKey>() }
   val backPressedDispatcher = LocalOnBackPressedDispatcherOwner.current
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
@@ -72,7 +70,6 @@ fun RestoreLocalBackupNavDisplay(
   Box(modifier = Modifier.fillMaxSize()) {
     NavDisplay(
       backStack = backstack,
-      sceneStrategy = bottomSheetStrategy,
       entryProvider = entryProvider {
         entry<RestoreLocalBackupNavKey.SelectLocalBackupTypeScreen> {
           SelectLocalBackupTypeScreen(
@@ -88,20 +85,22 @@ fun RestoreLocalBackupNavDisplay(
           )
         }
 
-        entry<RestoreLocalBackupNavKey.FileInstructionSheet>(
-          metadata = BottomSheetSceneStrategy.bottomSheet()
-        ) {
-          SelectYourBackupFileSheetContent(onContinueClick = {
-            fileLauncher.launch(OpenDocumentContract.Input())
-          })
+        entry<RestoreLocalBackupNavKey.FileInstructionSheet> {
+          SelectYourBackupFileScreen(
+            onContinueClick = {
+              fileLauncher.launch(OpenDocumentContract.Input())
+            },
+            onBackClick = { backstack.removeLastOrNull() }
+          )
         }
 
-        entry<RestoreLocalBackupNavKey.FolderInstructionSheet>(
-          metadata = BottomSheetSceneStrategy.bottomSheet()
-        ) {
-          SelectYourBackupFolderSheetContent(onContinueClick = {
-            folderLauncher.launch(null)
-          })
+        entry<RestoreLocalBackupNavKey.FolderInstructionSheet> {
+          SelectYourBackupFolderScreen(
+            onContinueClick = {
+              folderLauncher.launch(null)
+            },
+            onBackClick = { backstack.removeLastOrNull() }
+          )
         }
 
         entry<RestoreLocalBackupNavKey.SelectLocalBackupScreen> {
@@ -120,17 +119,15 @@ fun RestoreLocalBackupNavDisplay(
           )
         }
 
-        entry<RestoreLocalBackupNavKey.SelectLocalBackupSheet>(
-          metadata = BottomSheetSceneStrategy.bottomSheet()
-        ) {
-          val dismissSheet = LocalBottomSheetDismiss.current
-          SelectLocalBackupSheetContent(
+        entry<RestoreLocalBackupNavKey.SelectLocalBackupSheet> {
+          SelectLocalBackupListScreen(
             selectedBackup = requireNotNull(state.selectedBackup) { "No chosen backup." },
             selectableBackups = state.selectableBackups,
             onBackupSelected = {
               callback.setSelectedBackup(it)
-              dismissSheet()
-            }
+              backstack.removeLastOrNull()
+            },
+            onBackClick = { backstack.removeLastOrNull() }
           )
         }
 
@@ -152,18 +149,16 @@ fun RestoreLocalBackupNavDisplay(
           )
         }
 
-        entry<RestoreLocalBackupNavKey.NoRecoveryKeySheet>(
-          metadata = BottomSheetSceneStrategy.bottomSheet()
-        ) {
-          val dismissSheet = LocalBottomSheetDismiss.current
-          NoRecoveryKeySheetContent(
+        entry<RestoreLocalBackupNavKey.NoRecoveryKeySheet> {
+          NoRecoveryKeyScreen(
             onSkipAndDontRestoreClick = {
-              dismissSheet()
+              backstack.removeLastOrNull()
               callback.displaySkipRestoreWarning()
             },
-            onLearnMoreClick = {
-              // TODO
-            }
+            onBackClick = { backstack.removeLastOrNull() },
+            // Upstream left this as a TODO, which shipped a button that did nothing. It now opens the
+            // same backups support article the recovery-key help link does.
+            onLearnMoreClick = callback::onBackupKeyHelp
           )
         }
       }
@@ -188,7 +183,13 @@ fun RestoreLocalBackupNavDisplay(
     )
 
     if (state.isLoadingBackupDirectory) {
-      CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+      // Was an M3 spinner floated over the current screen. The Light grammar has no spinner, so the
+      // wait is a status screen; it swallows taps so the screen underneath cannot be used mid-load.
+      LightRestoreProgress(
+        title = stringResource(R.string.SelectLocalBackupTypeScreen__restore_on_device_backup),
+        status = stringResource(R.string.LinkDeviceFragment__loading),
+        modifier = Modifier.consumeAllPointerEvents()
+      )
     }
   }
 }

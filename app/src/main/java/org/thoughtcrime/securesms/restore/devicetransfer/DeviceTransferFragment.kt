@@ -6,7 +6,9 @@
 package org.thoughtcrime.securesms.restore.devicetransfer
 
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -42,6 +44,16 @@ abstract class DeviceTransferFragment : LoggingFragment(R.layout.fragment_device
 
   protected var transferFinished: Boolean = false
 
+  /** Set when this side draws [DeviceTransferLightView] instead of the layout; see [usesLightUi]. */
+  private var lightView: DeviceTransferLightView? = null
+
+  /**
+   * Whether this side draws the Light transfer screen. The new device does; the old device -- the
+   * sending side, under Settings -- keeps the layout, and with it [binding] and [status].
+   */
+  protected open val usesLightUi: Boolean
+    get() = false
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     if (savedInstanceState != null) {
@@ -61,17 +73,28 @@ abstract class DeviceTransferFragment : LoggingFragment(R.layout.fragment_device
     outState.putBoolean(TRANSFER_FINISHED_KEY, transferFinished)
   }
 
+  override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+    return if (usesLightUi) {
+      DeviceTransferLightView(requireContext()).also { lightView = it }
+    } else {
+      super.onCreateView(inflater, container, savedInstanceState)
+    }
+  }
+
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
     requireActivity().window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-    binding.deviceTransferFragmentCancel.setOnClickListener {
-      cancelActiveTransfer()
-    }
-    binding.deviceTransferFragmentTryAgain.setOnClickListener {
-      EventBus.getDefault().unregister(transferModeListener)
-      EventBus.getDefault().removeStickyEvent(TransferStatus::class.java)
-      navigateToRestartTransfer()
+    val lightView = lightView
+    if (lightView != null) {
+      lightView.onStopRequested = Runnable { cancelActiveTransfer() }
+    } else {
+      binding.deviceTransferFragmentCancel.setOnClickListener {
+        cancelActiveTransfer()
+      }
+      binding.deviceTransferFragmentTryAgain.setOnClickListener {
+        restartTransfer()
+      }
     }
 
     EventBus.getDefault().register(transferModeListener)
@@ -85,19 +108,47 @@ abstract class DeviceTransferFragment : LoggingFragment(R.layout.fragment_device
   override fun onDestroyView() {
     requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     EventBus.getDefault().unregister(transferModeListener)
+    lightView = null
     super.onDestroyView()
   }
 
+  /**
+   * The progress line under the transfer. Subclasses set it through here rather than through
+   * [status], which only exists while the layout is drawn.
+   */
+  protected fun setStatusText(text: CharSequence) {
+    val lightView = lightView
+    if (lightView != null) {
+      lightView.setStatus(text)
+    } else {
+      status.text = text
+    }
+  }
+
+  private fun restartTransfer() {
+    EventBus.getDefault().unregister(transferModeListener)
+    EventBus.getDefault().removeStickyEvent(TransferStatus::class.java)
+    navigateToRestartTransfer()
+  }
+
   private fun cancelActiveTransfer() {
+    val stopTransfer = Runnable {
+      EventBus.getDefault().unregister(transferModeListener)
+      DeviceToDeviceTransferService.stop(requireContext())
+      EventBus.getDefault().removeStickyEvent(TransferStatus::class.java)
+      navigateAwayFromTransfer()
+    }
+
+    val lightView = lightView
+    if (lightView != null) {
+      lightView.confirmStop(stopTransfer)
+      return
+    }
+
     MaterialAlertDialogBuilder(requireContext()).apply {
       setTitle(R.string.DeviceTransfer__stop_transfer)
       setMessage(R.string.DeviceTransfer__all_transfer_progress_will_be_lost)
-      setPositiveButton(R.string.DeviceTransfer__stop_transfer) { _, _ ->
-        EventBus.getDefault().unregister(transferModeListener)
-        DeviceToDeviceTransferService.stop(requireContext())
-        EventBus.getDefault().removeStickyEvent(TransferStatus::class.java)
-        navigateAwayFromTransfer()
-      }
+      setPositiveButton(R.string.DeviceTransfer__stop_transfer) { _, _ -> stopTransfer.run() }
       setNegativeButton(android.R.string.cancel, null)
     }
       .show()
@@ -121,14 +172,23 @@ abstract class DeviceTransferFragment : LoggingFragment(R.layout.fragment_device
     EventBus.getDefault().unregister(transferModeListener)
     DeviceToDeviceTransferService.stop(requireContext())
 
-    binding.deviceTransferFragmentProgress.visible = false
-    binding.deviceTransferFragmentAlert.visible = true
-    binding.deviceTransferFragmentTryAgain.visible = true
+    val lightView = lightView
+    if (lightView != null) {
+      lightView.showFailure(
+        message = getString(errorMessage),
+        onTryAgain = Runnable { restartTransfer() },
+        onCancel = Runnable { navigateAwayFromTransfer() }
+      )
+    } else {
+      binding.deviceTransferFragmentProgress.visible = false
+      binding.deviceTransferFragmentAlert.visible = true
+      binding.deviceTransferFragmentTryAgain.visible = true
 
-    binding.deviceTransferFragmentTitle.setText(R.string.DeviceTransfer__unable_to_transfer)
-    binding.deviceTransferFragmentStatus.setText(errorMessage)
-    binding.deviceTransferFragmentCancel.setText(R.string.DeviceTransfer__cancel)
-    binding.deviceTransferFragmentCancel.setOnClickListener { navigateAwayFromTransfer() }
+      binding.deviceTransferFragmentTitle.setText(R.string.DeviceTransfer__unable_to_transfer)
+      binding.deviceTransferFragmentStatus.setText(errorMessage)
+      binding.deviceTransferFragmentCancel.setText(R.string.DeviceTransfer__cancel)
+      binding.deviceTransferFragmentCancel.setOnClickListener { navigateAwayFromTransfer() }
+    }
 
     onBackPressed.isActiveTransfer = false
   }

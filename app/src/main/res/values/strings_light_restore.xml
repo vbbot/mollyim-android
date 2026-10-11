@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright 2026 Signal Messenger, LLC
+  ~ SPDX-License-Identifier: AGPL-3.0-only
+  -->
+
+<!--
+    Strings added by the Light conversion of the restore and device-transfer flows. Everything else on
+    those screens reuses the existing upstream strings. These are the top-bar BACK glyph's
+    accessibility labels: each names where back goes, not the glyph.
+-->
+<resources>
+    <!-- Accessibility label for the back button on the "No recovery key?" notice; returns to recovery key entry -->
+    <string name="LightRestore__back_to_recovery_key">Back to recovery key</string>
+    <!-- Accessibility label for the back button on the "numbers do not match" notice; returns to the device transfer code comparison -->
+    <string name="LightRestore__back_to_verify_code">Back to verify code</string>
+    <!-- Accessibility label for the back button on the "stop transfer?" notice; returns to the transfer in progress -->
+    <string name="LightRestore__back_to_transfer">Back to transfer</string>
+    <!-- Accessibility label for the back button on the backup passphrase entry screen; returns to the restore from backup screen -->
+    <string name="LightRestore__back_to_restore_from_backup">Back to restore from backup</string>
+</resources>

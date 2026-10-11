@@ -13,44 +13,28 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.annotation.VisibleForTesting
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.thelightphone.sdk.ui.LightThemeTokens
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.signal.core.ui.compose.DayNightPreviews
-import org.signal.core.ui.compose.Dialogs
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.horizontalGutters
-import org.signal.core.ui.compose.theme.SignalTheme
 import org.thoughtcrime.securesms.BaseActivity
 import org.thoughtcrime.securesms.MainActivity
 import org.thoughtcrime.securesms.R
@@ -58,9 +42,9 @@ import org.thoughtcrime.securesms.components.contactsupport.ContactSupportCallba
 import org.thoughtcrime.securesms.components.contactsupport.ContactSupportDialog
 import org.thoughtcrime.securesms.components.contactsupport.ContactSupportViewModel
 import org.thoughtcrime.securesms.components.settings.app.AppSettingsActivity
+import org.thoughtcrime.securesms.light.MollyLightTheme
 import org.thoughtcrime.securesms.registration.ui.restore.RemoteRestoreWakeLock
 import org.thoughtcrime.securesms.restore.RestoreActivity
-import kotlin.math.max
 
 /**
  * Handles the synchronous restoration of the proto files from a V2 backup. Media is
@@ -136,7 +120,7 @@ class RestoreLocalBackupActivity : BaseActivity() {
       val contactSupportState by contactSupportViewModel.state.collectAsStateWithLifecycle()
       val context = LocalContext.current
 
-      SignalTheme {
+      MollyLightTheme {
         RestoreLocalBackupScreen(
           state = state,
           onContactSupportClick = contactSupportViewModel::showContactSupport,
@@ -202,8 +186,29 @@ class RestoreLocalBackupActivity : BaseActivity() {
   }
 }
 
+/**
+ * The restore's progress, completion and failure, in Light. Was upstream Material end to end -- a
+ * 28sp headline, a 60dp M3 spinner and `Dialogs.*` alerts -- and now follows `RemoteRestoreActivity`:
+ * the title in the top bar, the explanatory line as Paragraph, a centred Heading status line with a
+ * [com.thelightphone.sdk.ui.LightProgressBar] and a Detail line once there is measurable progress.
+ *
+ * The three alerts are full-screen [LightRestoreNotice]s over it, and every exit runs the callback
+ * the dialog's button ran:
+ *
+ * - Failure: CONTACT SUPPORT -> [onContactSupportClick]; OK -> [onFailureDialogConfirm]. Its dismiss
+ *   request did nothing, so back is still swallowed. Closing contact support still confirms.
+ * - Choose a folder: USE CURRENT FOLDER -> [onConfirmBackupLocation]; CHOOSE NEW FOLDER ->
+ *   [onChangeBackupLocation]; DISABLE BACKUPS -> [onDisableBackups]. The Material dialog's dismiss
+ *   request was its negative button, so system back still disables backups; there is deliberately
+ *   no BACK glyph, since a glyph that reads "back" should not quietly decide something.
+ * - Backups disabled: NOT NOW -> [onLocalBackupsDisabledDialogDeny]; TURN ON NOW ->
+ *   [onLocalBackupsDisabledDialogConfirm]. Its dismiss request did nothing, so back is swallowed.
+ *
+ * During progress there is no back handler at all, exactly as before.
+ */
+@VisibleForTesting
 @Composable
-private fun RestoreLocalBackupScreen(
+internal fun RestoreLocalBackupScreen(
   state: RestoreLocalBackupScreenState,
   onFailureDialogConfirm: () -> Unit,
   onConfirmBackupLocation: () -> Unit,
@@ -215,90 +220,33 @@ private fun RestoreLocalBackupScreen(
   contactSupportState: ContactSupportViewModel.ContactSupportState<Unit>,
   contactSupportCallbacks: ContactSupportCallbacks
 ) {
-  val density = LocalDensity.current
-  var headerHeightPx by remember { mutableIntStateOf(0) }
-  var contentHeightPx by remember { mutableIntStateOf(0) }
-
-  Surface {
-    BoxWithConstraints(
-      modifier = Modifier
-        .fillMaxSize()
-        .horizontalGutters()
-    ) {
-      val totalHeightPx = with(density) { maxHeight.roundToPx() }
-      val screenCenterTop = with(density) { max((totalHeightPx - contentHeightPx) / 2, headerHeightPx).toDp() }
-
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .onSizeChanged { headerHeightPx = it.height }
-      ) {
-        Spacer(modifier = Modifier.height(40.dp))
-
-        Text(
-          text = stringResource(R.string.RestoreLocalBackupActivity__restoring_backup),
-          style = MaterialTheme.typography.headlineMedium,
-          modifier = Modifier.fillMaxWidth()
-        )
-
-        Text(
-          text = stringResource(R.string.RestoreLocalBackupActivity__depending_on_the_size),
-          style = MaterialTheme.typography.bodyLarge,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.padding(top = 16.dp)
-        )
-      }
-
-      Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(top = screenCenterTop)
-          .onSizeChanged { contentHeightPx = it.height }
-      ) {
-        if (state.progress > 0f) {
-          CircularProgressIndicator(
-            progress = { state.progress },
-            modifier = Modifier.size(60.dp),
-            strokeWidth = 5.dp,
-            trackColor = MaterialTheme.colorScheme.primaryContainer,
-            gapSize = 0.dp
-          )
-        } else {
-          CircularProgressIndicator(
-            modifier = Modifier.size(60.dp),
-            strokeWidth = 5.dp,
-            trackColor = MaterialTheme.colorScheme.primaryContainer,
-            gapSize = 0.dp
-          )
-        }
-
-        val statusText = when (state.restorePhase) {
-          RestorePhase.RESTORING -> stringResource(R.string.RestoreLocalBackupActivity__restoring_messages)
-          RestorePhase.FINALIZING -> stringResource(R.string.RestoreLocalBackupActivity__finalizing)
-          RestorePhase.COMPLETE -> stringResource(R.string.RestoreLocalBackupActivity__restore_complete)
-          RestorePhase.FAILED -> stringResource(R.string.RestoreLocalBackupActivity__restore_failed)
-        }
-
-        Text(
-          text = statusText,
-          textAlign = TextAlign.Center,
-          style = MaterialTheme.typography.bodyLarge,
-          modifier = Modifier.padding(top = 16.dp)
-        )
-
-        if (state.restorePhase == RestorePhase.RESTORING && state.totalBytes.inWholeBytes > 0) {
-          val progressPercent = (state.progress * 100).toInt()
-          Text(
-            text = stringResource(R.string.RestoreLocalBackupActivity__s_of_s_d_percent, state.bytesRead.toUnitString(), state.totalBytes.toUnitString(), progressPercent),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp)
-          )
-        }
-      }
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(LightThemeTokens.colors.background)
+  ) {
+    val statusText = when (state.restorePhase) {
+      RestorePhase.RESTORING -> stringResource(R.string.RestoreLocalBackupActivity__restoring_messages)
+      RestorePhase.FINALIZING -> stringResource(R.string.RestoreLocalBackupActivity__finalizing)
+      RestorePhase.COMPLETE -> stringResource(R.string.RestoreLocalBackupActivity__restore_complete)
+      RestorePhase.FAILED -> stringResource(R.string.RestoreLocalBackupActivity__restore_failed)
     }
+
+    val progressDetail = if (state.restorePhase == RestorePhase.RESTORING && state.totalBytes.inWholeBytes > 0) {
+      val progressPercent = (state.progress * 100).toInt()
+      stringResource(R.string.RestoreLocalBackupActivity__s_of_s_d_percent, state.bytesRead.toUnitString(), state.totalBytes.toUnitString(), progressPercent)
+    } else {
+      null
+    }
+
+    LightRestoreProgress(
+      title = stringResource(R.string.RestoreLocalBackupActivity__restoring_backup),
+      prose = stringResource(R.string.RestoreLocalBackupActivity__depending_on_the_size),
+      status = statusText,
+      // The determinate spinner appeared exactly when progress was above zero; the bar does the same.
+      progress = state.progress.takeIf { it > 0f },
+      detail = progressDetail
+    )
 
     if (state.restorePhase == RestorePhase.FAILED) {
       var wasContactSupportShown by remember { mutableStateOf(false) }
@@ -311,13 +259,14 @@ private fun RestoreLocalBackupScreen(
       }
 
       if (!contactSupportState.show) {
-        Dialogs.SimpleAlertDialog(
+        LightRestoreNotice(
           title = stringResource(R.string.RestoreLocalBackupActivity__cant_restore_backup),
-          body = stringResource(R.string.RestoreLocalBackupActivity__error_occurred_while_restoring),
-          confirm = stringResource(android.R.string.ok),
-          onConfirm = onFailureDialogConfirm,
-          dismiss = stringResource(R.string.RestoreLocalBackupActivity__contact_support),
-          onDeny = onContactSupportClick
+          message = stringResource(R.string.RestoreLocalBackupActivity__error_occurred_while_restoring),
+          actions = listOf(
+            LightRestoreNoticeAction(stringResource(R.string.RestoreLocalBackupActivity__contact_support), onContactSupportClick),
+            LightRestoreNoticeAction(stringResource(android.R.string.ok), onFailureDialogConfirm)
+          ),
+          onBack = null
         )
       } else {
         ContactSupportDialog(
@@ -329,27 +278,30 @@ private fun RestoreLocalBackupScreen(
 
     when (state.dialog) {
       RestoreLocalBackupActivityDialog.CONFIRM_BACKUP_LOCATION -> {
-        Dialogs.AdvancedAlertDialog(
+        LightRestoreNotice(
           title = stringResource(R.string.RestoreLocalBackupActivity__restore_complete),
-          body = stringResource(R.string.RestoreLocalBackupActivity__choose_a_folder_for_backups),
-          positive = stringResource(R.string.RestoreLocalBackupActivity__use_current_folder),
-          neutral = stringResource(R.string.RestoreLocalBackupActivity__choose_new_folder),
-          negative = stringResource(R.string.RestoreLocalBackupActivity__disable_backups),
-          onPositive = onConfirmBackupLocation,
-          onNeutral = onChangeBackupLocation,
-          onNegative = onDisableBackups
+          message = stringResource(R.string.RestoreLocalBackupActivity__choose_a_folder_for_backups),
+          actions = listOf(
+            LightRestoreNoticeAction(stringResource(R.string.RestoreLocalBackupActivity__use_current_folder), onConfirmBackupLocation),
+            LightRestoreNoticeAction(stringResource(R.string.RestoreLocalBackupActivity__choose_new_folder), onChangeBackupLocation),
+            LightRestoreNoticeAction(stringResource(R.string.RestoreLocalBackupActivity__disable_backups), onDisableBackups)
+          ),
+          onBack = onDisableBackups
         )
       }
+
       RestoreLocalBackupActivityDialog.LOCAL_BACKUPS_DISABLED -> {
-        Dialogs.SimpleAlertDialog(
+        LightRestoreNotice(
           title = stringResource(R.string.RestoreLocalBackupActivity__turn_on_on_device_backups),
-          body = stringResource(R.string.RestoreLocalBackupActivity__to_continue_using_on_device_backups),
-          confirm = stringResource(R.string.RestoreLocalBackupActivity__turn_on_now),
-          dismiss = stringResource(R.string.RestoreLocalBackupActivity__not_now),
-          onConfirm = onLocalBackupsDisabledDialogConfirm,
-          onDeny = onLocalBackupsDisabledDialogDeny
+          message = stringResource(R.string.RestoreLocalBackupActivity__to_continue_using_on_device_backups),
+          actions = listOf(
+            LightRestoreNoticeAction(stringResource(R.string.RestoreLocalBackupActivity__not_now), onLocalBackupsDisabledDialogDeny),
+            LightRestoreNoticeAction(stringResource(R.string.RestoreLocalBackupActivity__turn_on_now), onLocalBackupsDisabledDialogConfirm)
+          ),
+          onBack = null
         )
       }
+
       null -> Unit
     }
   }

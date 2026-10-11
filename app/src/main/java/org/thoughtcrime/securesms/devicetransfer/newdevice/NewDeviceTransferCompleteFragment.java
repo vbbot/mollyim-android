@@ -1,14 +1,15 @@
 package org.thoughtcrime.securesms.devicetransfer.newdevice;
 
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.signal.core.ui.logging.LoggingFragment;
-import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.restore.RestoreActivity;
 
 /**
@@ -16,13 +17,13 @@ import org.thoughtcrime.securesms.restore.RestoreActivity;
  */
 public final class NewDeviceTransferCompleteFragment extends LoggingFragment {
   public NewDeviceTransferCompleteFragment() {
-    super(R.layout.new_device_transfer_complete_fragment);
+    super();
   }
 
+  /** Drawn in Light by {@link NewDeviceTransferScreensKt#NewDeviceTransferCompleteScreen}. */
   @Override
-  public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-    view.findViewById(R.id.new_device_transfer_complete_fragment_continue_registration)
-        .setOnClickListener(v -> ((RestoreActivity) requireActivity()).onBackupCompletedSuccessfully());
+  public @NonNull View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    return NewDeviceTransferViews.complete(requireContext(), () -> ((RestoreActivity) requireActivity()).onBackupCompletedSuccessfully());
   }
 
   @Override

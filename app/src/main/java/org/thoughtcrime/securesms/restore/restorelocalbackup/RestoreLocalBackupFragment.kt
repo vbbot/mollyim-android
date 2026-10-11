@@ -13,17 +13,19 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.EditText
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.annotation.StringRes
-import androidx.appcompat.app.AlertDialog
-import androidx.core.widget.doOnTextChanged
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -33,10 +35,7 @@ import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.backup.BackupEvent
 import org.thoughtcrime.securesms.backup.BackupPassphrase
-import org.thoughtcrime.securesms.components.ViewBinderDelegate
-import org.thoughtcrime.securesms.databinding.FragmentRestoreLocalBackupBinding
 import org.thoughtcrime.securesms.keyvalue.SignalStore
-import org.thoughtcrime.securesms.registration.fragments.RegistrationViewDelegate.setDebugLogSubmitMultiTapView
 import org.thoughtcrime.securesms.restore.RestoreActivity
 import org.thoughtcrime.securesms.restore.RestoreRepository
 import org.thoughtcrime.securesms.restore.RestoreViewModel
@@ -44,14 +43,16 @@ import org.thoughtcrime.securesms.service.LocalBackupListener
 import org.thoughtcrime.securesms.util.BackupUtil
 import org.thoughtcrime.securesms.util.DateUtils
 import org.thoughtcrime.securesms.util.ViewModelFactory
-import org.thoughtcrime.securesms.util.ViewUtil
-import org.thoughtcrime.securesms.util.visible
 import java.util.Locale
 
 /**
  * This fragment is used to monitor and manage an in-progress backup restore.
+ *
+ * Drawn in Light by [RestoreLocalBackupV1Screen]; the fragment keeps every decision and hands the
+ * screen a [RestoreLocalBackupV1UiState]. The passphrase prompt and the backup-folder question,
+ * which were `MaterialAlertDialog`s, are now states of that screen.
  */
-class RestoreLocalBackupFragment : LoggingFragment(R.layout.fragment_restore_local_backup) {
+class RestoreLocalBackupFragment : LoggingFragment() {
   private val sharedViewModel: RestoreViewModel by activityViewModels()
   private val restoreLocalBackupViewModel: RestoreLocalBackupViewModel by viewModels(
     factoryProducer = ViewModelFactory.factoryProducer {
@@ -87,24 +88,46 @@ class RestoreLocalBackupFragment : LoggingFragment(R.layout.fragment_restore_loc
     }
   }
 
-  private val binding: FragmentRestoreLocalBackupBinding by ViewBinderDelegate(FragmentRestoreLocalBackupBinding::bind)
+  private var uiState by mutableStateOf(RestoreLocalBackupV1UiState())
+
+  override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    return ComposeView(requireContext()).apply {
+      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+      setContent {
+        RestoreLocalBackupV1Screen(
+          state = uiState,
+          onRestoreClick = { presentBackupPassPhrasePromptDialog() },
+          onCancelClick = {
+            Log.i(TAG, "Cancel clicked.")
+            findNavController().navigateUp()
+          },
+          onPassphraseSubmitted = { passphrase ->
+            uiState = uiState.copy(enteringPassphrase = false)
+            restoreLocalBackupViewModel.confirmPassphraseAndBeginRestore(requireContext(), passphrase)
+          },
+          onPassphraseDismissed = { uiState = uiState.copy(enteringPassphrase = false) },
+          onNotNow = {
+            uiState = uiState.copy(confirmingBackupFolder = false)
+            BackupPassphrase.set(requireContext(), null)
+            resumeRegistrationAfterLocalBackupRestore()
+          },
+          onChooseFolder = {
+            uiState = uiState.copy(confirmingBackupFolder = false)
+            chooseBackupFolder(requireContext())
+          }
+        )
+      }
+    }
+  }
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
-    setDebugLogSubmitMultiTapView(binding.verifyHeader)
     Log.i(TAG, "Backup restore.")
 
     if (sharedViewModel.getBackupFileUri() == null) {
       Log.i(TAG, "No backup URI found, must navigate back to choose one.")
       findNavController().navigate(RestoreLocalBackupFragmentDirections.goDirectlyToChooseLocalBackup())
       return
-    }
-
-    binding.restoreButton.setOnClickListener { presentBackupPassPhrasePromptDialog() }
-
-    binding.cancelLocalRestoreButton.setOnClickListener {
-      Log.i(TAG, "Cancel clicked.")
-      findNavController().navigateUp()
     }
 
     if (SignalStore.settings.isBackupEnabled) {
@@ -164,28 +187,21 @@ class RestoreLocalBackupFragment : LoggingFragment(R.layout.fragment_restore_loc
   @RequiresApi(29)
   private fun displayConfirmationDialog(context: Context) {
     Log.d(TAG, "Showing continue using local backups dialog")
-    MaterialAlertDialogBuilder(context)
-      .setTitle(R.string.RestoreBackupFragment__restore_complete)
-      .setMessage(R.string.RestoreBackupFragment__to_continue_using_backups_please_choose_a_folder)
-      .setPositiveButton(R.string.RestoreBackupFragment__choose_folder) { _, _ ->
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        try {
-          Log.d(TAG, "Showing external file picker for new backup directory")
-          selectBackupDirectory.launch(intent)
-        } catch (_: ActivityNotFoundException) {
-          Log.w(TAG, "No external activity found")
-          Toast.makeText(context, R.string.BackupDialog_no_file_picker_available, Toast.LENGTH_LONG).show()
-          BackupPassphrase.set(context, null)
-          resumeRegistrationAfterLocalBackupRestore()
-        }
-      }
-      .setNegativeButton(R.string.RestoreBackupFragment__not_now) { _, _ ->
-        BackupPassphrase.set(context, null)
-        resumeRegistrationAfterLocalBackupRestore()
-      }
-      .setCancelable(false)
-      .show()
+    uiState = uiState.copy(confirmingBackupFolder = true)
+  }
+
+  private fun chooseBackupFolder(context: Context) {
+    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+    intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    try {
+      Log.d(TAG, "Showing external file picker for new backup directory")
+      selectBackupDirectory.launch(intent)
+    } catch (_: ActivityNotFoundException) {
+      Log.w(TAG, "No external activity found")
+      Toast.makeText(context, R.string.BackupDialog_no_file_picker_available, Toast.LENGTH_LONG).show()
+      BackupPassphrase.set(context, null)
+      resumeRegistrationAfterLocalBackupRestore()
+    }
   }
 
   private fun enableLocalBackups(context: Context) {
@@ -247,65 +263,34 @@ class RestoreLocalBackupFragment : LoggingFragment(R.layout.fragment_restore_loc
   }
 
   private fun presentProgressEnded() {
-    binding.restoreButton.cancelSpinning()
-    binding.cancelLocalRestoreButton.visible = true
-    binding.backupProgressText.text = null
+    uiState = uiState.copy(restoreInProgress = false, progressText = null)
   }
 
   private fun presentRestoreProgress(backupProgressCount: Long) {
-    binding.restoreButton.setSpinning()
-    binding.cancelLocalRestoreButton.visibility = View.INVISIBLE
-    if (backupProgressCount > 0L) {
-      binding.backupProgressText.text = getString(R.string.RegistrationActivity_d_messages_so_far, backupProgressCount)
+    val progressText = if (backupProgressCount > 0L) {
+      getString(R.string.RegistrationActivity_d_messages_so_far, backupProgressCount)
     } else {
-      binding.backupProgressText.setText(R.string.RegistrationActivity_checking)
+      getString(R.string.RegistrationActivity_checking)
     }
+    uiState = uiState.copy(restoreInProgress = true, progressText = progressText)
   }
 
   private fun presentBackupPassPhrasePromptDialog() {
-    val view = LayoutInflater.from(requireContext()).inflate(R.layout.enter_backup_passphrase_dialog, null)
-    val prompt = view.findViewById<EditText>(R.id.restore_passphrase_input)
-
-    prompt.addTextChangedListener(PassphraseAsYouTypeFormatter())
-
-    val alertDialog = MaterialAlertDialogBuilder(requireContext())
-      .setTitle(R.string.RegistrationActivity_enter_backup_passphrase)
-      .setView(view)
-      .setPositiveButton(R.string.RegistrationActivity_restore) { _, _ ->
-        // Do nothing, we'll handle this in the setOnShowListener method below.
-      }
-      .setNegativeButton(android.R.string.cancel, null)
-      .create()
-
-    alertDialog.setOnShowListener { dialog ->
-      val positiveButton = alertDialog.getButton(AlertDialog.BUTTON_POSITIVE)
-      positiveButton.isEnabled = false
-
-      prompt.doOnTextChanged { text, _, _, _ ->
-        val input = text.toString()
-        positiveButton.isEnabled = input.isNotBlank()
-      }
-
-      positiveButton.setOnClickListener {
-        ViewUtil.hideKeyboard(requireContext(), prompt)
-        restoreLocalBackupViewModel.confirmPassphraseAndBeginRestore(requireContext(), prompt.text.toString())
-        dialog.dismiss()
-      }
-    }
-    alertDialog.show()
-
+    uiState = uiState.copy(enteringPassphrase = true)
     Log.i(TAG, "Prompt for backup passphrase shown to user.")
   }
 
   private fun presentBackupFileInfo(backupSize: Long, backupTimestamp: Long) {
     if (backupSize > 0) {
-      binding.backupSizeText.text = getString(R.string.RegistrationActivity_backup_size_s, backupSize.bytes.toUnitString())
+      uiState = uiState.copy(backupSize = getString(R.string.RegistrationActivity_backup_size_s, backupSize.bytes.toUnitString()))
     }
 
     if (backupTimestamp > 0) {
       val (date, dateContentDesc) = DateUtils.getExtendedRelativeTimeSpanString(requireContext(), Locale.getDefault(), backupTimestamp)
-      binding.backupCreatedText.text = getString(R.string.RegistrationActivity_backup_timestamp_s, date)
-      binding.backupCreatedText.contentDescription = getString(R.string.RegistrationActivity_backup_timestamp_s, dateContentDesc)
+      uiState = uiState.copy(
+        backupCreated = getString(R.string.RegistrationActivity_backup_timestamp_s, date),
+        backupCreatedDescription = getString(R.string.RegistrationActivity_backup_timestamp_s, dateContentDesc)
+      )
     }
   }
 

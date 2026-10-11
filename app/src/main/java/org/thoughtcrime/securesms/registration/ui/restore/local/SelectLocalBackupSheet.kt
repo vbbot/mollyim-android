@@ -5,14 +5,9 @@
 
 package org.thoughtcrime.securesms.registration.ui.restore.local
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,108 +15,127 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextVariant
+import com.thelightphone.sdk.ui.gridUnitsAsDp
+import com.thelightphone.sdk.ui.lightClickable
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
-import org.signal.core.ui.compose.Buttons
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
-import org.signal.core.ui.compose.Rows
-import org.signal.core.ui.compose.horizontalGutters
 import org.thoughtcrime.securesms.R
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBack
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
+import org.thoughtcrime.securesms.registration.ui.shared.RegistrationScreen
 
+/** Marks for the selected and unselected backup rows, as the Light settings radio rows draw them. */
+private const val SELECTED_MARK = "●"
+private const val UNSELECTED_MARK = "○"
+
+/**
+ * Picks which of the two most recent snapshots to restore. Was a Material bottom sheet of radio rows
+ * on grey rounded cards; now a full Light screen with the same choice and the same rule: CONTINUE
+ * is live only once a backup other than the current one is picked, and reports it through
+ * [onBackupSelected]. BACK and system back leave without changing anything, as dismissing the sheet
+ * did.
+ */
 @Composable
-fun SelectLocalBackupSheetContent(
+fun SelectLocalBackupListScreen(
   selectedBackup: SelectableBackup,
   selectableBackups: PersistentList<SelectableBackup>,
-  onBackupSelected: (SelectableBackup) -> Unit
+  onBackupSelected: (SelectableBackup) -> Unit,
+  onBackClick: () -> Unit
 ) {
   var selection by remember { mutableStateOf(selectedBackup) }
 
-  Column(
-    horizontalAlignment = Alignment.CenterHorizontally
+  val backups = remember(selectableBackups) {
+    selectableBackups.take(2)
+  }
+
+  RegistrationScreen(
+    title = stringResource(R.string.SelectLocalBackupSheet__choose_a_backup_to_restore),
+    subtitle = stringResource(R.string.SelectLocalBackupSheet__choosing_an_older_backup),
+    bottomContent = {
+      RegistrationBottomActions(
+        center = RegistrationAction(
+          label = stringResource(R.string.SelectLocalBackupSheet__continue_button),
+          enabled = selectedBackup != selection,
+          onClick = { onBackupSelected(selection) }
+        )
+      )
+    },
+    back = RegistrationBack(
+      contentDescription = stringResource(R.string.RegistrationScreen__back_to_previous_screen),
+      onBack = onBackClick
+    )
   ) {
-    Text(
-      text = stringResource(R.string.SelectLocalBackupSheet__choose_a_backup_to_restore),
-      style = MaterialTheme.typography.titleLarge,
-      textAlign = TextAlign.Center,
-      modifier = Modifier
-        .padding(horizontal = 32.dp)
-        .padding(bottom = 6.dp, top = 20.dp)
-    )
-
-    Text(
-      text = stringResource(R.string.SelectLocalBackupSheet__choosing_an_older_backup),
-      style = MaterialTheme.typography.bodyLarge,
-      textAlign = TextAlign.Center,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier
-        .padding(horizontal = 32.dp)
-        .padding(bottom = 38.dp)
-    )
-
-    val backups = remember(selectableBackups) {
-      selectableBackups.take(2)
-    }
-
-    backups.forEachIndexed { idx, backup ->
-      val shape = if (idx == 0) {
-        RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)
-      } else {
-        RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp)
-      }
-
-      Rows.RadioRow(
-        text = backup.backupTime,
+    backups.forEach { backup ->
+      BackupRadioRow(
+        label = backup.backupTime,
         selected = selection == backup,
-        modifier = Modifier
-          .horizontalGutters()
-          .clip(shape)
-          .background(
-            color = MaterialTheme.colorScheme.surface,
-            shape = shape
-          )
-          .clickable(onClick = {
-            selection = backup
-          })
+        onClick = { selection = backup }
       )
     }
+  }
+}
 
-    Buttons.LargeTonal(
-      onClick = { onBackupSelected(selection) },
-      enabled = selectedBackup != selection,
-      modifier = Modifier
-        .padding(vertical = 56.dp)
-        .widthIn(min = 220.dp)
-    ) {
-      Text(text = stringResource(R.string.SelectLocalBackupSheet__continue_button))
-    }
+@Composable
+private fun BackupRadioRow(
+  label: String,
+  selected: Boolean,
+  onClick: () -> Unit
+) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .semantics {
+        role = Role.RadioButton
+        this.selected = selected
+      }
+      .lightClickable(onClick = onClick)
+      .padding(vertical = 0.75f.gridUnitsAsDp()),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    LightText(
+      text = label,
+      variant = LightTextVariant.Heading,
+      modifier = Modifier.weight(1f)
+    )
+    LightText(
+      text = if (selected) SELECTED_MARK else UNSELECTED_MARK,
+      variant = LightTextVariant.Copy,
+      modifier = Modifier.padding(start = 1f.gridUnitsAsDp())
+    )
   }
 }
 
 @DayNightPreviews
 @Composable
-private fun SelectLocalBackupSheetContentPreview() {
-  Previews.BottomSheetPreview {
-    SelectLocalBackupSheetContent(
+private fun SelectLocalBackupListScreenPreview() {
+  Previews.Preview {
+    SelectLocalBackupListScreen(
       selectedBackup = SelectableBackup(
         timestamp = 0L,
-        backupTime = "Today \u2022 3:38am"
+        backupTime = "Today • 3:38am"
       ),
       selectableBackups = persistentListOf(
         SelectableBackup(
           timestamp = 0L,
-          backupTime = "Today \u2022 3:38am"
+          backupTime = "Today • 3:38am"
         ),
         SelectableBackup(
           timestamp = 1L,
-          backupTime = "August 13, 2024 \u2022 3:21am"
+          backupTime = "August 13, 2024 • 3:21am"
         )
       ),
-      onBackupSelected = {}
+      onBackupSelected = {},
+      onBackClick = {}
     )
   }
 }

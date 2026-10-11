@@ -25,6 +25,12 @@ import org.thoughtcrime.securesms.util.navigation.SafeNavigation;
  */
 public final class NewDeviceTransferSetupFragment extends DeviceTransferSetupFragment {
 
+  /** The new device is part of registration, so it draws the Light setup screens. */
+  @Override
+  protected boolean usesLightUi() {
+    return true;
+  }
+
   @Override
   protected void navigateAwayFromTransfer() {
     requireActivity().onNavigateUp();

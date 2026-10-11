@@ -89,7 +89,8 @@ private fun BackupSummary(
       } else {
         stringResource(R.string.SelectLocalBackupScreen__your_backup)
       },
-      variant = LightTextVariant.Heading
+      // A label for the value under it, so Detail; the value itself stays Copy.
+      variant = LightTextVariant.Detail
     )
     Row(
       modifier = Modifier.padding(top = 0.5f.gridUnitsAsDp()),
