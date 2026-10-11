@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.thelightphone.sdk.ui.LightText
 import com.thelightphone.sdk.ui.LightTextVariant
 import com.thelightphone.sdk.ui.LightThemeTokens
@@ -48,7 +51,8 @@ data class LightWelcomeAction(
 )
 
 /**
- * The Welcome screen's actions, as a bottom-anchored stack of centred text rows.
+ * The Welcome screen's actions: the ways through registration as a centred stack of text rows, and
+ * the terms link as a quiet footnote at the foot of the screen.
  *
  * These were four `MaterialButton`s restyled at runtime by `LightRegistrationViewStyle.action()`:
  * transparent background, no stroke, no elevation, all-caps label, a minimum height read off the
@@ -57,13 +61,14 @@ data class LightWelcomeAction(
  * to have none of them. This is the first screen a new user ever sees, so it is the one place
  * where a Material widget in a Light costume is most visible.
  *
- * The grammar is [org.thoughtcrime.securesms.light.LightActionPanel]'s, in particular the part
- * that is easy to get wrong: **the tap target hugs the label.** The 4-unit row is layout spacing;
- * the target inside it is the text. The reference client shipped full-width row targets first and
- * found them firing on taps far to the side of the words.
+ * The grammar is [org.thoughtcrime.securesms.light.LightActionPanel]'s: [ROW_HEIGHT] rows packed
+ * with no gap between them, centred labels on one line, and **a tap target that hugs the label.**
+ * The row is layout spacing; the target inside it is the text. The reference client shipped
+ * full-width row targets first and found them firing on taps far to the side of the words.
  *
- * The screen's wordmark and Signal headline are gone, as they are from the whole Light port, so the
- * stack is what this screen *is*, and it is anchored to the bottom with the black above it.
+ * The stack is centred in the space between the top bar and the footnote rather than pushed to the
+ * bottom: with the wordmark and the Signal headline gone, a bottom-anchored stack left most of the
+ * screen as unexplained black above it.
  */
 class LightWelcomeActionsView @JvmOverloads constructor(
   context: Context,
@@ -76,6 +81,9 @@ class LightWelcomeActionsView @JvmOverloads constructor(
    */
   var actions: List<LightWelcomeAction> by mutableStateOf(emptyList())
 
+  /** The footnote row under the stack, or none. */
+  var footer: LightWelcomeAction? by mutableStateOf(null)
+
   init {
     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
   }
@@ -83,22 +91,23 @@ class LightWelcomeActionsView @JvmOverloads constructor(
   @Composable
   override fun Content() {
     MollyLightTheme {
-      LightWelcomeActions(actions = actions)
+      LightWelcomeActions(actions = actions, footer = footer, modifier = Modifier.fillMaxSize())
     }
   }
 }
 
 /**
  * The stack itself, split out of [LightWelcomeActionsView] so that it can be composed, and so
- * measured, without an Android view in the way.
+ * measured, without an Android view in the way. The rows centre in whatever height the [footer]
+ * leaves them, so the host gives this the whole body of the screen.
  */
 @Composable
 fun LightWelcomeActions(
   actions: List<LightWelcomeAction>,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  footer: LightWelcomeAction? = null
 ) {
   Column(
-    verticalArrangement = Arrangement.spacedBy(ROW_SPACING_UNITS.gridUnitsAsDp()),
     horizontalAlignment = Alignment.CenterHorizontally,
     modifier = modifier
       .fillMaxWidth()
@@ -111,37 +120,51 @@ fun LightWelcomeActions(
         bottom = STACK_BOTTOM_UNITS.gridUnitsAsDp()
       )
   ) {
-    actions.forEach { action ->
-      Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-          .height(ROW_HEIGHT_UNITS.gridUnitsAsDp())
-          .lightClickable(role = Role.Button, onClick = action.onClick)
-      ) {
-        LightText(
-          // Upper case here rather than at the call site: the labels arrive from the registration
-          // feature module as prose ("Continue", "Restore or transfer"), and this is the one place
-          // that decides the screen's register. Leaving it to callers made this the only action
-          // surface in the app rendering sentence case, next to a panel that uppercases and a
-          // bottom bar that uppercases.
-          text = action.label.uppercase(Locale.getDefault()),
-          variant = action.variant,
-          lighten = action.lighten
-        )
-      }
+    Column(
+      verticalArrangement = Arrangement.Center,
+      horizontalAlignment = Alignment.CenterHorizontally,
+      modifier = Modifier
+        .fillMaxWidth()
+        .weight(1f)
+    ) {
+      actions.forEach { action -> WelcomeRow(action) }
+    }
+
+    if (footer != null) {
+      WelcomeRow(footer)
     }
   }
 }
 
-/**
- * 4 grid units: the same action row height the bottom bar uses, and comfortably over the 44dp
- * minimum touch target (3.3 units on the LP3). Read off the grid rather than typed in as dp, so the
- * target tracks the device's width instead of assuming a 360dp screen.
- */
-internal const val ROW_HEIGHT_UNITS = 4f
+@Composable
+private fun WelcomeRow(action: LightWelcomeAction) {
+  Box(
+    contentAlignment = Alignment.Center,
+    modifier = Modifier
+      .height(ROW_HEIGHT)
+      .lightClickable(role = Role.Button, onClick = action.onClick)
+  ) {
+    LightText(
+      // Upper case here rather than at the call site: the labels arrive from the registration
+      // feature module as prose ("Continue", "Restore or transfer"), and this is the one place
+      // that decides the screen's register. Leaving it to callers made this the only action
+      // surface in the app rendering sentence case, next to a panel that uppercases and a
+      // bottom bar that uppercases.
+      text = action.label.uppercase(Locale.getDefault()),
+      variant = action.variant,
+      lighten = action.lighten,
+      // One line, always: a wrapped action reads as two actions on this screen.
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis
+    )
+  }
+}
 
-/** The gap between rows. */
-internal const val ROW_SPACING_UNITS = 1f
+/**
+ * [org.thoughtcrime.securesms.light.LightActionPanel]'s row height: the bottom bar's, as the
+ * reference client uses, and the platform's 44dp minimum touch target.
+ */
+internal val ROW_HEIGHT = 44.dp
 
 /** Side inset, so a centred label is not flush to the bezel. Matches the registration gutter. */
 private const val GUTTER_UNITS = 2f

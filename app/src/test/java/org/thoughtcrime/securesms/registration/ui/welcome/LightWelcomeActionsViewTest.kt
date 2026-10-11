@@ -6,10 +6,9 @@
 package org.thoughtcrime.securesms.registration.ui.welcome
 
 import android.app.Application
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.SemanticsMatcher
@@ -23,11 +22,13 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import assertk.assertThat
 import assertk.assertions.isCloseTo
 import assertk.assertions.doesNotContain
 import assertk.assertions.isEqualTo
+import assertk.assertions.isFalse
 import assertk.assertions.isGreaterThan
 import assertk.assertions.isLessThan
 import com.thelightphone.sdk.ui.LightGrid
@@ -39,6 +40,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.signal.core.ui.CoreUiDependenciesRule
 import org.thoughtcrime.securesms.light.MollyLightTheme
 
@@ -53,10 +55,12 @@ import org.thoughtcrime.securesms.light.MollyLightTheme
  *     than anywhere: a row whose target runs the width of the display makes "Continue" a thing you
  *     can start registration by tapping in empty space beside it.
  *  2. **The row still clears the platform minimum.** A target that hugs the label is easy to make
- *     too small, and 4 grid units is what keeps it honest: 53dp at LP3 width against a 44dp floor,
- *     derived from the grid rather than typed in so that it tracks the screen.
+ *     too small; the rows are `LightActionPanel`'s 44dp, which is exactly the platform floor.
+ *  3. **A label never wraps.** A wrapped action reads as two actions; Molly's own "Link to existing
+ *     device" did exactly that, which is why the screen now reads an app-local short label.
  */
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 // LP3 geometry: 1080x1240 at 3x, i.e. 360dp x 413dp.
 @Config(application = Application::class, qualifiers = "w360dp-h413dp-xxhdpi")
 class LightWelcomeActionsViewTest {
@@ -114,10 +118,7 @@ class LightWelcomeActionsViewTest {
     assertThat(labelWidth).isLessThan(screenWidth)
   }
 
-  /**
-   * A target that hugs its label is easy to make too small. 4 grid units is 53dp at LP3 width,
-   * against the platform's 44dp floor.
-   */
+  /** A target that hugs its label is easy to make too small. The row is the platform's 44dp floor. */
   @Test
   fun `a row clears the platform minimum touch target`() {
     setActions("CONTINUE")
@@ -126,18 +127,66 @@ class LightWelcomeActionsViewTest {
   }
 
   /**
-   * Rows sit on a fixed vertical rhythm, one row height plus one grid unit of spacing, so the stack
-   * reads as a stack rather than as four independently placed labels.
+   * Rows are packed at `LightActionPanel`'s row height with no gap between them, so the stack reads
+   * as one panel-like list rather than as independently placed labels.
    */
   @Test
-  fun `rows sit on the grid rhythm`() {
+  fun `rows are packed at the action panel's row height`() {
     setActions("CONTINUE", "LINK DEVICE")
 
     val first = composeTestRule.onNodeWithText("CONTINUE").getUnclippedBoundsInRoot()
     val second = composeTestRule.onNodeWithText("LINK DEVICE").getUnclippedBoundsInRoot()
 
-    val rowPitch = ROW_HEIGHT_UNITS + ROW_SPACING_UNITS
-    assertThat((second.top - first.top).value).isCloseTo(rowPitch * GRID_UNIT_DP, toleranceDp)
+    assertThat((second.top - first.top).value).isCloseTo(ROW_HEIGHT.value, toleranceDp)
+    assertThat((first.bottom - first.top).value).isCloseTo(ROW_HEIGHT.value, toleranceDp)
+  }
+
+  /**
+   * The stack is centred in the body the footnote leaves it -- not pushed to the bottom with the
+   * rest of the screen black above it.
+   */
+  @Test
+  fun `the stack is centred above the footnote`() {
+    setActions("CONTINUE", "RESTORE OR TRANSFER", "LINK DEVICE", footer = "TERMS AND PRIVACY")
+
+    val root = composeTestRule.onRoot().getUnclippedBoundsInRoot()
+    val first = composeTestRule.onNodeWithText("CONTINUE").getUnclippedBoundsInRoot()
+    val last = composeTestRule.onNodeWithText("LINK DEVICE").getUnclippedBoundsInRoot()
+
+    val body = (root.bottom - root.top).value - ROW_HEIGHT.value - STACK_BOTTOM_UNITS * GRID_UNIT_DP
+    val stackCentre = ((first.top + last.bottom) / 2f).value
+
+    assertThat(stackCentre).isCloseTo(body / 2f, toleranceDp)
+  }
+
+  /**
+   * Every label is one line, however long it is: an over-long label is cut, never wrapped into what
+   * reads as a second action.
+   */
+  @Test
+  fun `a label never wraps`() {
+    val long = "AN ACTION LABEL FAR TOO LONG TO FIT ACROSS THE WIDTH OF THIS SCREEN"
+    setActions("CONTINUE", long)
+
+    assertThat(lineCount(long)).isEqualTo(1)
+    assertThat(lineCount("CONTINUE")).isEqualTo(1)
+  }
+
+  /**
+   * The link row reads the app's short label. Molly overrides the module's link string with "Link to
+   * existing device", which is the label that wrapped; this pins that the screen's own string is
+   * the short one and that it fits on its line without being cut.
+   */
+  @Test
+  fun `the link label is short and fits on one line`() {
+    val link = RuntimeEnvironment.getApplication().getString(R.string.LightWelcomeFragment__link_device)
+    assertThat(link).isEqualTo("Link device")
+
+    setActions(link)
+
+    val layout = textLayout(link.uppercase())
+    assertThat(layout.lineCount).isEqualTo(1)
+    assertThat(layout.isLineEllipsized(0)).isFalse()
   }
 
   /**
@@ -216,32 +265,46 @@ class LightWelcomeActionsViewTest {
    * so it did not track the screen it was written for.
    */
   @Test
-  fun `the stack clears the bottom edge by a grid-derived gap`() {
-    setActions("CONTINUE")
+  fun `the footnote clears the bottom edge by a grid-derived gap`() {
+    setActions("CONTINUE", footer = "TERMS AND PRIVACY")
 
     val root = composeTestRule.onRoot().getUnclippedBoundsInRoot()
-    val label = composeTestRule.onNodeWithText("CONTINUE").getUnclippedBoundsInRoot()
+    val label = composeTestRule.onNodeWithText("TERMS AND PRIVACY").getUnclippedBoundsInRoot()
 
     assertThat((root.bottom - label.bottom).value)
       .isCloseTo(STACK_BOTTOM_UNITS * GRID_UNIT_DP, toleranceDp)
   }
 
-  private fun setActions(vararg labels: String) {
+  /** Composed as the view composes it: filling the screen body. */
+  private fun setActions(vararg labels: String, footer: String? = null) {
     composeTestRule.setContent {
       MollyLightTheme {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-          LightWelcomeActions(actions = labels.map { label -> LightWelcomeAction(label = label, onClick = {}) })
-        }
+        LightWelcomeActions(
+          actions = labels.map { label -> LightWelcomeAction(label = label, onClick = {}) },
+          footer = footer?.let { LightWelcomeAction(label = it, onClick = {}) },
+          modifier = Modifier.fillMaxSize()
+        )
       }
     }
   }
+
+  private fun textLayout(label: String): TextLayoutResult {
+    val results = mutableListOf<TextLayoutResult>()
+    composeTestRule.onNodeWithText(label, useUnmergedTree = true)
+      .fetchSemanticsNode()
+      .config[SemanticsActions.GetTextLayoutResult]
+      .action
+      ?.invoke(results)
+    return results.single()
+  }
+
+  private fun lineCount(label: String): Int = textLayout(label).lineCount
 
   private companion object {
     /** 1 grid unit at LP3 width: 360dp / 27. */
     const val GRID_UNIT_DP = 360f / LightGrid.WIDTH
 
     /** Read from the screen rather than restated, so the test moves when the screen moves. */
-    const val ROW_SPACING_UNITS = org.thoughtcrime.securesms.registration.ui.welcome.ROW_SPACING_UNITS
     const val STACK_BOTTOM_UNITS = org.thoughtcrime.securesms.registration.ui.welcome.STACK_BOTTOM_UNITS
 
     /** The platform's minimum accessible touch target. */

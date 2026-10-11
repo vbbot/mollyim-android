@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -129,9 +128,12 @@ private fun CountryItem(
       .padding(horizontal = 1f.gridUnitsAsDp()),
     verticalAlignment = Alignment.CenterVertically
   ) {
-    Text(
+    // At the name's variant, so the flag sits on the name's line at its size. Flags are colour glyphs;
+    // the explicit content colour is only what a monochrome fallback would draw in.
+    LightText(
       text = country.emoji,
-      color = LightThemeTokens.colors.content,
+      variant = LightTextVariant.Copy,
+      maxLines = 1,
       modifier = Modifier.padding(end = 1f.gridUnitsAsDp())
     )
     LightText(

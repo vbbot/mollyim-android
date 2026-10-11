@@ -5,6 +5,7 @@
 
 package org.thoughtcrime.securesms.registration.ui.permissions
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,14 +15,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import com.thelightphone.sdk.ui.LightBarButton
+import com.thelightphone.sdk.ui.LightIcon
+import com.thelightphone.sdk.ui.LightIconConfiguration
 import com.thelightphone.sdk.ui.LightIcons
 import com.thelightphone.sdk.ui.LightScrollBarPosition
 import com.thelightphone.sdk.ui.LightScrollView
@@ -34,7 +36,9 @@ import com.thelightphone.sdk.ui.gridUnitsAsDp
 import org.signal.core.ui.compose.DayNightPreviews
 import org.signal.core.ui.compose.Previews
 import org.signal.registration.R
+import org.thoughtcrime.securesms.R as AppR
 import org.thoughtcrime.securesms.light.MollyLightTheme
+import org.thoughtcrime.securesms.light.rememberLightTintedPainter
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationAction
 import org.thoughtcrime.securesms.registration.ui.shared.RegistrationBottomActions
 
@@ -57,7 +61,8 @@ fun GrantPermissionsScreen(
         leftButton = LightBarButton.LightIcon(
           icon = LightIcons.BACK,
           onClick = onBackClicked,
-          contentDescription = stringResource(android.R.string.cancel)
+          // Names where BACK goes: this screen is only reached from Welcome.
+          contentDescription = stringResource(AppR.string.GrantPermissionsFragment__back_to_welcome)
         ),
         center = LightTopBarCenter.Text(
           stringResource(id = R.string.GrantPermissionsFragment__allow_permissions)
@@ -78,7 +83,7 @@ fun GrantPermissionsScreen(
         ) {
           LightText(
             text = stringResource(id = R.string.GrantPermissionsFragment__to_help_you_message_people_you_know),
-            variant = LightTextVariant.Paragraph,
+            variant = LightTextVariant.Copy,
             lighten = true,
             modifier = Modifier
               .fillMaxWidth()
@@ -86,29 +91,31 @@ fun GrantPermissionsScreen(
           )
 
           if (deviceBuildVersion >= 33) {
+            // The SDK has no notification glyph, so this one keeps the registration artwork, tinted
+            // to the content colour as LightIcon tints the SDK's own.
             PermissionRow(
-              imageVector = ImageVector.vectorResource(id = R.drawable.permission_notification),
+              icon = { PermissionIconImage(painter = rememberLightTintedPainter(R.drawable.permission_notification)) },
               title = stringResource(id = R.string.GrantPermissionsFragment__notifications),
               subtitle = stringResource(id = R.string.GrantPermissionsFragment__get_notified_when)
             )
           }
 
           PermissionRow(
-            imageVector = ImageVector.vectorResource(id = R.drawable.permission_contact),
+            icon = { PermissionLightIcon(icon = LightIcons.CONTACTS) },
             title = stringResource(id = R.string.GrantPermissionsFragment__contacts),
             subtitle = stringResource(id = R.string.GrantPermissionsFragment__find_people_you_know)
           )
 
           if (deviceBuildVersion < 29 || !isBackupSelectionRequired) {
             PermissionRow(
-              imageVector = ImageVector.vectorResource(id = R.drawable.permission_file),
+              icon = { PermissionLightIcon(icon = LightIcons.MEDIA) },
               title = stringResource(id = R.string.GrantPermissionsFragment__storage),
               subtitle = stringResource(id = R.string.GrantPermissionsFragment__send_photos_videos_and_files)
             )
           }
 
           PermissionRow(
-            imageVector = ImageVector.vectorResource(id = R.drawable.permission_phone),
+            icon = { PermissionLightIcon(icon = LightIcons.CALL) },
             title = stringResource(id = R.string.GrantPermissionsFragment__phone_calls),
             subtitle = stringResource(id = R.string.GrantPermissionsFragment__make_registering_easier)
           )
@@ -129,9 +136,27 @@ fun GrantPermissionsScreen(
   }
 }
 
+/** Permission glyphs: the SDK bar icon size, and decorative -- the row title says what each is for. */
+private const val PERMISSION_ICON_UNITS = 2f
+
+@Composable
+private fun PermissionLightIcon(icon: LightIconConfiguration) {
+  LightIcon(icon = icon, size = PERMISSION_ICON_UNITS, contentDescription = null)
+}
+
+@Composable
+private fun PermissionIconImage(painter: Painter) {
+  Image(
+    painter = painter,
+    contentDescription = null,
+    contentScale = ContentScale.Fit,
+    modifier = Modifier.size(PERMISSION_ICON_UNITS.gridUnitsAsDp())
+  )
+}
+
 @Composable
 fun PermissionRow(
-  imageVector: ImageVector,
+  icon: @Composable () -> Unit,
   title: String,
   subtitle: String
 ) {
@@ -141,12 +166,7 @@ fun PermissionRow(
       .padding(bottom = 1.25f.gridUnitsAsDp()),
     verticalAlignment = Alignment.Top
   ) {
-    Icon(
-      imageVector = imageVector,
-      contentDescription = null,
-      tint = LightThemeTokens.colors.content,
-      modifier = Modifier.size(2f.gridUnitsAsDp())
-    )
+    icon()
 
     Spacer(modifier = Modifier.size(1f.gridUnitsAsDp()))
 

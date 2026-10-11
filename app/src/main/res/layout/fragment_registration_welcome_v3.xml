@@ -9,7 +9,7 @@
 
     <!--
       The welcome screen is the root of the registration graph, so the bar carries no back
-      affordance (there is nothing behind it) and no title. Its one job is the network/proxy
+      affordance (there is nothing behind it); its centre names the app. Its one action is the network/proxy
       entry, which used to live in a Material overflow menu on a `Toolbar`. It is a visible Light
       icon in the bar's right slot instead, because on a black screen an ellipsis that opens a
       one-item Material popup is the only Material left on the first screen a user ever sees.
@@ -23,24 +23,21 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <!--
-      The four actions, replacing the `MaterialButton`s this screen used to carry.
+      The actions, replacing the `MaterialButton`s this screen used to carry.
 
       The wordmark and the "Take privacy with you" headline that sat above them are gone for good:
-      they are Signal's, and the Light port has no wordmark. What is left is black and this stack,
-      anchored to the bottom, so the screen reads the way the device does everywhere else.
-
-      The rows set their own type, colour and hit targets from the grid, so this view is given
-      nothing but its position, including the clearance below it, which the stack draws itself from
-      the grid. That margin used to be a hardcoded 48dp here, which is 3.6 grid units: not a number
-      the grid produces, and fixed rather than derived, so it did not track the screen it was
-      written for.
+      they are Signal's, and the Light port has no wordmark. The view takes the whole body below the
+      bar and centres the stack in it, with the terms footnote at the foot, so no part of the screen
+      is black for no reason. It sets its own type, colour, hit targets and bottom clearance from the
+      grid.
     -->
     <org.thoughtcrime.securesms.registration.ui.welcome.LightWelcomeActionsView
         android:id="@+id/welcome_actions"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/light_top_bar" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

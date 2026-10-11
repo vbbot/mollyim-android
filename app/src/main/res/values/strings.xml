@@ -10028,6 +10028,22 @@
     <string name="EnterPhoneNumberFragment__close_without_saving">Close without saving</string>
     <!-- Top bar action in the phone number editor that saves the typed number. Uppercase, like the other top bar actions -->
     <string name="EnterPhoneNumberFragment__done">DONE</string>
+    <!-- Accessibility label for the back icon on a notice raised by the phone number screen (an error, or the confirm-number question); closes the notice and returns to the phone number form -->
+    <string name="EnterPhoneNumberFragment__back_to_phone_number">Back to phone number</string>
+
+    <!-- Welcome screen (Light) -->
+    <!-- Welcome screen action that links this app to an existing account on another device. Kept short: it must fit on one line on a small screen -->
+    <string name="LightWelcomeFragment__link_device">Link device</string>
+
+    <!-- CaptchaFragment (Light) -->
+    <!-- Top bar title of the screen where the user solves a captcha to prove they are human. Kept short: it sits in a narrow top bar -->
+    <string name="CaptchaFragment__verification">Verification</string>
+    <!-- Accessibility label for the back icon on the captcha screen; leaves it without solving the captcha -->
+    <string name="CaptchaFragment__back_without_verifying">Back without verifying</string>
+
+    <!-- GrantPermissionsFragment (Light) -->
+    <!-- Accessibility label for the back icon on the registration permissions screen; returns to the welcome screen -->
+    <string name="GrantPermissionsFragment__back_to_welcome">Back to the welcome screen</string>
 
     <!-- EOF -->
 </resources>

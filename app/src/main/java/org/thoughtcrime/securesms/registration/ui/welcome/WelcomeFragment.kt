@@ -52,9 +52,9 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
     super.onViewCreated(view, savedInstanceState)
 
     // The eight-tap debug-log gesture used to hang off the wordmark and the Signal headline. Both
-    // are gone from the Light screen, so the gesture hangs off the root instead: the black space
-    // above the action stack is the only part of this screen that does not belong to an action, and
-    // the stack keeps its own taps.
+    // are gone from the Light screen, so the gesture hangs off the root instead: the black around
+    // the action stack is the only part of this screen that does not belong to an action (the stack
+    // view's empty space consumes nothing, so those taps reach the root), and the rows keep their own.
     setDebugLogSubmitMultiTapView(binding.root)
 
     LightRegistrationViewStyle.surface(binding.root)
@@ -91,17 +91,16 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
    * Three of the four were `LightRegistrationViewStyle.action()` Material buttons: continue, restore
    * or transfer, and link device. The fourth, terms and privacy, was a `body()` button and stays
    * quieter -- it is a legal footnote, not a way through registration, and on a device with one
-   * foreground colour the only way to say that is weight and shade.
+   * foreground colour the only way to say that is weight and shade. It is the stack's footer, set
+   * apart at the foot of the screen, rather than a fourth row.
    *
    * Restore or transfer is dropped on re-registration, where there is nothing to restore from. That
    * was a `visible = ` on one button; here it is one fewer row, and the stack closes up.
    *
-   * The four labels come from the registration feature module's own resources rather than the app's.
-   * They were reachable as `@string/...` in the layout because XML resolves against the merged
+   * Continue and restore come from the registration feature module's own resources rather than the
+   * app's. They were reachable as `@string/...` in the layout because XML resolves against the merged
    * resource table, but this fragment is Kotlin and R is non-transitive, so the app's `R` has no
-   * field for them. `RegistrationActivity_link_device` is the trap: a handful of the app's own
-   * translated files also declare it, which is enough for the field to exist and for the reference
-   * below to compile against the wrong module's copy.
+   * field for them. Link device and terms deliberately read the app's own strings instead.
    */
   private fun bindWelcomeActions(actions: LightWelcomeActionsView) {
     val list = mutableListOf(
@@ -115,8 +114,12 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
       )
     }
 
-    list += LightWelcomeAction(getString(RegistrationR.string.RegistrationActivity_link_device), ::onLinkDeviceClicked)
-    list += LightWelcomeAction(
+    // The app's own short label, not the module's: Molly's strings2.xml overrides the module string
+    // with "Link to existing device", which does not fit one line here.
+    list += LightWelcomeAction(getString(R.string.LightWelcomeFragment__link_device), ::onLinkDeviceClicked)
+
+    actions.actions = list
+    actions.footer = LightWelcomeAction(
       // Read from the app's own `R`, not the registration module's. The module's copy is Signal's:
       // "Signal is a 501c3 nonprofit\nTerms & Privacy Policy" -- a two-line label naming Signal and
       // its US tax status, on a fork that has renamed itself Molly and dropped the wordmark from
@@ -127,8 +130,6 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
       variant = LightTextVariant.Fine,
       lighten = true
     )
-
-    actions.actions = list
   }
 
   /**
@@ -141,9 +142,10 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
    * goes with it.
    *
    * No left action: welcome is the root of the registration graph, so a back chevron here would
-   * navigate to nothing.
+   * navigate to nothing. The centre names the app, as chats' root screens carry a context title.
    */
   private fun bindLightTopBar(topBar: LightTopBarView) {
+    topBar.title = getString(R.string.app_name)
     topBar.rightAction = LightBarAction.Sdk(
       contentDescription = getString(R.string.RegistrationActivity_network_settings),
       icon = LightIcons.SETTINGS,

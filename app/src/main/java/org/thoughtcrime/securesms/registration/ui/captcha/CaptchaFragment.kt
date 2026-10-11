@@ -16,6 +16,7 @@ import org.thoughtcrime.securesms.BuildConfig
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
 import org.thoughtcrime.securesms.databinding.FragmentRegistrationCaptchaBinding
+import org.thoughtcrime.securesms.light.LightTopBarView
 import org.thoughtcrime.securesms.registration.fragments.RegistrationConstants
 import org.thoughtcrime.securesms.registration.ui.light.LightRegistrationViewStyle
 
@@ -27,8 +28,14 @@ abstract class CaptchaFragment : LoggingFragment(R.layout.fragment_registration_
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
     LightRegistrationViewStyle.surface(binding.root)
-    LightRegistrationViewStyle.surface(binding.root.getChildAt(0))
-    LightRegistrationViewStyle.title(binding.registrationCaptchaTitle)
+    LightRegistrationViewStyle.detail(binding.registrationCaptchaExplanation)
+    // BACK does what system back already did here: nothing intercepts it on this screen, so it pops
+    // to the step that asked for the captcha, as navigateUp below does once a token arrives.
+    binding.lightTopBar.title = getString(R.string.CaptchaFragment__verification)
+    binding.lightTopBar.leftAction = LightTopBarView.backAction(
+      contentDescription = getString(R.string.CaptchaFragment__back_without_verifying),
+      onClick = { findNavController().navigateUp() }
+    )
 
     binding.registrationCaptchaWebView.settings.javaScriptEnabled = true
     binding.registrationCaptchaWebView.clearCache(true)
