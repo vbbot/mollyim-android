@@ -54,6 +54,21 @@
     <string name="ChangePassphraseDialogFragment_passphrase">Passphrase</string>
     <string name="ChangePassphraseDialogFragment_please_choose_a_passphrase_that_will_be_used_to_locally_encrypt_your_data_this_should_be_a_strong_passphrase">Please choose a passphrase that will be used to locally encrypt your data.\n\nThis should be a strong passphrase.</string>
     <string name="ChangePassphraseDialogFragment_generating_keys_this_may_take_a_while">Generating keys. This may take a while…</string>
+    <!-- LIGHT PHONE: database encryption screen and passphrase form. -->
+    <!-- Bottom action on the first-run database encryption screen that opens the passphrase form. Short form of "Turn on database encryption"; must fit one line beside "Not now". -->
+    <string name="PassphraseCreateActivity__encrypt">Encrypt</string>
+    <!-- Bottom action on the first-run database encryption screen that continues without a passphrase. -->
+    <string name="PassphraseCreateActivity__not_now">Not now</string>
+    <!-- Content description of the back icon on the passphrase form. It closes the form without changing anything. -->
+    <string name="ChangePassphraseDialogFragment__close_without_changing">Close without changing the passphrase</string>
+    <!-- Action beside a passphrase field that reveals the typed passphrase. -->
+    <string name="ChangePassphraseDialogFragment__show">Show</string>
+    <!-- Action beside a passphrase field that hides the typed passphrase again. -->
+    <string name="ChangePassphraseDialogFragment__hide">Hide</string>
+    <!-- Content description of the action that reveals the typed passphrase. -->
+    <string name="ChangePassphraseDialogFragment__show_passphrase">Show passphrase</string>
+    <!-- Content description of the action that hides the typed passphrase. -->
+    <string name="ChangePassphraseDialogFragment__hide_passphrase">Hide passphrase</string>
     <string name="ConversationSettingsFragment__add_to_your_phones_contacts">Add to your device contacts</string>
     <string name="BlockUnblockDialog_delete_this_contact">Delete this contact?</string>
     <string name="BlockUnblockDialog_your_chat_history_with_s_will_be_deleted">Your chat with %1$s will be deleted.</string>

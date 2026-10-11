@@ -1,28 +1,23 @@
 package org.thoughtcrime.securesms;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
-import android.view.*;
-import android.view.inputmethod.InputMethodManager;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.Toast;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.DialogFragment;
 
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.textfield.TextInputLayout;
-
-import org.signal.core.util.ServiceUtil;
 import org.signal.core.util.concurrent.SignalExecutors;
 import org.signal.core.util.logging.Log;
 import org.thoughtcrime.securesms.crypto.InvalidPassphraseException;
@@ -30,11 +25,23 @@ import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.crypto.MasterSecretUtil;
 import org.thoughtcrime.securesms.crypto.PassphraseValidator;
 import org.thoughtcrime.securesms.crypto.UnrecoverableKeyException;
+import org.thoughtcrime.securesms.passphrase.ChangePassphraseContent;
+import org.thoughtcrime.securesms.passphrase.ChangePassphraseForm;
+import org.thoughtcrime.securesms.passphrase.ChangePassphraseFormState;
+import org.thoughtcrime.securesms.passphrase.NewPassphraseEntry;
+import org.thoughtcrime.securesms.util.WindowUtil;
 
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 
+/**
+ * Sets, changes or removes the database passphrase.
+ *
+ * LIGHT PHONE: still a DialogFragment with the same factory, modes and listener, but shown as a
+ * full-screen Light form (see {@link ChangePassphraseContent}) instead of a Material alert dialog.
+ * Everything that decides what a submit does is unchanged and lives here.
+ */
 public class ChangePassphraseDialogFragment extends DialogFragment {
 
   private static final String TAG = Log.tag(ChangePassphraseDialogFragment.class);
@@ -47,22 +54,13 @@ public class ChangePassphraseDialogFragment extends DialogFragment {
 
   private int mode = MODE_CHANGE;
 
-  private AlertDialog dialog;
-
   private MasterSecretChangedListener listener;
 
   private PassphraseValidator validator;
   private CountDownLatch      validatorReady;
 
-  private TextInputLayout passphraseLayout;
-  private EditText        passphraseInput;
-  private EditText        newPassphraseInput;
-  private EditText        repeatPassphraseInput;
-  private View            contentView;
-  private View            progressView;
-  private AsyncTask       masterSecretTask;
-
-  private int titleResId = R.string.AndroidManifest__change_passphrase;
+  private final ChangePassphraseFormState formState = new ChangePassphraseFormState();
+  private AsyncTask                       masterSecretTask;
 
   public static ChangePassphraseDialogFragment newInstance() {
     return new ChangePassphraseDialogFragment();
@@ -80,10 +78,12 @@ public class ChangePassphraseDialogFragment extends DialogFragment {
     this.listener = listener;
   }
 
-  @NonNull
   @Override
-  public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
-    AlertDialog.Builder builder = new MaterialAlertDialogBuilder(requireContext());
+  public void onCreate(@Nullable Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+
+    // Full screen, no frame, on the same style the app's other full-screen dialogs use.
+    setStyle(STYLE_NO_FRAME, R.style.Signal_DayNight_Dialog_FullScreen);
 
     if (getArguments() != null) {
       mode = getArguments().getInt(KEY_MODE);
@@ -92,39 +92,36 @@ public class ChangePassphraseDialogFragment extends DialogFragment {
     if (mode == MODE_ENABLE || mode == MODE_CHANGE) {
       initializePassphraseValidator();
     }
-
-    int positiveButtonResId = android.R.string.ok;
-    int negativeButtonResId = android.R.string.cancel;
-
-    int layoutResId = R.layout.change_passphrase_dialog_view;
-
-    if (mode == MODE_ENABLE) {
-      layoutResId = R.layout.create_passphrase_dialog_view;
-      titleResId  = R.string.AndroidManifest__create_passphrase;
-    } else if (mode == MODE_DISABLE) {
-      layoutResId = R.layout.disable_passphrase_dialog_view;
-      titleResId  = R.string.ApplicationPreferencesActivity_disable_passphrase;
-      positiveButtonResId = R.string.ApplicationPreferencesActivity_disable;
-    }
-
-    dialog = builder.setView(setLayout(layoutResId))
-                    .setPositiveButton(positiveButtonResId, null)
-                    .setNegativeButton(negativeButtonResId, null)
-                    .setTitle(getString(titleResId))
-                    .create();
-
-    return dialog;
   }
 
+  @Override
+  public @NonNull View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    return ChangePassphraseContent.create(requireContext(),
+                                          ChangePassphraseForm.forMode(mode),
+                                          formState,
+                                          this::onBackClicked,
+                                          this::onOkClicked);
+  }
+
+  @Override
+  public void onStart() {
+    super.onStart();
+
+    Window window = requireDialog().getWindow();
+    if (window != null) {
+      window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+      window.setBackgroundDrawable(new ColorDrawable(Color.BLACK));
+      // The form sits above the LP3 system keyboard rather than under it.
+      window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+    }
+  }
+
+  @Override
   public void onResume() {
     super.onResume();
 
-    getOkButton().setOnClickListener(v -> {
-      hideKeyboard(v);
-      onOkClicked();
-    });
-
-    contentView.requestFocus();
+    // A dialog is its own window and does not inherit the activity's FLAG_SECURE.
+    WindowUtil.initializeScreenshotSecurity(requireContext(), requireDialog().getWindow());
   }
 
   @Override
@@ -142,7 +139,17 @@ public class ChangePassphraseDialogFragment extends DialogFragment {
     }
   }
 
+  /** The top bar's back: the same cancel as system back, which the dialog already routes to {@link #onCancel}. */
+  private void onBackClicked() {
+    Dialog dialog = getDialog();
+    if (dialog != null && isCancelable() && !formState.getInProgress()) {
+      dialog.cancel();
+    }
+  }
+
   private void onOkClicked() {
+    if (formState.getInProgress()) return;
+
     if (mode == MODE_ENABLE) {
       handleEnable();
     } else if (mode == MODE_CHANGE) {
@@ -171,84 +178,8 @@ public class ChangePassphraseDialogFragment extends DialogFragment {
     return true;
   }
 
-  private View setLayout(int layoutResId) {
-    final LayoutInflater inflater = requireActivity().getLayoutInflater();
-    final View view = inflater.inflate(layoutResId, null);
-
-    passphraseLayout      = view.findViewById(R.id.passphrase_layout);
-    passphraseInput       = view.findViewById(R.id.passphrase_input);
-    newPassphraseInput    = view.findViewById(R.id.new_passphrase_input);
-    repeatPassphraseInput = view.findViewById(R.id.repeat_passphrase_input);
-    contentView           = view.findViewById(R.id.content_container);
-    progressView          = view.findViewById(R.id.progress_container);
-
-    clearErrorOnEdit(passphraseLayout);
-
-    return view;
-  }
-
-  private Button getOkButton() {
-    return dialog.getButton(Dialog.BUTTON_POSITIVE);
-  }
-
-  private Button getCancelButton() {
-    return dialog.getButton(Dialog.BUTTON_NEGATIVE);
-  }
-
-  private void setError(int resId, final TextInputLayout layout) {
-    if (layout == null) return;
-
-    if (resId != 0) {
-      layout.setError(getString(resId));
-    } else {
-      layout.setError(null);
-    }
-  }
-
-  private void clearErrorOnEdit(final TextInputLayout layout) {
-    if (layout == null || layout.getEditText() == null)
-      return;
-
-    layout.getEditText().addTextChangedListener(new TextWatcher() {
-      @Override
-      public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-
-      @Override
-      public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
-      @Override
-      public void afterTextChanged(Editable s) {
-        layout.setError(null);
-      }
-    });
-  }
-
-  private void hideKeyboard(View view) {
-    InputMethodManager imm = ServiceUtil.getInputMethodManager(requireContext());
-    imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
-  }
-
-  private void showPopup(int resId) {
-    Activity activity = getActivity();
-    if (activity == null) return;
-    Toast.makeText(activity, resId, Toast.LENGTH_SHORT).show();
-  }
-
   private void showProgress(boolean show) {
-    dialog.setTitle(show ? R.string.please_wait : titleResId);
-
-    if (progressView != null) {
-      getOkButton().setVisibility(show ? View.GONE : View.VISIBLE);
-      getCancelButton().setVisibility(show ? View.GONE : View.VISIBLE);
-      contentView.setVisibility(show ? View.GONE : View.VISIBLE);
-      progressView.setVisibility(show ? View.VISIBLE : View.GONE);
-    } else {
-      passphraseLayout.clearFocus();
-      passphraseLayout.setEnabled(!show);
-      passphraseLayout.setPasswordVisibilityToggleEnabled(!show);
-      getOkButton().setEnabled(!show);
-      getCancelButton().setEnabled(!show);
-    }
+    formState.setInProgress(show);
   }
 
   private void handleEnable() {
@@ -256,34 +187,39 @@ public class ChangePassphraseDialogFragment extends DialogFragment {
   }
 
   private void handleChange() {
-    final char[] oldPassphrase = getEnteredPassphrase(passphraseInput);
+    final char[] oldPassphrase = ChangePassphraseFormState.copyOf(formState.getCurrentPassphrase());
 
     if (oldPassphrase.length > 0) {
       changePassphrase(oldPassphrase);
     } else {
-      setError(R.string.PassphrasePromptActivity_invalid_passphrase_exclamation, passphraseLayout);
+      formState.setCurrentPassphraseError(getString(R.string.PassphrasePromptActivity_invalid_passphrase_exclamation));
     }
   }
 
   private void handleDisable() {
-    final char[] oldPassphrase = getEnteredPassphrase(passphraseInput);
+    final char[] oldPassphrase = ChangePassphraseFormState.copyOf(formState.getCurrentPassphrase());
 
     if (oldPassphrase.length > 0) {
       changeMasterSecret(MasterSecretUtil.getUnencryptedPassphrase(), oldPassphrase);
     } else {
-      setError(R.string.PassphrasePromptActivity_invalid_passphrase_exclamation, passphraseLayout);
+      formState.setCurrentPassphraseError(getString(R.string.PassphrasePromptActivity_invalid_passphrase_exclamation));
     }
   }
 
+  // LIGHT PHONE: the checks, their order and their messages are upstream's. Only where a message
+  // appears has changed: under the field it is about, rather than in a toast or a second dialog.
   private void changePassphrase(final char[] oldPassphrase) {
-    final char[] newPassphrase    = getEnteredPassphrase(newPassphraseInput);
-    final char[] repeatPassphrase = getEnteredPassphrase(repeatPassphraseInput);
+    final char[] newPassphrase    = ChangePassphraseFormState.copyOf(formState.getNewPassphrase());
+    final char[] repeatPassphrase = ChangePassphraseFormState.copyOf(formState.getRepeatPassphrase());
 
-    if (newPassphrase.length == 0) {
-      showPopup(R.string.PassphraseChangeActivity_enter_new_passphrase_exclamation);
+    NewPassphraseEntry entry = NewPassphraseEntry.check(newPassphrase, repeatPassphrase);
+    Arrays.fill(repeatPassphrase, (char) 0);
+
+    if (entry == NewPassphraseEntry.EMPTY) {
+      formState.setNewPassphraseError(getString(R.string.PassphraseChangeActivity_enter_new_passphrase_exclamation));
       return;
-    } else if (!Arrays.equals(newPassphrase, repeatPassphrase)) {
-      showPopup(R.string.PassphraseChangeActivity_passphrases_dont_match_exclamation);
+    } else if (entry == NewPassphraseEntry.MISMATCH) {
+      formState.setRepeatPassphraseError(getString(R.string.PassphraseChangeActivity_passphrases_dont_match_exclamation));
       return;
     }
 
@@ -293,11 +229,7 @@ public class ChangePassphraseDialogFragment extends DialogFragment {
     if (!strength.isValid()) {
       String body = getString(R.string.ChangePassphraseDialogFragment_estimated_time_to_crack_suggestion,
               strength.getError(), strength.getTimeToCrack(), strength.getSuggestion());
-      new AlertDialog.Builder(requireActivity())
-              .setTitle(R.string.ChangePassphraseDialogFragment_weak_passphrase)
-              .setIcon(R.drawable.symbol_error_triangle_fill_24)
-              .setMessage(body)
-              .setPositiveButton(android.R.string.ok, null).show();
+      formState.setNewPassphraseError(getString(R.string.ChangePassphraseDialogFragment_weak_passphrase) + "\n\n" + body);
       return;
     }
 
@@ -307,15 +239,6 @@ public class ChangePassphraseDialogFragment extends DialogFragment {
   private void changeMasterSecret(char[] newPassphrase, char[] oldPassphrase) {
     ChangeMasterSecretTask task = new ChangeMasterSecretTask(newPassphrase, oldPassphrase);
     masterSecretTask = task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
-  }
-
-  private char[] getEnteredPassphrase(final EditText editText) {
-    int len = editText.length();
-    char[] passphrase = new char[len];
-    if (editText.getText() != null) {
-      editText.getText().getChars(0, len, passphrase, 0);
-    }
-    return passphrase;
   }
 
   public interface MasterSecretChangedListener {
@@ -337,7 +260,7 @@ public class ChangePassphraseDialogFragment extends DialogFragment {
 
     @Override
     protected void onPreExecute() {
-      setError(0, passphraseLayout);
+      formState.clearErrors();
       showProgress(true);
     }
 
@@ -378,7 +301,10 @@ public class ChangePassphraseDialogFragment extends DialogFragment {
       } else {
         showProgress(false);
         setCancelable(true);
-        setError(R.string.PassphrasePromptActivity_invalid_passphrase_exclamation, passphraseLayout);
+        // As before, only a mode with a current passphrase field has somewhere to show this.
+        if (mode != MODE_ENABLE && isAdded()) {
+          formState.setCurrentPassphraseError(getString(R.string.PassphrasePromptActivity_invalid_passphrase_exclamation));
+        }
       }
     }
   }
