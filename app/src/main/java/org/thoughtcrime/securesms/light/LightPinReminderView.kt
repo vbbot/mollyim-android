@@ -84,7 +84,8 @@ class LightPinReminderView @JvmOverloads constructor(
   private fun pinField(): View =
     NoAutofillEditText(context).apply {
       id = R.id.pin
-      LightPinFieldStyle.apply(this)
+      // Centred: this field sits under centred copy in a dialog, unlike the PIN screens' editor.
+      LightPinFieldStyle.apply(this, centerAligned = true)
       // Tall enough to be a target, not just a line of dots.
       minimumHeight = (LightPinFieldStyle.MINIMUM_TOUCH_UNITS * 1f.verticalGridUnitsAsDp(context)).roundToInt()
       layoutParams = fullWidth()

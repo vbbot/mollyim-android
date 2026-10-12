@@ -4,10 +4,16 @@ import android.app.Activity
 import android.os.Bundle
 import android.view.View
 import androidx.activity.OnBackPressedCallback
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.TemporaryScreenshotSecurity
 import org.thoughtcrime.securesms.dependencies.AppDependencies
+import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.light.LightConfirmAction
 import org.thoughtcrime.securesms.lock.v2.ConfirmSvrPinViewModel.SaveAnimation
 import org.thoughtcrime.securesms.megaphone.Megaphones
@@ -19,27 +25,40 @@ import org.thoughtcrime.securesms.storage.StorageSyncHelper
  *
  * This is where a PIN is actually committed, so it is also the screen with the most that must not
  * drift. The comparison, the service call, the success and failure paths, the activity result, the
- * megaphone bookkeeping and the post-save sync are all exactly where they were; only the way the
- * failure is presented changed, from a `MaterialAlertDialog` to a panel on this screen.
+ * megaphone bookkeeping and the post-save sync are all exactly where they were. What changed is
+ * presentation: the failure is a panel on this screen rather than a `MaterialAlertDialog`, the save
+ * in flight is a full-screen progress state, and a saved PIN is announced by a full-screen success
+ * state for [SUCCESS_PAUSE_MS] before the screen acts on it -- where upstream played its success
+ * animation, and where the Light version used to leave without a word.
  */
 internal class ConfirmSvrPinFragment : BaseSvrPinFragment<ConfirmSvrPinViewModel>() {
 
+  companion object {
+    /** How long the success state is up before the screen leaves: long enough to read the heading. */
+    const val SUCCESS_PAUSE_MS = 1500L
+  }
+
+  private lateinit var confirmViewModel: ConfirmSvrPinViewModel
+
   /**
-   * Swallows back while the failure notice is up.
+   * Swallows back while the PIN is being saved, while the success state is up, and while the
+   * failure notice is up.
    *
-   * The `MaterialAlertDialogBuilder` this replaces was `setCancelable(false)`, so back did nothing
-   * while it was showing. The notice is not a window, so this is what keeps that true: a bare back
-   * press would otherwise pop the confirm screen and leave the user on the create screen holding a
-   * PIN that was never saved and no explanation of why.
+   * The `MaterialAlertDialogBuilder` the notice replaces was `setCancelable(false)`, so back did
+   * nothing while it was showing. The notice is not a window, so this is what keeps that true: a
+   * bare back press would otherwise pop the confirm screen and leave the user on the create screen
+   * holding a PIN that was never saved and no explanation of why. The save and the success state are
+   * held for the same reason: popping the screen mid-save drops the result on the floor, and popping
+   * it during the success state would skip what a saved PIN has to do next.
    */
-  private val failureBlocksBack = object : OnBackPressedCallback(false) {
+  private val blocksBack = object : OnBackPressedCallback(false) {
     override fun handleOnBackPressed() = Unit
   }
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
     TemporaryScreenshotSecurity.bindToViewLifecycleOwner(this)
-    requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, failureBlocksBack)
+    requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, blocksBack)
   }
 
   /**
@@ -62,6 +81,8 @@ internal class ConfirmSvrPinFragment : BaseSvrPinFragment<ConfirmSvrPinViewModel
     // The confirm screen takes the keyboard it was handed; there is no toggle to re-decide it.
     pinView.updateKeyboardToggle(null)
     pinView.updateLabel("", false)
+    pinView.updateFieldPlaceholder(getString(R.string.ConfirmKbsPinFragment__re_enter_your_pin))
+    pinView.updateBusyHeading(getString(R.string.ConfirmKbsPinFragment__creating_pin))
     setConfirmEnabled(true)
   }
 
@@ -71,6 +92,7 @@ internal class ConfirmSvrPinFragment : BaseSvrPinFragment<ConfirmSvrPinViewModel
     val keyboard = args.keyboard
     val factory = ConfirmSvrPinViewModel.Factory(userEntry, keyboard)
     val viewModel = ViewModelProvider(this, factory)[ConfirmSvrPinViewModel::class.java]
+    confirmViewModel = viewModel
     viewModel.label.observe(viewLifecycleOwner) { label: ConfirmSvrPinViewModel.LabelState -> updateLabel(label) }
     viewModel.saveAnimation.observe(viewLifecycleOwner) { animation: SaveAnimation -> updateSaveAnimation(animation) }
     return viewModel
@@ -99,24 +121,56 @@ internal class ConfirmSvrPinFragment : BaseSvrPinFragment<ConfirmSvrPinViewModel
   private fun updateSaveAnimation(animation: SaveAnimation) {
     updateInputVisibility(animation)
 
-    // The confirm action shows progress in place of its label while the save is in flight, which is
-    // what `CircularProgressMaterialButton.setSpinning()` did. It stays inert throughout: the view
-    // model has already refused a second call by leaving the value alone, and the base class gates
-    // the IME action on the same liveness.
+    // While the save is in flight the screen is the full-screen progress state ("Creating PIN..."),
+    // which is what `CircularProgressMaterialButton.setSpinning()` stood for. The confirm action is
+    // inert throughout: the view model has already refused a second call by leaving the value alone.
     setConfirmBusy(animation == SaveAnimation.LOADING)
+    blocksBack.isEnabled = animation == SaveAnimation.LOADING || animation == SaveAnimation.SUCCESS
 
     when (animation) {
       SaveAnimation.NONE, SaveAnimation.LOADING -> Unit
       SaveAnimation.SUCCESS -> {
-        requireActivity().setResult(Activity.RESULT_OK)
-        closeNavGraphBranch()
-        RegistrationUtil.maybeMarkRegistrationComplete()
-        StorageSyncHelper.scheduleSyncForDataChange()
+        pinView.showSuccess(getString(R.string.ConfirmKbsPinFragment__pin_created), successMessage())
+        finishAfterSuccessPause()
       }
 
       SaveAnimation.FAILURE -> {
         RegistrationUtil.maybeMarkRegistrationComplete()
         displayFailedNotice()
+      }
+    }
+  }
+
+  /** What a new PIN means from here on, when it means anything: reminders, if they are on. */
+  private fun successMessage(): String? {
+    return if (SignalStore.pin.arePinRemindersEnabled()) {
+      getString(R.string.KbsReminderDialog__to_help_you_memorize_your_pin)
+    } else {
+      null
+    }
+  }
+
+  /**
+   * Leaves the screen once the success state has been up for [SUCCESS_PAUSE_MS], with exactly the
+   * side effects, in exactly the order, that SUCCESS always had.
+   *
+   * Exactly once, whatever happens in the pause. The wait belongs to this view's lifecycle and only
+   * runs while it is started, so a view destroyed mid-pause takes its wait with it and a stopped
+   * screen does not launch the next activity from the background; a recreated view is handed SUCCESS
+   * again by the view model and waits again. Whichever wait finishes first claims the side effects
+   * from the view model, which outlives every view, and any later one finds them taken.
+   */
+  private fun finishAfterSuccessPause() {
+    val owner = viewLifecycleOwner
+    owner.lifecycleScope.launch {
+      owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        delay(SUCCESS_PAUSE_MS)
+        if (confirmViewModel.markSuccessHandled()) {
+          requireActivity().setResult(Activity.RESULT_OK)
+          closeNavGraphBranch()
+          RegistrationUtil.maybeMarkRegistrationComplete()
+          StorageSyncHelper.scheduleSyncForDataChange()
+        }
       }
     }
   }
@@ -141,12 +195,12 @@ internal class ConfirmSvrPinFragment : BaseSvrPinFragment<ConfirmSvrPinViewModel
         LightConfirmAction(getString(android.R.string.ok), Runnable { dismissFailedNotice() })
       )
     )
-    failureBlocksBack.isEnabled = true
+    blocksBack.isEnabled = true
   }
 
   private fun dismissFailedNotice() {
     pinView.updateNotice(null, "", emptyList())
-    failureBlocksBack.isEnabled = false
+    blocksBack.isEnabled = false
 
     markMegaphoneSeenIfNecessary()
     requireActivity().setResult(Activity.RESULT_CANCELED)

@@ -55,6 +55,7 @@ import org.thoughtcrime.securesms.registration.data.network.RegisterAccountResul
 import org.thoughtcrime.securesms.registration.ui.RegistrationState
 import org.thoughtcrime.securesms.registration.ui.RegistrationViewModel
 import org.signal.registration.R as RegistrationR
+import java.time.Duration
 
 /**
  * The re-register-with-PIN screen on [LightSvrPinView]: chrome, the credential field's semantics,
@@ -101,7 +102,7 @@ class ReRegisterWithPinFragmentTest {
   }
 
   @Test
-  fun `the field is a masked password field that cannot be autofilled and submits on Done`() {
+  fun `the field is a masked password field that cannot be autofilled and has a Done action`() {
     val input = launch().pinView.input
 
     assertThat(input).isInstanceOf(NoAutofillEditText::class)
@@ -117,7 +118,9 @@ class ReRegisterWithPinFragmentTest {
     val pinView = launch().pinView
 
     assertThat(pinView.confirmLabel).isEqualTo(context.getString(RegistrationR.string.RegistrationActivity_continue))
-    assertThat(pinView.keyboardToggleLabel).isNull()
+    // "Switch keyboard" is in the editor too, but not on the form, where it is the overflow item.
+    assertThat(pinView.keyboardToggleLabel).isEqualTo(context.getString(R.string.RegistrationLockFragment__switch_keyboard))
+    assertThat(pinView.keyboardToggleOnForm).isFalse()
     assertThat(pinView.supportLabel).isNull()
     assertThat(pinView.overflowItems.map { it.label }).containsExactly(
       context.getString(R.string.RegistrationLockFragment__switch_keyboard),
@@ -146,11 +149,30 @@ class ReRegisterWithPinFragmentTest {
     idle()
     assertThat(screen.pinView.busy).isTrue()
     assertThat(screen.pinView.input.isEnabled).isFalse()
+    // The full-screen progress state, and nothing to type into under it.
+    assertThat(screen.pinView.busyHeading).isEqualTo(context.getString(R.string.LightSvrPinView__checking_pin))
+    assertThat(screen.pinView.editorOpen).isFalse()
 
     screen.viewModel.setInProgress(false)
     idle()
     assertThat(screen.pinView.busy).isFalse()
     assertThat(screen.pinView.input.isEnabled).isTrue()
+  }
+
+  @Test
+  fun `the editor opens on arrival, and the keyboard's Done closes it without verifying`() {
+    val screen = launch()
+    assertThat(screen.pinView.editorOpen).isTrue()
+    // Focus itself is asserted in LightSvrPinViewTest, under the Compose test rule; from a fragment
+    // host Robolectric does not settle an AndroidView-hosted field's focus deterministically.
+
+    screen.pinView.input.setText("1234")
+    screen.pinView.input.onEditorAction(EditorInfo.IME_ACTION_DONE)
+    idle()
+
+    assertThat(screen.pinView.editorOpen).isFalse()
+    assertThat(screen.pinView.input.text.toString()).isEqualTo("1234")
+    assertThat(screen.pinView.busy).isFalse()
   }
 
   @Test
@@ -178,12 +200,18 @@ class ReRegisterWithPinFragmentTest {
   @Test
   fun `cancel and back both close a cancelable notice and stay on the screen`() {
     val screen = launch()
+    // The overflow is in the form's top bar, which the editor covers: close the editor the screen
+    // opens on arrival first, as a user has to before they can reach the overflow at all.
+    screen.pinView.commitEditor()
+    idle()
 
     screen.overflow(R.string.PinRestoreEntryFragment_skip).action.run()
     screen.pinView.failureActions.first().onSelected.run()
     assertThat(screen.pinView.failureTitle).isNull()
 
     screen.overflow(R.string.PinRestoreEntryFragment_skip).action.run()
+    // A frame for the notice to take the screen, as there always is between a notice and a press.
+    idle()
     screen.activity.onBackPressedDispatcher.onBackPressed()
     assertThat(screen.pinView.failureTitle).isNull()
     assertThat(screen.viewModel.state.value.userSkippedReregistration).isFalse()
@@ -292,8 +320,14 @@ class ReRegisterWithPinFragmentTest {
     return Screen(activity, fragment.requireView() as LightSvrPinView, viewModel, navController)
   }
 
+  /**
+   * Runs what is queued and then lets a few frames pass. Compose recomposes on the frame clock, which
+   * a bare idle() never advances, so without the frames whether the screen has caught up -- the
+   * editor taking focus, a notice taking back -- would depend on timing.
+   */
   private fun idle() {
     shadowOf(Looper.getMainLooper()).idle()
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(FRAME_ALLOWANCE_MS))
   }
 
   /** Moves the shared view model's private state, as the network results it stands in for would. */
@@ -303,3 +337,5 @@ class ReRegisterWithPinFragmentTest {
     (store.get(this) as MutableStateFlow<RegistrationState>).update(transform)
   }
 }
+
+private const val FRAME_ALLOWANCE_MS = 100L

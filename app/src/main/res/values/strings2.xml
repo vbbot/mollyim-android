@@ -280,4 +280,15 @@
     <string name="RegistrationScreen__back_to_welcome">Back to welcome screen</string>
     <!-- Content description of the top bar back icon on a registration screen whose back destination depends on how it was reached. -->
     <string name="RegistrationScreen__back_to_previous_screen">Back to previous screen</string>
+
+    <!-- LIGHT PHONE: the Signal PIN screens (create, confirm, restore, registration lock, re-register). A form with a PIN row that opens a full-screen editor. -->
+
+    <!-- Label of the PIN row on a PIN screen's form. The row shows one dot per character entered, or a placeholder such as "Create your PIN". Tapping it opens the PIN editor. -->
+    <string name="LightSvrPinView__pin">PIN</string>
+    <!-- Content description of the back icon on the full-screen PIN editor. It closes the editor and puts back the PIN as it was when the editor opened. -->
+    <string name="LightSvrPinView__close_without_saving">Close without saving</string>
+    <!-- Top bar action of the full-screen PIN editor that keeps what was typed and returns to the form. Shown in upper case. -->
+    <string name="LightSvrPinView__done">Done</string>
+    <!-- Centred heading of the full-screen progress state while an entered PIN is being checked with the service. -->
+    <string name="LightSvrPinView__checking_pin">Checking PIN…</string>
 </resources>

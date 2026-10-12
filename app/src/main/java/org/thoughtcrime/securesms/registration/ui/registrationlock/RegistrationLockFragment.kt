@@ -6,12 +6,9 @@
 package org.thoughtcrime.securesms.registration.ui.registrationlock
 
 import android.os.Bundle
-import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.activityViewModels
@@ -46,7 +43,13 @@ import org.signal.registration.R as RegistrationR
  * The secondary actions ("switch keyboard", and "forgot PIN?" once it is offered) are in the
  * overflow panel rather than stacked above the confirm action. The LP3 screen is 413dp tall, and with
  * the system keyboard up every action row in the fixed bottom block is one more row the PIN field
- * has to be pushed out of view by.
+ * has to be pushed out of view by. "Switch keyboard" is also in the PIN editor, under the field,
+ * where it is needed while typing.
+ *
+ * The PIN is typed in the view's full-screen editor, which opens by itself on arrival unless a notice
+ * got there first. The keyboard's Done closes the editor; the PIN is submitted from the form's confirm
+ * action, and while it is verified the screen is a full-screen progress state. A rejection returns to
+ * the form, with the reason on the status line.
  *
  * As on the PIN restore screen, the debug-log multi-tap on the title did not survive the move: it
  * needed a title `TextView` by id, and the title is now drawn in the top bar.
@@ -95,7 +98,11 @@ class RegistrationLockFragment : LoggingFragment() {
     )
     pinView.updateConfirm(label = getString(RegistrationR.string.RegistrationActivity_continue), enabled = true, busy = false)
     pinView.updateLabel("", isError = false)
-    pinView.updateKeyboardToggle(null)
+    pinView.updateFieldPlaceholder(getString(R.string.RegistrationLockFragment__enter_your_pin))
+    pinView.updateBusyHeading(getString(R.string.LightSvrPinView__checking_pin))
+    // In the editor only; on the form it is the overflow item below.
+    pinView.updateKeyboardToggle(getString(R.string.RegistrationLockFragment__switch_keyboard), onForm = false)
+    pinView.onKeyboardToggle = Runnable { viewModel.togglePinKeyboardType() }
     pinView.updateSupport(null)
     pinView.updateBackContentDescription(getString(R.string.RegistrationScreen__back_to_previous_screen))
     // Exactly what system back did here: the icon only makes it visible.
@@ -109,22 +116,12 @@ class RegistrationLockFragment : LoggingFragment() {
     // is applied again by the observer below, but the field is never anything but a password field.
     viewModel.state.value.pinKeyboardType.applyInputTypeTo(input)
 
-    // `LightSvrPinView.input` adds the keyboard's no-extract-UI flags as the input connection is
-    // created, so assigning the action outright here does not drop them.
-    input.setImeOptions(EditorInfo.IME_ACTION_DONE)
-    input.setOnEditorActionListener { v: TextView?, actionId: Int, _: KeyEvent? ->
-      if (actionId == EditorInfo.IME_ACTION_DONE) {
-        ViewUtil.hideKeyboard(requireContext(), v!!)
-        handlePinEntry()
-        return@setOnEditorActionListener true
-      }
-      false
-    }
-
-    enableAndFocusPinEntry()
+    // The IME action is `LightSvrPinView`'s: Done closes the editor and keeps the entry. Submitting
+    // is the form's confirm action's, and no longer the keyboard's.
+    enablePinEntry()
 
     pinView.onConfirm = Runnable {
-      ViewUtil.hideKeyboard(requireContext(), pinView.input)
+      ViewUtil.hideKeyboard(requireContext(), pinView)
       handlePinEntry()
     }
 
@@ -160,8 +157,14 @@ class RegistrationLockFragment : LoggingFragment() {
       }
 
       // `PinKeyboardType.applyTo` sets an icon on a Material toggle button, and there is none here;
-      // the toggle is the "switch keyboard" overflow item, whose label does not change.
+      // the toggle is "switch keyboard", in the overflow and the editor, whose label does not change.
       it.pinKeyboardType.applyInputTypeTo(pinView.input)
+    }
+
+    // First arrival only, as upstream focused the field then; a recreation shows the form as it was
+    // left. A no-op when the "not many tries left" notice above already holds the screen.
+    if (savedInstanceState == null) {
+      pinView.openEditor()
     }
   }
 
@@ -173,13 +176,13 @@ class RegistrationLockFragment : LoggingFragment() {
     val trimmedLength = LightRegistrationContracts.pinLength(pin, LightRegistrationContracts.PinWhitespace.REMOVE_SPACES)
     if (trimmedLength == 0) {
       Toast.makeText(requireContext(), R.string.RegistrationActivity_you_must_enter_your_registration_lock_PIN, Toast.LENGTH_LONG).show()
-      enableAndFocusPinEntry()
+      enablePinEntry()
       return
     }
 
     if (trimmedLength < SvrConstants.MINIMUM_PIN_LENGTH) {
       Toast.makeText(requireContext(), getString(R.string.RegistrationActivity_your_pin_has_at_least_d_digits_or_characters, SvrConstants.MINIMUM_PIN_LENGTH), Toast.LENGTH_LONG).show()
-      enableAndFocusPinEntry()
+      enablePinEntry()
       return
     }
 
@@ -197,7 +200,7 @@ class RegistrationLockFragment : LoggingFragment() {
         Log.w(TAG, "Registration locked response to verify account!")
         viewModel.setInProgress(false)
         setBusy(false)
-        enableAndFocusPinEntry()
+        enablePinEntry()
         Toast.makeText(requireContext(), R.string.RegistrationActivity_error_connecting_to_service, Toast.LENGTH_LONG).show()
       }
 
@@ -220,7 +223,7 @@ class RegistrationLockFragment : LoggingFragment() {
         Log.w(TAG, "Registration locked response to register account!")
         viewModel.setInProgress(false)
         setBusy(false)
-        enableAndFocusPinEntry()
+        enablePinEntry()
         Toast.makeText(requireContext(), R.string.RegistrationActivity_error_connecting_to_service, Toast.LENGTH_LONG).show()
       }
 
@@ -239,7 +242,7 @@ class RegistrationLockFragment : LoggingFragment() {
   private fun onIncorrectKbsRegistrationLockPin(svrTriesRemaining: Int) {
     setBusy(false)
     pinView.input.getText()?.clear()
-    enableAndFocusPinEntry()
+    enablePinEntry()
 
     if (svrTriesRemaining == 0) {
       Log.w(TAG, "Account locked. User out of attempts on KBS.")
@@ -268,7 +271,7 @@ class RegistrationLockFragment : LoggingFragment() {
 
   private fun onRateLimited() {
     setBusy(false)
-    enableAndFocusPinEntry()
+    enablePinEntry()
 
     showNotice(
       title = getString(R.string.RegistrationActivity_too_many_attempts),
@@ -279,7 +282,7 @@ class RegistrationLockFragment : LoggingFragment() {
 
   fun onError() {
     setBusy(false)
-    enableAndFocusPinEntry()
+    enablePinEntry()
 
     Toast.makeText(requireContext(), R.string.RegistrationActivity_error_connecting_to_service, Toast.LENGTH_LONG).show()
   }
@@ -305,15 +308,13 @@ class RegistrationLockFragment : LoggingFragment() {
     return "$tries $days"
   }
 
-  private fun enableAndFocusPinEntry() {
+  /**
+   * Makes the field usable again after a check. The form is left showing, with the reason on the
+   * status line, rather than the editor reopened over it: the reason is what the user needs to read
+   * next, and the PIN row is one tap from the keyboard.
+   */
+  private fun enablePinEntry() {
     pinView.input.setEnabled(true)
-    if (pinView.failureTitle != null) {
-      // A notice is up and holds the field unfocusable; closing it focuses the field again.
-      return
-    }
-    // Focusable in touch mode, which implies focusable: a notice clears both.
-    pinView.input.setFocusableInTouchMode(true)
-    ViewUtil.focusAndShowKeyboard(pinView.input)
   }
 
   /** The confirm action's in-flight state. It replaces the progress button's spin/cancel pair. */
@@ -335,26 +336,18 @@ class RegistrationLockFragment : LoggingFragment() {
   /**
    * Raises a notice in place of a Material dialog.
    *
-   * The keyboard is put away first: the notice is drawn in the same window as the field, and on a
-   * 413dp screen a keyboard left up would cover its actions. Hiding it is not enough on its own,
-   * because the paths that raise a notice have usually just called [enableAndFocusPinEntry], whose
-   * keyboard request is posted and would land after the hide. Making the field unfocusable drops its
-   * focus, and a request for a field without focus raises nothing.
+   * The view closes the PIN editor first, keyboard and all, keeping what was typed: on a 413dp
+   * screen a keyboard left up would cover the notice's actions.
    */
   private fun showNotice(title: String, message: String, actions: List<LightConfirmAction>) {
-    pinView.input.setFocusable(false)
-    ViewUtil.hideKeyboard(requireContext(), pinView.input)
     pinView.updateNotice(title, message, actions)
     dismissNoticeOnBack.isEnabled = true
   }
 
+  /** Closes the notice onto the form. The editor stays closed; the PIN row reopens it. */
   private fun clearNotice() {
     pinView.updateNotice(null, "", emptyList())
     dismissNoticeOnBack.isEnabled = false
-    pinView.input.setFocusableInTouchMode(true)
-    if (pinView.input.isEnabled) {
-      ViewUtil.focusAndShowKeyboard(pinView.input)
-    }
   }
 
   /** The Material dialogs' `android.R.string.ok` positive button, which only dismissed. */

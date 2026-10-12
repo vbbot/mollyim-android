@@ -21,8 +21,8 @@ import kotlin.math.roundToInt
  * route them through `LightTextField`.
  *
  * The shape is the SDK's own text-entry shape, taken from `LightTextField`: the value in `Copy`,
- * with a rule beneath it. The create/confirm screen draws that rule in Compose; the reminder dialog
- * draws its own.
+ * with a rule beneath it. The create/confirm screen draws that rule in Compose, under the field in
+ * its full-screen editor; the reminder dialog draws its own.
  *
  * Every dimension comes from the same [gridUnitsAsDp] token the Compose components read, and the
  * type scale and palette come from [LightItemStyle], which resolves the SDK's own `LightText` tokens
@@ -53,14 +53,22 @@ object LightPinFieldStyle {
    * [LIGHT_NO_EXTRACT_UI_IME_FLAGS] so the keyboard never takes over the LP3's short screen. The
    * action and every other flag, the incognito one included, are kept. A host that later assigns
    * `imeOptions` outright replaces these too; see [applyLightNoExtractUi].
+   *
+   * Start-aligned by default. A field the user types into reads from its left edge, as the SDK's
+   * own text-entry editor does, and a centred field puts the cursor in the middle of an empty line,
+   * where it reads as a stray mark rather than as somewhere to type. [centerAligned] is kept for the
+   * PIN reminder, whose field sits centred under centred copy in a dialog.
+   *
+   * [variant] is the type token for the value: `Copy` by default, `Heading` for a field that has a
+   * full-screen editor to itself.
    */
   @JvmStatic
   @JvmOverloads
-  fun apply(editText: EditText, centerAligned: Boolean = true) {
+  fun apply(editText: EditText, centerAligned: Boolean = false, variant: LightTextVariant = LightTextVariant.Copy) {
     val context = editText.context
 
-    // Typeface, size, line height and tracking, straight from the SDK's `Copy` token.
-    LightItemStyle.apply(editText, LightTextVariant.Copy)
+    // Typeface, size, line height and tracking, straight from the SDK's token for [variant].
+    LightItemStyle.apply(editText, variant)
     editText.setTextColor(LightItemStyle.contentColor(context))
     editText.setHintTextColor(LightItemStyle.contentSecondaryColor(context))
 

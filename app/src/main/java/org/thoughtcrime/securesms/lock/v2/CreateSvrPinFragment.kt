@@ -2,9 +2,6 @@ package org.thoughtcrime.securesms.lock.v2
 
 import android.os.Bundle
 import android.view.View
-import android.view.animation.Animation
-import android.view.animation.TranslateAnimation
-import android.widget.EditText
 import androidx.annotation.PluralsRes
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.Navigation.findNavController
@@ -46,6 +43,7 @@ class CreateSvrPinFragment : BaseSvrPinFragment<CreateSvrPinViewModel?>() {
       getString(R.string.CreateKbsPinFragment__you_can_choose_a_new_pin_as_long_as_this_device_is_registered),
       true
     )
+    pinView.updateFieldPlaceholder(getString(R.string.CreateKbsPinFragment__create_a_new_pin))
   }
 
   private fun initializeViewStatesForPinCreate() {
@@ -54,6 +52,7 @@ class CreateSvrPinFragment : BaseSvrPinFragment<CreateSvrPinViewModel?>() {
       getString(R.string.CreateKbsPinFragment__pins_can_help_you_restore_your_account),
       true
     )
+    pinView.updateFieldPlaceholder(getString(R.string.CreateKbsPinFragment__create_your_pin))
   }
 
   override fun initializeViewModel(): CreateSvrPinViewModel {
@@ -62,10 +61,11 @@ class CreateSvrPinFragment : BaseSvrPinFragment<CreateSvrPinViewModel?>() {
     viewModel.navigationEvents.observe(viewLifecycleOwner) { e: NavigationEvent -> onConfirmPin(e.userEntry, e.keyboard, args.isPinChange) }
     viewModel.errorEvents.observe(viewLifecycleOwner) { e: PinErrorEvent ->
       if (e == PinErrorEvent.WEAK_PIN) {
-        // No colour on the Light Phone, so the failure is carried by size: `Copy` in white where
-        // the neutral status line is `Detail` in #BBBBBB. The rejection itself is unchanged.
+        // No colour on the Light Phone, so the failure is carried by ink: white where the neutral
+        // status line is #BBBBBB. The rejection itself is unchanged: the PIN is nudged, and only
+        // then cleared, so it is not wiped out from under a half-finished shake.
         pinView.updateLabel(getString(R.string.CreateKbsPinFragment__choose_a_stronger_pin), true)
-        shake(pinView.input) { pinView.clearInput() }
+        pinView.shakeEntry { pinView.clearInput() }
       } else {
         throw AssertionError("Unexpected PIN error!")
       }
@@ -95,29 +95,5 @@ class CreateSvrPinFragment : BaseSvrPinFragment<CreateSvrPinViewModel?>() {
 
   private fun getPinLengthRestrictionText(@PluralsRes plurals: Int): String {
     return resources.getQuantityString(plurals, SvrConstants.MINIMUM_PIN_LENGTH, SvrConstants.MINIMUM_PIN_LENGTH)
-  }
-
-  companion object {
-    /**
-     * The rejection nudge.
-     *
-     * The field is a real `EditText` hosted in Compose rather than drawn by it, which is what lets
-     * the platform animation run on it -- and the entry is only cleared in the animation's end
-     * callback, so a weak PIN is not wiped out from under a half-finished shake.
-     */
-    private fun shake(view: EditText, afterwards: Runnable) {
-      val shake = TranslateAnimation(0F, 30F, 0F, 0F)
-      shake.duration = 50
-      shake.repeatCount = 7
-      shake.setAnimationListener(object : Animation.AnimationListener {
-        override fun onAnimationStart(animation: Animation) {}
-        override fun onAnimationEnd(animation: Animation) {
-          afterwards.run()
-        }
-
-        override fun onAnimationRepeat(animation: Animation) {}
-      })
-      view.startAnimation(shake)
-    }
   }
 }

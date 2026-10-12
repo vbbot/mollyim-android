@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.activityViewModels
@@ -46,7 +45,13 @@ import org.signal.registration.R as RegistrationR
  *
  * The secondary actions -- "switch keyboard", "need help?" once it is offered, and "skip" -- are in
  * the overflow panel. Upstream they were three full-width buttons, which on the LP3's 413dp screen
- * with the system keyboard up left no room for the PIN field itself.
+ * with the system keyboard up left no room for the PIN field itself. "Switch keyboard" is also in the
+ * PIN editor, under the field, where it is needed while typing.
+ *
+ * The PIN is typed in the view's full-screen editor, which opens by itself on arrival unless a notice
+ * got there first. The keyboard's Done closes the editor; the PIN is submitted from the form's confirm
+ * action, and while it is verified the screen is a full-screen progress state. A rejection returns to
+ * the form, with the reason on the status line.
  *
  * As on the PIN restore screen, the debug-log multi-tap on the title did not survive the move: it
  * needed a title `TextView` by id, and the title is now drawn in the top bar.
@@ -94,7 +99,11 @@ class ReRegisterWithPinFragment : LoggingFragment() {
     )
     pinView.updateConfirm(label = getString(RegistrationR.string.RegistrationActivity_continue), enabled = true, busy = false)
     pinView.updateLabel("", isError = false)
-    pinView.updateKeyboardToggle(null)
+    pinView.updateFieldPlaceholder(getString(R.string.RegistrationLockFragment__enter_your_pin))
+    pinView.updateBusyHeading(getString(R.string.LightSvrPinView__checking_pin))
+    // In the editor only; on the form it is the overflow item below.
+    pinView.updateKeyboardToggle(getString(R.string.RegistrationLockFragment__switch_keyboard), onForm = false)
+    pinView.onKeyboardToggle = Runnable { reRegisterViewModel.toggleKeyboardType() }
     pinView.updateSupport(null)
     pinView.updateBackContentDescription(getString(R.string.RegistrationScreen__back_to_previous_screen))
     // Exactly what system back did here: the icon only makes it visible.
@@ -108,19 +117,9 @@ class ReRegisterWithPinFragment : LoggingFragment() {
     // soon as it is attached; until then the field is masked rather than a plain text field.
     PinKeyboardType.NUMERIC.applyInputTypeTo(input)
 
-    // `LightSvrPinView.input` adds the keyboard's no-extract-UI flags as the input connection is
-    // created, so assigning the action outright here does not drop them.
-    input.imeOptions = EditorInfo.IME_ACTION_DONE
-    input.setOnEditorActionListener { v, actionId, _ ->
-      if (actionId == EditorInfo.IME_ACTION_DONE) {
-        ViewUtil.hideKeyboard(requireContext(), v!!)
-        handlePinEntry()
-        return@setOnEditorActionListener true
-      }
-      false
-    }
-
-    enableAndFocusPinEntry()
+    // The IME action is `LightSvrPinView`'s: Done closes the editor and keeps the entry. Submitting
+    // is the form's confirm action's, and no longer the keyboard's.
+    enablePinEntry()
 
     pinView.onConfirm = Runnable {
       handlePinEntry()
@@ -129,6 +128,12 @@ class ReRegisterWithPinFragment : LoggingFragment() {
     LiveDataUtil
       .combineLatest(registrationViewModel.uiState, reRegisterViewModel.uiState) { reg, rereg -> reg to rereg }
       .observe(viewLifecycleOwner) { (registrationState, reRegisterState) -> updateViewState(registrationState, reRegisterState) }
+
+    // First arrival only, as upstream focused the field then; a recreation shows the form as it was
+    // left. A notice the observer above raises once it is started closes the editor again.
+    if (savedInstanceState == null) {
+      pinView.openEditor()
+    }
   }
 
   private fun updateViewState(state: RegistrationState, reRegisterState: ReRegisterWithPinState) {
@@ -147,7 +152,7 @@ class ReRegisterWithPinFragment : LoggingFragment() {
     }
 
     // `PinKeyboardType.applyTo` sets an icon on a Material toggle button, and there is none here;
-    // the toggle is the "switch keyboard" overflow item, whose label does not change.
+    // the toggle is "switch keyboard", in the overflow and the editor, whose label does not change.
     reRegisterState.pinKeyboardType.applyInputTypeTo(pinView.input)
 
     state.registerAccountError?.let { error ->
@@ -158,7 +163,7 @@ class ReRegisterWithPinFragment : LoggingFragment() {
 
   private fun presentProgress(inProgress: Boolean) {
     if (inProgress) {
-      ViewUtil.hideKeyboard(requireContext(), pinView.input)
+      ViewUtil.hideKeyboard(requireContext(), pinView)
       pinView.input.isEnabled = false
     } else {
       pinView.input.isEnabled = true
@@ -172,13 +177,13 @@ class ReRegisterWithPinFragment : LoggingFragment() {
 
     if (pin.isNullOrBlank()) {
       Toast.makeText(requireContext(), R.string.RegistrationActivity_you_must_enter_your_registration_lock_PIN, Toast.LENGTH_LONG).show()
-      enableAndFocusPinEntry()
+      enablePinEntry()
       return
     }
 
     if (LightRegistrationContracts.pinLength(pin, LightRegistrationContracts.PinWhitespace.TRIM_EDGES) < SvrConstants.MINIMUM_PIN_LENGTH) {
       Toast.makeText(requireContext(), getString(R.string.RegistrationActivity_your_pin_has_at_least_d_digits_or_characters, SvrConstants.MINIMUM_PIN_LENGTH), Toast.LENGTH_LONG).show()
-      enableAndFocusPinEntry()
+      enablePinEntry()
       return
     }
 
@@ -252,15 +257,13 @@ class ReRegisterWithPinFragment : LoggingFragment() {
     )
   }
 
-  private fun enableAndFocusPinEntry() {
+  /**
+   * Makes the field usable again after a check. The form is left showing, with the reason beside
+   * the PIN row, rather than the editor reopened over it: the reason is what the user needs to read
+   * next, and the row is one tap from the keyboard.
+   */
+  private fun enablePinEntry() {
     pinView.input.isEnabled = true
-    if (pinView.failureTitle != null) {
-      // A notice is up and holds the field unfocusable; closing it focuses the field again.
-      return
-    }
-    // Focusable in touch mode, which implies focusable: a notice clears both.
-    pinView.input.isFocusableInTouchMode = true
-    ViewUtil.focusAndShowKeyboard(pinView.input)
   }
 
   private fun offerNeedHelp() {
@@ -352,28 +355,20 @@ class ReRegisterWithPinFragment : LoggingFragment() {
   /**
    * Raises a notice in place of a Material dialog.
    *
-   * The keyboard is put away first: the notice is drawn in the same window as the field, and on a
-   * 413dp screen a keyboard left up would cover its actions. Hiding it is not enough on its own,
-   * because [enableAndFocusPinEntry]'s keyboard request is posted and could land after the hide.
-   * Making the field unfocusable drops its focus, and a request for a field without focus raises
-   * nothing.
+   * The view closes the PIN editor first, keyboard and all, keeping what was typed: on a 413dp
+   * screen a keyboard left up would cover the notice's actions.
    */
   private fun showNotice(title: String, message: String, actions: List<LightConfirmAction>, cancelable: Boolean = true) {
-    pinView.input.isFocusable = false
-    ViewUtil.hideKeyboard(requireContext(), pinView.input)
     noticeCancelable = cancelable
     pinView.updateNotice(title, message, actions)
     dismissNoticeOnBack.isEnabled = true
   }
 
+  /** Closes the notice onto the form. The editor stays closed; the PIN row reopens it. */
   private fun clearNotice() {
     pinView.updateNotice(null, "", emptyList())
     noticeCancelable = true
     dismissNoticeOnBack.isEnabled = false
-    pinView.input.isFocusableInTouchMode = true
-    if (pinView.input.isEnabled) {
-      ViewUtil.focusAndShowKeyboard(pinView.input)
-    }
   }
 
   /** The Material dialogs' `android.R.string.ok` positive button, which only dismissed. */

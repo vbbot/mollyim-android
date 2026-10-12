@@ -6,7 +6,6 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.Toast;
 
@@ -51,6 +50,11 @@ import java.util.List;
  * action, and notices that stop the user getting anywhere until they have read them. What this class
  * still owns is everything that must not change: the length gate, the order the observers are
  * attached in, what each failure event does to the field, and where a rejected PIN leads.
+ *
+ * <p>The PIN is typed in the view's full-screen editor, which opens by itself on arrival, as upstream
+ * focused the field with the keyboard up. The keyboard's Done closes the editor; the PIN is submitted
+ * from the form's confirm action, and while it is checked the screen is a full-screen progress
+ * state. A rejection returns to the form, with the field emptied and the reason on the status line.
  *
  * <p><strong>The Signal PIN is not an app lock.</strong> It is the credential that makes a backup
  * restorable after losing the phone, so every check below is reproduced exactly rather than
@@ -101,6 +105,8 @@ public class PinRestoreEntryFragment extends LoggingFragment {
     // had; there is no app-local equivalent and borrowing another screen's string would be worse.
     pinView.updateConfirm(getString(org.signal.registration.R.string.RegistrationActivity_continue), true, false);
     pinView.updateLabel("", false);
+    pinView.updateFieldPlaceholder(getString(R.string.RegistrationLockFragment__enter_your_pin));
+    pinView.updateBusyHeading(getString(R.string.LightSvrPinView__checking_pin));
     pinView.updateSupport(null, null);
     pinView.updateOverflowItems(Collections.singletonList(
         new LightSvrPinMenuItem(getString(R.string.PinRestoreEntryFragment_skip), this::onSkipClicked)
@@ -108,27 +114,24 @@ public class PinRestoreEntryFragment extends LoggingFragment {
 
     requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), dismissNoticeOnBack);
 
-    EditText input = pinView.getInput();
-    input.setImeOptions(EditorInfo.IME_ACTION_DONE);
-    input.setOnEditorActionListener((v, actionId, event) -> {
-      if (actionId == EditorInfo.IME_ACTION_DONE) {
-        ViewUtil.hideKeyboard(requireContext(), v);
-        onPinSubmitted();
-        return true;
-      }
-      return false;
-    });
-
-    enableAndFocusPinEntry();
+    // The IME action is the view's: Done closes the editor and keeps the entry. Submitting is the
+    // form's confirm action's, below, and no longer the keyboard's.
+    enablePinEntry();
 
     pinView.setOnConfirm(() -> {
-      ViewUtil.hideKeyboard(requireContext(), pinView.getInput());
+      ViewUtil.hideKeyboard(requireContext(), pinView);
       onPinSubmitted();
     });
 
     pinView.setOnKeyboardToggle(() -> viewModel.toggleKeyboardType());
 
     initViewModel();
+
+    // First arrival only, as upstream focused the field then; a recreation shows the form as it was
+    // left. A notice the observers above raise once they are started closes the editor again.
+    if (savedInstanceState == null) {
+      pinView.openEditor();
+    }
   }
 
   private void initViewModel() {
@@ -192,18 +195,18 @@ public class PinRestoreEntryFragment extends LoggingFragment {
         // refocused, so nothing stays on screen to explain what just happened.
         Toast.makeText(requireContext(), R.string.RegistrationActivity_you_must_enter_your_registration_lock_PIN, Toast.LENGTH_LONG).show();
         setBusy(false);
-        clearInputAndRefocus();
+        clearInputAndReenable();
         break;
       case PIN_TOO_SHORT:
         Toast.makeText(requireContext(), getString(R.string.RegistrationActivity_your_pin_has_at_least_d_digits_or_characters, MINIMUM_PIN_LENGTH), Toast.LENGTH_LONG).show();
         setBusy(false);
-        clearInputAndRefocus();
+        clearInputAndReenable();
         break;
       case PIN_INCORRECT:
         // Deliberately silent: `triesRemaining` fires alongside this and puts the failure on the
         // status line, so a toast here would say it twice.
         setBusy(false);
-        clearInputAndRefocus();
+        clearInputAndReenable();
         break;
       case PIN_LOCKED:
         onAccountLocked();
@@ -211,7 +214,7 @@ public class PinRestoreEntryFragment extends LoggingFragment {
       case NETWORK_ERROR:
         Toast.makeText(requireContext(), R.string.RegistrationActivity_error_connecting_to_service, Toast.LENGTH_LONG).show();
         setBusy(false);
-        enableAndFocusPinEntry();
+        enablePinEntry();
         break;
     }
   }
@@ -322,16 +325,21 @@ public class PinRestoreEntryFragment extends LoggingFragment {
     activity.finish();
   }
 
-  /** The rejection paths: drop what was typed, make the field usable again, and take the focus back. */
-  private void clearInputAndRefocus() {
+  /**
+   * The rejection paths: drop what was typed and make the field usable again.
+   *
+   * <p>The form is left showing, with the PIN row emptied and the reason beside it, rather than the
+   * editor reopened over it: the reason is what the user needs to read next, and the row is one tap
+   * from the keyboard.
+   */
+  private void clearInputAndReenable() {
     pinView.clearInput();
-    enableAndFocusPinEntry();
+    enablePinEntry();
   }
 
-  private void enableAndFocusPinEntry() {
+  private void enablePinEntry() {
     EditText input = pinView.getInput();
     input.setEnabled(true);
     input.setFocusable(true);
-    ViewUtil.focusAndShowKeyboard(input);
   }
 }

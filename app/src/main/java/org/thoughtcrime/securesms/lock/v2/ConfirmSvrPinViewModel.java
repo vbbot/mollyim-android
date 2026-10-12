@@ -28,6 +28,14 @@ final class ConfirmSvrPinViewModel extends ViewModel implements BaseSvrPinViewMo
 
   private final CompositeDisposable disposables = new CompositeDisposable();
 
+  /**
+   * Whether the screen has acted on {@link SaveAnimation#SUCCESS}. Here rather than on the fragment
+   * because the success state is shown for a moment before the screen acts on it, and the fragment's
+   * view can be destroyed and recreated in that moment; this is what keeps the success side effects
+   * to exactly once across that.
+   */
+  private boolean successHandled;
+
   private ConfirmSvrPinViewModel(@NonNull SvrPin pinToConfirm, @NonNull PinKeyboardType keyboard) {
     this.keyboard.setValue(keyboard);
     this.pinToConfirm = pinToConfirm;
@@ -65,6 +73,19 @@ final class ConfirmSvrPinViewModel extends ViewModel implements BaseSvrPinViewMo
       this.userEntry.setValue(SvrPin.EMPTY);
       this.label.setValue(LabelState.PIN_DOES_NOT_MATCH);
     }
+  }
+
+  /**
+   * Claims the success side effects. True the first time it is called and false ever after, so the
+   * caller that gets true is the only one that runs them.
+   */
+  @MainThread
+  boolean markSuccessHandled() {
+    if (successHandled) {
+      return false;
+    }
+    successHandled = true;
+    return true;
   }
 
   @Override

@@ -7,10 +7,19 @@ package org.thoughtcrime.securesms.lock.v2
 
 import android.app.Application
 import android.content.Context
+import androidx.activity.ComponentActivity
 import androidx.appcompat.view.ContextThemeWrapper
 import android.text.Editable
+import android.text.method.PasswordTransformationMethod
+import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,6 +35,7 @@ import assertk.assertThat
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
+import assertk.assertions.isInstanceOf
 import assertk.assertions.isTrue
 
 /**
@@ -58,6 +68,13 @@ import assertk.assertions.isTrue
  * What is asserted absolutely (rather than by reference to another assertion) is the gate itself:
  * [BaseSvrPinFragment.isEntryLongEnough] is pinned against concrete strings, so a change to what
  * "long enough" means fails here even though every other test would still agree with itself.
+ *
+ * ## The form and the editor
+ *
+ * The second half drives the view on screen, in an activity, because the editor is composition: the
+ * form's PIN row, the editor's DONE and BACK, system back, and the progress and success states that
+ * replace the form. The field is the same `EditText` throughout, so what these pin is that the
+ * editor never copies the PIN anywhere but back into it.
  */
 @RunWith(RobolectricTestRunner::class)
 // LP3 geometry: 1080x1240 at 3x, i.e. 360dp x 413dp.
@@ -67,6 +84,9 @@ class LightSvrPinViewTest {
 
   @get:Rule
   val coreUiDependenciesRule = CoreUiDependenciesRule(RuntimeEnvironment.getApplication())
+
+  @get:Rule
+  val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
   /**
    * The application, carrying the theme the PIN activities actually run under.
@@ -290,6 +310,216 @@ class LightSvrPinViewTest {
     assertThat(editorInfo.imeOptions and LIGHT_NO_EXTRACT_UI_IME_FLAGS).isEqualTo(LIGHT_NO_EXTRACT_UI_IME_FLAGS)
   }
 
+  /** Done is the view's own action, so a host that sets none still gets one that closes the editor. */
+  @Test
+  fun `the credential field's own action is Done, it is start-aligned, and it is never saved`() {
+    val input = LightSvrPinView(context).input
+
+    assertThat(input.imeOptions and EditorInfo.IME_MASK_ACTION).isEqualTo(EditorInfo.IME_ACTION_DONE)
+    assertThat(input.gravity and Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK).isEqualTo(Gravity.START)
+    assertThat(input.isSaveEnabled).isFalse()
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // The form and the editor.
+  // ---------------------------------------------------------------------------------------------
+
+  @Test
+  fun `the form shows the placeholder while empty and one mask glyph per character after`() {
+    val screen = attachedScreen()
+
+    composeTestRule.onNodeWithText(PLACEHOLDER).assertExists()
+    assertThat(screen.view.editorOpen).isFalse()
+
+    composeTestRule.runOnUiThread { screen.enter("1234") }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("\u2022\u2022\u2022\u2022").assertExists()
+    composeTestRule.onNodeWithText(PLACEHOLDER).assertDoesNotExist()
+    assertThat(screen.view.entryLength).isEqualTo(4)
+  }
+
+  @Test
+  fun `tapping the PIN row opens the editor with the field focused`() {
+    val screen = attachedScreen()
+
+    composeTestRule.onNodeWithText(PLACEHOLDER).performClick()
+    composeTestRule.waitForIdle()
+
+    assertThat(screen.view.editorOpen).isTrue()
+    assertThat(screen.view.input.isAttachedToWindow).isTrue()
+    assertThat(screen.view.input.isFocused).isTrue()
+    assertThat(screen.view.input.selectionStart).isEqualTo(0)
+    composeTestRule.onNodeWithText(DONE).assertExists()
+  }
+
+  @Test
+  fun `DONE keeps what was typed and BACK puts back what was there before`() {
+    val screen = attachedScreen()
+
+    openEditor(screen)
+    composeTestRule.runOnUiThread { screen.enter("123456") }
+    composeTestRule.onNodeWithText(DONE).performClick()
+    composeTestRule.waitForIdle()
+
+    assertThat(screen.view.editorOpen).isFalse()
+    assertThat(screen.view.input.text.toString()).isEqualTo("123456")
+
+    openEditor(screen)
+    assertThat(screen.view.input.selectionStart).isEqualTo(6)
+    composeTestRule.runOnUiThread { screen.enter("12") }
+    composeTestRule.onNodeWithContentDescription(context.getString(R.string.LightSvrPinView__close_without_saving)).performClick()
+    composeTestRule.waitForIdle()
+
+    assertThat(screen.view.editorOpen).isFalse()
+    assertThat(screen.view.input.text.toString()).isEqualTo("123456")
+    // Put back through the field, so the host's watcher re-derived the action from it.
+    assertThat(screen.view.confirmEnabled).isTrue()
+  }
+
+  @Test
+  fun `the keyboard's Done closes the editor and does not submit the step`() {
+    val screen = attachedScreen()
+    var submitted = 0
+    screen.view.onConfirm = Runnable { submitted++ }
+
+    openEditor(screen)
+    composeTestRule.runOnUiThread {
+      screen.enter("1234")
+      screen.view.input.onEditorAction(EditorInfo.IME_ACTION_DONE)
+    }
+    composeTestRule.waitForIdle()
+
+    assertThat(screen.view.editorOpen).isFalse()
+    assertThat(screen.view.input.text.toString()).isEqualTo("1234")
+    assertThat(submitted).isEqualTo(0)
+  }
+
+  @Test
+  fun `system back closes the editor and puts back the entry`() {
+    val screen = attachedScreen()
+    composeTestRule.runOnUiThread { screen.enter("1234") }
+
+    openEditor(screen)
+    composeTestRule.runOnUiThread {
+      screen.enter("")
+      composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+    }
+    composeTestRule.waitForIdle()
+
+    assertThat(screen.view.editorOpen).isFalse()
+    assertThat(screen.view.input.text.toString()).isEqualTo("1234")
+    assertThat(composeTestRule.activity.isFinishing).isFalse()
+  }
+
+  @Test
+  fun `the form's confirm action is live exactly when the entry is long enough`() {
+    val screen = attachedScreen()
+
+    composeTestRule.runOnUiThread { screen.enter("123") }
+    composeTestRule.onNodeWithText(CONFIRM).assertIsNotEnabled()
+
+    composeTestRule.runOnUiThread { screen.enter("1234") }
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText(CONFIRM).assertIsEnabled()
+  }
+
+  /** The keyboard toggle is in the editor, and on the form only where the screen keeps it there. */
+  @Test
+  fun `a toggle kept off the form is still in the editor`() {
+    val screen = attachedScreen()
+    composeTestRule.runOnUiThread { screen.view.updateKeyboardToggle(TOGGLE, onForm = false) }
+
+    composeTestRule.onNodeWithText(TOGGLE.uppercase()).assertDoesNotExist()
+
+    openEditor(screen)
+    composeTestRule.onNodeWithText(TOGGLE.uppercase()).assertExists()
+  }
+
+  @Test
+  fun `a check in flight replaces the form with the progress state and the editor cannot open`() {
+    val screen = attachedScreen()
+
+    composeTestRule.runOnUiThread {
+      screen.view.updateBusyHeading(BUSY)
+      screen.view.updateConfirm(CONFIRM, enabled = true, busy = true)
+      screen.view.openEditor()
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText(BUSY).assertExists()
+    assertThat(screen.view.editorOpen).isFalse()
+  }
+
+  @Test
+  fun `a check that starts while the editor is open closes it`() {
+    val screen = attachedScreen()
+    openEditor(screen)
+
+    composeTestRule.runOnUiThread { screen.view.updateConfirm(CONFIRM, enabled = true, busy = true) }
+    composeTestRule.waitForIdle()
+
+    assertThat(screen.view.editorOpen).isFalse()
+  }
+
+  @Test
+  fun `success replaces the screen with its heading and message`() {
+    val screen = attachedScreen()
+    openEditor(screen)
+
+    composeTestRule.runOnUiThread { screen.view.showSuccess("PIN created.", "Remember it.") }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("PIN created.").assertExists()
+    composeTestRule.onNodeWithText("Remember it.").assertExists()
+    assertThat(screen.view.editorOpen).isFalse()
+  }
+
+  @Test
+  fun `a notice closes the editor keeping the entry, and back is then the notice's`() {
+    val screen = attachedScreen()
+    openEditor(screen)
+    composeTestRule.runOnUiThread { screen.enter("1234") }
+
+    composeTestRule.runOnUiThread { screen.view.updateNotice("Notice", "Body", emptyList()) }
+    composeTestRule.waitForIdle()
+
+    assertThat(screen.view.editorOpen).isFalse()
+    assertThat(screen.view.input.text.toString()).isEqualTo("1234")
+    assertThat(screen.view.failureTitle).isEqualTo("Notice")
+  }
+
+  /** The field is hosted, not copied: the editor holds this exact instance. */
+  @Test
+  fun `the editor hosts the screen's own field`() {
+    val screen = attachedScreen()
+    PinKeyboardType.NUMERIC.applyInputTypeTo(screen.view.input)
+
+    openEditor(screen)
+
+    assertThat(screen.view.input.transformationMethod).isInstanceOf(PasswordTransformationMethod::class)
+    assertThat(screen.view.input.isAttachedToWindow).isTrue()
+  }
+
+  private fun attachedScreen(): Screen {
+    lateinit var screen: Screen
+    composeTestRule.runOnUiThread {
+      val activity = composeTestRule.activity
+      screen = Screen(ContextThemeWrapper(activity, R.style.TextSecure_LightRegistrationTheme))
+      screen.view.updateHeader("Title", "Description", learnMoreVisible = false)
+      screen.view.updateFieldPlaceholder(PLACEHOLDER)
+      activity.setContentView(screen.view)
+    }
+    composeTestRule.waitForIdle()
+    return screen
+  }
+
+  private fun openEditor(screen: Screen) {
+    composeTestRule.runOnUiThread { screen.view.openEditor() }
+    composeTestRule.waitForIdle()
+    assertThat(screen.view.editorOpen).isTrue()
+  }
+
   /**
    * A PIN screen wired the way `BaseSvrPinFragment` wires one.
    *
@@ -302,6 +532,8 @@ class LightSvrPinViewTest {
     val view = LightSvrPinView(context)
 
     init {
+      // Every host sets one; without it the action is never live, whatever the entry says.
+      view.onConfirm = Runnable { }
       view.updateConfirm("NEXT", enabled = false, busy = false)
       view.input.addTextChangedListener(
         AfterTextChanged { entry: Editable ->
@@ -317,5 +549,13 @@ class LightSvrPinViewTest {
     fun enter(entry: String) {
       view.input.setText(entry)
     }
+  }
+
+  private companion object {
+    const val PLACEHOLDER = "Create your PIN"
+    const val CONFIRM = "NEXT"
+    const val DONE = "DONE"
+    const val BUSY = "Creating PIN\u2026"
+    const val TOGGLE = "Create alphanumeric PIN"
   }
 }

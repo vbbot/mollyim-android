@@ -2,11 +2,9 @@ package org.thoughtcrime.securesms.lock.v2;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 
 import androidx.annotation.NonNull;
@@ -33,8 +31,13 @@ import java.util.List;
  * credential field is still a {@link org.thoughtcrime.securesms.components.NoAutofillEditText}, a
  * {@code TextInputEditText}, because it has to be a real focusable field for the device's system
  * IME. What this class still owns is everything that must not change -- the entry-length gate on
- * the confirm action, the keyboard-type switch, the IME action, the opt-out menu's gating, and the
- * navigation out of the graph.
+ * the confirm action, the keyboard-type switch, the opt-out menu's gating, and the navigation out of
+ * the graph.
+ *
+ * <p>The field is typed into in {@link LightSvrPinView}'s full-screen editor, and the keyboard's
+ * Done closes that editor rather than submitting: the step is submitted only by the form's confirm
+ * action, which is never under the keyboard. The editor opens by itself on arrival, as upstream
+ * focused the field with the keyboard up.
  *
  * <p><strong>Nothing here may weaken a PIN check.</strong> The Signal PIN is not an app lock; it is
  * the credential that makes a backup restorable after losing the phone. The length gate, the
@@ -90,15 +93,18 @@ public abstract class BaseSvrPinFragment<ViewModel extends BaseSvrPinViewModel> 
     updateOverflowItems();
 
     initializeListeners();
+
+    // First arrival only -- not on a recreation, where the form is shown as it was left -- and a
+    // no-op if anything already holds the screen. Opening the editor is what focuses the field and
+    // raises the Light Phone's system IME, as the focus request in `onResume` used to.
+    if (savedInstanceState == null) {
+      pinView.openEditor();
+    }
   }
 
   @Override
   public void onResume() {
     super.onResume();
-
-    // The credential field is a real, focusable `EditText` hosted in Compose, so this is the same
-    // focus request it always was -- and it is what raises the Light Phone's system IME.
-    getInput().requestFocus();
 
     // Repeated because the old code re-evaluated this in `onPrepareOptionsMenu`, which runs on
     // every invalidate, and `SignalStore` may have been written to while this screen was stopped.
@@ -175,21 +181,16 @@ public abstract class BaseSvrPinFragment<ViewModel extends BaseSvrPinViewModel> 
   private void initializeListeners() {
     getInput().addTextChangedListener(new AfterTextChanged(s -> viewModel.setUserEntry(s.toString())));
 
-    // After the keyboard observer, not before: `PinKeyboardType.applyInputTypeTo` reassigns the
-    // field's key listener, and this ordering is the one the original had.
-    getInput().setImeOptions(EditorInfo.IME_ACTION_NEXT);
-    getInput().setOnEditorActionListener(this::handleEditorAction);
+    // The field and the entry start out agreeing. The field is a new, empty `EditText` whenever this
+    // view is created -- including on the way back from the confirm screen -- while the view model
+    // outlives it, and the watcher above only reports changes. Without this the confirm action could
+    // be live, and the view model holding a PIN, over a field the form shows as empty.
+    viewModel.setUserEntry(getInput().getText().toString());
 
+    // The IME action is `LightSvrPinView`'s: Done closes the editor and keeps the entry. It no longer
+    // submits the step, which is the form's confirm action's to do.
     pinView.setOnKeyboardToggle(() -> viewModel.toggleAlphaNumeric());
     pinView.setOnConfirm(() -> viewModel.confirm());
-  }
-
-  private boolean handleEditorAction(@NonNull View view, int actionId, @NonNull KeyEvent event) {
-    if (actionId == EditorInfo.IME_ACTION_NEXT && pinView.getConfirmEnabled()) {
-      viewModel.confirm();
-    }
-
-    return true;
   }
 
   /**
