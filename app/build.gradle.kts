@@ -94,7 +94,7 @@ buildTypes {
         storeFile = file(path)
         storePassword = System.getenv("CI_KEYSTORE_PASSWORD")
         keyAlias = System.getenv("CI_KEYSTORE_ALIAS")
-        keyPassword = System.getenv("CI_KEYSTORE_PASSWORD")
+        keyPassword = System.getenv("CI_KEY_PASSWORD") ?: System.getenv("CI_KEYSTORE_PASSWORD")
         enableV4Signing = false
       }
     }
