@@ -69,12 +69,6 @@ private const val ROW_HORIZONTAL_PADDING_UNITS = 0.5f
 private val ROW_VERTICAL_PADDING = 12.dp
 
 /**
- * Height of the bare spacer that stands in for a top bar. The Light chat list is a "list home"
- * screen: it has no persistent top bar, just this 2-unit breathing space.
- */
-private const val HEADER_SPACER_UNITS = 2f
-
-/**
  * The Light Phone conversation list.
  *
  * This is a direct port of the Light reference client's chat list
@@ -103,12 +97,8 @@ fun LightConversationListScreen(
       // white-on-white / black-on-black.
       .background(LightThemeTokens.colors.background)
   ) {
-    Box(
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(HEADER_SPACER_UNITS.gridUnitsAsDp())
-    )
-
+    // No header spacer: MainLightTopBar sits directly above this list and replaces the bare 2 grid
+    // unit spacer the reference client draws on a list home with no top bar.
     Box(modifier = Modifier.weight(1f)) {
       if (state.rows.isEmpty()) {
         LightStatusText(state.emptyText.orEmpty())

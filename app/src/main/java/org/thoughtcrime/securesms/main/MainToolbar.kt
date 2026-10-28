@@ -13,7 +13,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -156,35 +155,32 @@ data class MainToolbarState(
 @Composable
 fun MainToolbar(
   state: MainToolbarState,
-  callback: MainToolbarCallback
+  callback: MainToolbarCallback,
+  floatingActionButtonsCallback: MainFloatingActionButtonsCallback
 ) {
   Crossfade(
     targetState = state.mode.crossFadeKey
   ) { targetState ->
     when (targetState) {
-      MainToolbarMode.CrossFadeKey.FULL -> Box {
-        // No persistent top bar. The Light chat list is a "list home" screen: it draws its own
-        // 2 grid unit spacer and keeps every affordance in the bottom bar, so all that is left to
-        // reserve here is the status bar inset the removed TopAppBar used to consume for us.
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.statusBars)
+      // Search swaps in for the top bar outright rather than being revealed over it. The circular
+      // reveal this replaced was a Material motion idiom, and nothing else in the Light port animates
+      // a surface into existence -- the tabs, the action panel and every list swap directly. It also
+      // read badly here specifically: the field is a full-bleed black row with a white rule under it,
+      // so a circular clip wiped that rule on in an arc, which is the one part of the control the eye
+      // actually tracks. FULL and SEARCH share a cross-fade key, so the swap is not faded either.
+      MainToolbarMode.CrossFadeKey.FULL -> if (state.mode == MainToolbarMode.SEARCH) {
+        SearchToolbar(
+          state = state,
+          callback = callback,
+          modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
         )
-
-        // Swapped in outright rather than revealed. The circular reveal this replaced was a
-        // Material motion idiom, and nothing else in the Light port animates a surface into
-        // existence -- the tabs, the action panel and every list swap directly. It also read badly
-        // here specifically: the field is a full-bleed black row with a white rule under it, so a
-        // circular clip wiped that rule on in an arc, which is the one part of the control the eye
-        // actually tracks.
-        if (state.mode == MainToolbarMode.SEARCH) {
-          SearchToolbar(
-            state = state,
-            callback = callback,
-            modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
-          )
-        }
+      } else {
+        MainLightTopBar(
+          toolbarState = state,
+          toolbarCallback = callback,
+          floatingActionButtonsCallback = floatingActionButtonsCallback,
+          modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
+        )
       }
 
       MainToolbarMode.CrossFadeKey.BASIC -> ArchiveToolbar(state, callback)
@@ -211,8 +207,7 @@ private fun ActionModeToolbar(
  *
  * This replaced a Material 3 filled `TextField` -- a grey rounded capsule with a floating
  * placeholder -- which was the last piece of Material chrome on the app's main screen and looked it:
- * the screen behind it has no top bar at all any more, so the capsule appeared out of nowhere,
- * sitting on a surface colour nothing else on the screen used.
+ * the capsule sat on a surface colour nothing else on the screen used.
  *
  * It is the *same* control as the contact picker's, [LightSearchField], rather than a second field
  * that resembles it -- see that file for the shape and for why an ordinary Compose text field is all
@@ -222,8 +217,9 @@ private fun ActionModeToolbar(
  *
  * - **The leading glyph is BACK, and it is tappable.** In the picker the field filters a list that
  *   is on screen either way, so its leading slot is a decorative magnifier. Here the field *is* the
- *   search mode, and the Light bottom bar is hidden while that mode is up (`MainActivity` only shows
- *   it in `FULL`), so without this the only way out would be the system back gesture.
+ *   search mode: the field takes the top bar's place, and the Light bottom bar is hidden while that
+ *   mode is up (`MainActivity` only shows it in `FULL`), so without this the only way out would be
+ *   the system back gesture.
  * - **The labs search filter keeps its entry point.** `SignalStore.labs.betterSearch` is off by
  *   default and `SearchFilterBottomSheet` is deliberately untouched, so the glyph is drawn through
  *   [rememberLightTintedPainter] rather than left as a raw Signal drawable -- `symbol_filter_24` is
@@ -347,7 +343,8 @@ private fun FullMainToolbarPreview() {
         override fun onCloseSearchClick() {
           mode = MainToolbarMode.FULL
         }
-      }
+      },
+      floatingActionButtonsCallback = MainFloatingActionButtonsCallback.Empty
     )
   }
 }
