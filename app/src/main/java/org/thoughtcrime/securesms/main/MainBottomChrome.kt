@@ -70,8 +70,8 @@ fun MainBottomChrome(
       .animateContentSize()
   ) {
     // The camera and compose floating action buttons used to sit here, floating over the list and
-    // covering its timestamp column. They now live in MainLightBottomBar: compose as a bar slot,
-    // camera inside the overflow menu. Tablet/rail layouts still get their FABs inline from
+    // covering its timestamp column. Compose is now a MainLightBottomBar slot, and camera sits in
+    // MainLightTopBar's overflow menu. Tablet/rail layouts still get their FABs inline from
     // MainNavigationRail, which is untouched.
 
     if (state.mainToolbarMode == MainToolbarMode.FULL) {

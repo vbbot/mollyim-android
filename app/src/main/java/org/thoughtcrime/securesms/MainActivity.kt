@@ -544,7 +544,6 @@ class MainActivity :
             if (isNavigationBarVisible) {
               MainLightBottomBar(
                 toolbarState = mainToolbarState,
-                toolbarCallback = toolbarCallback,
                 floatingActionButtonsCallback = mainBottomChromeCallback,
                 onDestinationSelected = mainNavigationCallback,
                 modifier = Modifier.clip(contentLayoutData.navigationBarShape)
@@ -576,7 +575,8 @@ class MainActivity :
             ) {
               MainToolbar(
                 state = mainToolbarState,
-                callback = toolbarCallback
+                callback = toolbarCallback,
+                floatingActionButtonsCallback = mainBottomChromeCallback
               )
 
               Box(

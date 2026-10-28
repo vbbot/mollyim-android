@@ -26,12 +26,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import io.mockk.every
 import io.mockk.mockkObject
-import io.mockk.mockk
 import io.mockk.unmockkObject
-import io.mockk.verify
 import org.junit.After
 import org.junit.Before
-import org.thoughtcrime.securesms.calls.log.CallLogFilter
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -71,17 +68,25 @@ class MainLightBottomBarTest {
   }
 
   @Test
-  fun `chats destination renders all five slots`() {
+  fun `chats destination renders chats, calls and compose`() {
     setBottomBar(MainNavigationListLocation.CHATS)
 
-    assertSlotsDisplayed("Chats", "Calls", "New chat", "Search", "More options")
+    assertSlotsDisplayed("Chats", "Calls", "New chat")
+  }
+
+  @Test
+  fun `search and overflow are no longer bottom bar slots`() {
+    setBottomBar(MainNavigationListLocation.CHATS)
+
+    composeTestRule.onNodeWithContentDescription("Search").assertDoesNotExist()
+    composeTestRule.onNodeWithContentDescription("More options").assertDoesNotExist()
   }
 
   @Test
   fun `calls destination swaps the create slot rather than adding one`() {
     setBottomBar(MainNavigationListLocation.CALLS)
 
-    assertSlotsDisplayed("Chats", "Calls", "Start a new call", "Search", "More options")
+    assertSlotsDisplayed("Chats", "Calls", "Start a new call")
   }
 
   @Test
@@ -90,7 +95,6 @@ class MainLightBottomBarTest {
     composeTestRule.setContent {
       MainLightBottomBar(
         toolbarState = MainToolbarState(destination = MainNavigationListLocation.CHATS),
-        toolbarCallback = MainToolbarCallback.Empty,
         floatingActionButtonsCallback = MainFloatingActionButtonsCallback.Empty,
         onDestinationSelected = { selected = it }
       )
@@ -99,100 +103,6 @@ class MainLightBottomBarTest {
     composeTestRule.onNodeWithContentDescription("Calls").performClick()
 
     assertThat(selected).isEqualTo(MainNavigationListLocation.CALLS)
-  }
-
-  /**
-   * Uses the calls destination purely because `ChatDropdownItems` reads `SignalStore`, which is not
-   * initialized in a plain Robolectric test. The re-anchoring being verified -- the bar's overflow
-   * icon driving the menu that used to hang off the top bar -- is the same either way.
-   */
-  @Test
-  fun `tapping overflow opens the menu that used to hang off the top bar, now carrying camera`() {
-    setBottomBar(MainNavigationListLocation.CALLS)
-
-    composeTestRule.onNodeWithContentDescription("More options").performClick()
-
-    composeTestRule.onNodeWithText("OPEN CAMERA").assertIsDisplayed()
-    composeTestRule.onNodeWithText("SETTINGS").assertIsDisplayed()
-    composeTestRule.onNodeWithText("CLEAR CALL HISTORY").assertIsDisplayed()
-  }
-
-  @Test
-  fun `calls overflow with all calls offers missed filter`() {
-    setBottomBar(MainNavigationListLocation.CALLS)
-    composeTestRule.onNodeWithContentDescription("More options").performClick()
-
-    composeTestRule.onNodeWithText("FILTER MISSED CALLS").assertIsDisplayed()
-    composeTestRule.onNodeWithText("CLEAR FILTER").assertDoesNotExist()
-  }
-
-  @Test
-  fun `calls overflow with filtered calls offers clear filter`() {
-    setBottomBar(
-      state = MainToolbarState(
-        destination = MainNavigationListLocation.CALLS,
-        callFilter = CallLogFilter.MISSED
-      )
-    )
-    composeTestRule.onNodeWithContentDescription("More options").performClick()
-
-    composeTestRule.onNodeWithText("CLEAR FILTER").assertIsDisplayed()
-    composeTestRule.onNodeWithText("FILTER MISSED CALLS").assertDoesNotExist()
-  }
-
-  @Test
-  fun `story overflow keeps only story privacy destination action`() {
-    setBottomBar(MainNavigationListLocation.STORIES)
-    composeTestRule.onNodeWithContentDescription("More options").performClick()
-
-    composeTestRule.onNodeWithText("STORY PRIVACY").assertIsDisplayed()
-    composeTestRule.onNodeWithText("SETTINGS").assertDoesNotExist()
-  }
-
-  @Test
-  fun `archive overflow keeps no destination-specific actions`() {
-    setBottomBar(MainNavigationListLocation.ARCHIVE)
-    composeTestRule.onNodeWithContentDescription("More options").performClick()
-
-    composeTestRule.onNodeWithText("OPEN CAMERA").assertIsDisplayed()
-    composeTestRule.onNodeWithText("SETTINGS").assertDoesNotExist()
-    composeTestRule.onNodeWithText("STORY PRIVACY").assertDoesNotExist()
-  }
-
-  @Test
-  fun `overflow action delegates to toolbar callback and dismisses panel`() {
-    val callback = mockk<MainToolbarCallback>(relaxUnitFun = true)
-    setBottomBar(
-      state = MainToolbarState(destination = MainNavigationListLocation.CALLS),
-      toolbarCallback = callback
-    )
-    composeTestRule.onNodeWithContentDescription("More options").performClick()
-
-    composeTestRule.onNodeWithText("CLEAR CALL HISTORY").performClick()
-
-    verify(exactly = 1) { callback.onClearCallHistoryClick() }
-    composeTestRule.onNodeWithText("CLEAR CALL HISTORY").assertDoesNotExist()
-  }
-
-  @Test
-  fun `proxy action is absent when proxy state is none`() {
-    setBottomBar(MainNavigationListLocation.CALLS)
-    composeTestRule.onNodeWithContentDescription("More options").performClick()
-
-    composeTestRule.onNodeWithText("PROXY").assertDoesNotExist()
-  }
-
-  @Test
-  fun `proxy action is present when proxy has state`() {
-    setBottomBar(
-      state = MainToolbarState(
-        destination = MainNavigationListLocation.CALLS,
-        proxyState = MainToolbarState.ProxyState.CONNECTED
-      )
-    )
-    composeTestRule.onNodeWithContentDescription("More options").performClick()
-
-    composeTestRule.onNodeWithText("PROXY").assertIsDisplayed()
   }
 
   /**
@@ -219,8 +129,7 @@ class MainLightBottomBarTest {
 
         MainLightBottomBar(
           toolbarState = MainToolbarState(destination = MainNavigationListLocation.CHATS),
-          toolbarCallback = MainToolbarCallback.Empty,
-          floatingActionButtonsCallback = MainFloatingActionButtonsCallback.Empty,
+            floatingActionButtonsCallback = MainFloatingActionButtonsCallback.Empty,
           onDestinationSelected = {}
         )
       }
@@ -235,17 +144,9 @@ class MainLightBottomBarTest {
   }
 
   private fun setBottomBar(destination: MainNavigationListLocation) {
-    setBottomBar(state = MainToolbarState(destination = destination))
-  }
-
-  private fun setBottomBar(
-    state: MainToolbarState,
-    toolbarCallback: MainToolbarCallback = MainToolbarCallback.Empty
-  ) {
     composeTestRule.setContent {
       MainLightBottomBar(
-        toolbarState = state,
-        toolbarCallback = toolbarCallback,
+        toolbarState = MainToolbarState(destination = destination),
         floatingActionButtonsCallback = MainFloatingActionButtonsCallback.Empty,
         onDestinationSelected = {}
       )

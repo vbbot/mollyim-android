@@ -450,7 +450,6 @@ private fun AppScaffoldPreview() {
       bottomNavContent = {
         MainLightBottomBar(
           toolbarState = MainToolbarState(),
-          toolbarCallback = MainToolbarCallback.Empty,
           floatingActionButtonsCallback = MainFloatingActionButtonsCallback.Empty,
           onDestinationSelected = {}
         )

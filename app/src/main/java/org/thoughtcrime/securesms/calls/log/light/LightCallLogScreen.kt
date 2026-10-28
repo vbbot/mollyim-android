@@ -67,12 +67,6 @@ private const val ROW_HORIZONTAL_PADDING_UNITS = 0.5f
 /** Row vertical padding, straight from the reference client. */
 private val ROW_VERTICAL_PADDING = 12.dp
 
-/**
- * Height of the bare spacer that stands in for a top bar. The Light call log is a "list home"
- * screen, like the chat list: no persistent top bar, just this 2-unit breathing space.
- */
-private const val HEADER_SPACER_UNITS = 2f
-
 /** Gap between the two lines of the empty state. */
 private const val EMPTY_STATE_GAP_UNITS = 0.5f
 
@@ -114,12 +108,8 @@ fun LightCallLogScreen(
       // white-on-white / black-on-black.
       .background(LightThemeTokens.colors.background)
   ) {
-    Box(
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(HEADER_SPACER_UNITS.gridUnitsAsDp())
-    )
-
+    // No header spacer: MainLightTopBar sits directly above this list and replaces the bare 2 grid
+    // unit spacer the reference client draws on a list home with no top bar.
     Box(modifier = Modifier.weight(1f)) {
       if (state.rows.isEmpty()) {
         LightStatusText(title = state.emptyTitle.orEmpty(), body = state.emptyBody.orEmpty())
