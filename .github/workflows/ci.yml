@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Free up disk space in runner
+        uses: ./.github/actions/disk-cleanup
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: "21"
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Molly's settings for builds without a long-lived daemon (no configuration cache, serial).
+      - name: Copy CI gradle.properties
+        run: cp gradle.properties.docker "$GRADLE_USER_HOME/gradle.properties"
+
+      # The debug build signs with Android Studio's default keystore, which a fresh runner lacks.
+      - name: Create debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkeypair -keystore ~/.android/debug.keystore -storepass android -keypass android \
+            -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+
+      - name: Test and build debug APK
+        run: ./gradlew :app:testProdWebsiteDebugUnitTest :app:assembleProdWebsiteDebug
+
+      - name: Name APK
+        run: |
+          version="$(sed -n 's/^val canonicalVersionName = "\(.*\)"/\1/p' app/build.gradle.kts)-$(sed -n 's/^val mollyRevision = \([0-9]*\)/\1/p' app/build.gradle.kts)"
+          name="molly_debug_${version}_${GITHUB_SHA::7}"
+          echo "APK_NAME=$name" >> "$GITHUB_ENV"
+          mv app/build/outputs/apk/prodWebsite/debug/app-prod-website-debug.apk "$GITHUB_WORKSPACE/$name.apk"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.APK_NAME }}
+          path: ${{ env.APK_NAME }}.apk
+
+      - name: Archive reports for failed build
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports-${{ github.run_id }}
+          path: |
+            **/build/reports
+            **/build/test-results
+          if-no-files-found: ignore

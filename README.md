@@ -107,6 +107,21 @@ Molly supports reproducible builds, so that anyone can run the build process to 
 
 Please check the guide in the [reproducible-builds](https://github.com/mollyim/mollyim-android/blob/master/reproducible-builds) directory.
 
+## Release (Light Phone fork)
+
+Every push runs CI: unit tests and a `prodWebsiteDebug` APK, uploaded as a build artifact.
+
+Push a tag matching `versionName` in `app/build.gradle.kts` (`<canonicalVersionName>-<mollyRevision>`,
+e.g. `v8.19.2-4`). The release workflow builds a signed, minified `prodWebsiteRelease` APK and
+publishes it. It needs these repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `KEY_STORE_BASE64` | `base64 -i release.jks` |
+| `KEY_STORE_PASSWORD` | keystore password |
+| `ALIAS` | key alias |
+| `KEY_PASSWORD` | key password |
+
 ## Changelog
 
 See the [Changelog](https://github.com/mollyim/mollyim-android/wiki/Changelog) to view recent changes.

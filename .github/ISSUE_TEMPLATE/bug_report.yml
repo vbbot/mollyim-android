@@ -1,63 +1,38 @@
-name: "🐛 Bug Report"
-description: "Help us fix issues by providing a detailed report."
+name: Bug report
+description: Report something that doesn't work
+labels: ["bug"]
 body:
-  - type: checkboxes
-    id: guidelines
-    attributes:
-      label: "Guidelines"
-      description: |
-        Please check whether this issue has already been reported to avoid duplicates.
-        [Search existing issues](https://github.com/mollyim/mollyim-android/issues?q=is%3Aissue+-type%3AFeature).
-      options:
-        - label: "Yes, I have searched for existing issues"
-          required: true
   - type: textarea
-    id: description-of-bug
+    id: description
     attributes:
-      label: "Bug Description"
-      description: "Explain the problem clearly, including the steps to reproduce it."
-      placeholder: "What did you do, and what went wrong?"
+      label: What happened
+      placeholder: The chat list doesn't scroll with the scroll wheel.
     validations:
       required: true
   - type: textarea
-    id: screenshots
+    id: steps
     attributes:
-      label: "Screenshots"
-      description: "How to take screenshots: https://support.google.com/android/answer/9075928"
-      placeholder: "Drag and drop images or videos here."
-    validations:
-      required: false
-  - type: input
-    id: app-version
-    attributes:
-      label: "App Version"
-      description: "Molly app ► Settings ► Help"
-      placeholder: "e.g. v7.21.5-2"
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a chat
+        2. Tap the call button
     validations:
       required: true
   - type: input
-    id: device-model
+    id: version
     attributes:
-      label: "Device Model"
-      description: "System Settings ► About Phone"
-      placeholder: "e.g. Pixel 9"
+      label: App version
+      placeholder: v8.19.2-4
     validations:
-      required: false
+      required: true
   - type: input
-    id: android-version
+    id: device
     attributes:
-      label: "Android Version"
-      description: "System Settings ► About Phone"
-      placeholder: "e.g. Android 14"
-    validations:
-      required: false
-  - type: input
-    id: debug-log
+      label: Device
+      placeholder: Light Phone III
+  - type: textarea
+    id: logs
     attributes:
-      label: "Link to Debug Log"
-      description: |
-        If possible, include a debug log: Molly app ► Settings ► Help ► Debug Log.
-        Copy the generated link here. Logs cover about 24 hours, so capture it soon after the issue occurs.
-      placeholder: "e.g. https://debuglogs.org/..."
-    validations:
-      required: false
+      label: Logs
+      description: Output of `adb logcat`, if you can get it. Remove phone numbers first.
+      render: text
