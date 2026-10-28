@@ -8,6 +8,7 @@ import io.mockk.every
 import io.mockk.mockkStatic
 import org.junit.Assert.assertEquals
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -16,11 +17,17 @@ import org.signal.core.models.media.Media
 import org.signal.core.models.media.TransformProperties
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.testutil.EmptyLogger
+import org.thoughtcrime.securesms.testutil.MockAppDependenciesRule
 import org.thoughtcrime.securesms.util.MediaUtil
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, application = Application::class)
 class MediaRepositoryTest {
+
+  // MediaUtil.getMimeType loads PartAuthority, whose static initializer reads AppDependencies.blobs.
+  @get:Rule
+  val appDependencies = MockAppDependenciesRule()
+
   private lateinit var context: Context
 
   @Before
